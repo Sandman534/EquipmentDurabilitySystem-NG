@@ -467,7 +467,7 @@ void INIFile::SetINIData1(std::list<CSimpleIniA::Entry> *list, const char* secti
 					degradationMap.at(key) = iValue;
 				} else if (stricmp(str.pItem,"temperchance") || stricmp(str.pItem,"vendortemperchance") || stricmp(str.pItem,"bosstemperchance")) {
 					temperMap.at(key) = iValue;
-				} else if (stricmp(str.pItem,"enchantchance") || stricmp(str.pItem,"vendortemperchance")|| stricmp(str.pItem,"bossenchantchance")) {
+				} else if (stricmp(str.pItem,"enchantchance") || stricmp(str.pItem,"vendorenchantchance")|| stricmp(str.pItem,"bossenchantchance")) {
 					enchantMap.at(key) = iValue;
 				} else if (stricmp(str.pItem,"scale")|| stricmp(str.pItem,"togglekeycode") || stricmp(str.pItem,"flags") || stricmp(str.pItem,"toggleDuration")) {
 					widgetMap.at(key) = iValue;

@@ -397,11 +397,17 @@ static void DynamicTemperEnchant() {
 					// Get Location Type
 					RE::ExtraLocationRefType * xRefType = static_cast<RE::ExtraLocationRefType*>(ref->extraList.GetByType(RE::ExtraDataType::kLocationRefType));
 
+					const char* test = ref->GetName();
+					const char* test1 = ref->GetDisplayFullName();
+					const RE::TESForm* test2 = ref->GetOwner();
+
+					const char* test3 = eqD.pForm->GetName();
+
 					// Temper
 					if (ini.GetTemperSettings("DisableDynamicTemper") == 0) {
 						int chanceTemper = ini.GetTemperSettings("TemperChance");
 						if (ref->GetBaseObject()->formType == RE::FormType::Container && ini.IsVendorContainer(ref))
-							chanceTemper = ini.GetEnchantSettings("VendorTemperChance");
+							chanceTemper = ini.GetTemperSettings("VendorTemperChance");
 						else if (xRefType && (xRefType->locRefType == utility->locationBoss || xRefType->locRefType == utility->locationBossContainer))
 							chanceTemper = ini.GetTemperSettings("BossTemperChance");
 
