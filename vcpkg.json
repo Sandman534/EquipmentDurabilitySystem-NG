@@ -1,5 +1,5 @@
 {
-    "name":  "swiftpotion-ng",
+    "name":  "equipmentdurabilitysystem-ng",
     "version-string":  "1.0.0",
     "description":  "",
     "license":  "MIT",
@@ -8,7 +8,7 @@
                      ],
     "features":  {
                      "mo2-install":  {
-                                         "description":  "SwiftPotion-NG"
+                                         "description":  "EquipmentDurabilitySystem-NG"
                                      }
                  }
 }

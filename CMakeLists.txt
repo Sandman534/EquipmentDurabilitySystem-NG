@@ -12,7 +12,7 @@ include(GNUInstallDirs)
 
 # info
 project(
-	SwiftPotion-NG
+	EquipmentDurabilitySystem-NG
 	VERSION 1.0.0
 	LANGUAGES CXX
 )
