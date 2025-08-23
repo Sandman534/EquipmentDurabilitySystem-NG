@@ -105,10 +105,28 @@
 // winnt
 #include <ShlObj_core.h>
 
+// sink
+#include <spdlog/sinks/basic_file_sink.h>
+#include <spdlog/sinks/msvc_sink.h>
+
+
 using namespace std::literals;
 using namespace REL::literals;
 
-#define DLLEXPORT extern "C" [[maybe_unused]] __declspec(dllexport)
+#define DLLEXPORT __declspec(dllexport)
+
+namespace logger = SKSE::log;
+
+namespace stl
+{
+	using namespace SKSE::stl;
+}
+
+namespace util
+{
+	using SKSE::stl::report_and_fail;
+}
+
 
 // Plugin
 #include "Plugin.h"

@@ -1,0 +1,7 @@
+.vscode/
+CMakeLists.txt
+CMakePresets.json
+vcpkg.json
+*.ps1
+.clang-format
+cmake/
