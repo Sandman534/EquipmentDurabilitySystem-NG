@@ -8,9 +8,6 @@ public:
     RE::BGSKeyword* keywordJewelry;
     RE::BGSKeyword* keywordMagicDisallow;
 
-    RE::TESFaction* factionFollower1;
-    RE::TESFaction* factionFollower2;
-
     RE::BGSLocationRefType* locationBoss;
     RE::BGSLocationRefType* locationBossContainer;
 
@@ -94,18 +91,18 @@ public:
 			} else {
 				if (const auto gridLength = tesSingleton->gridCells ? tesSingleton->gridCells->length : 0;
 					gridLength > 0) {
-					const float yPlus = originPos.y + radius;
-					const float yMinus = originPos.y - radius;
-					const float xPlus = originPos.x + radius;
-					const float xMinus = originPos.x - radius;
+					const float searchMaxY = originPos.y + radius;
+					const float searchMinY = originPos.y - radius;
+					const float searchMaxX = originPos.x + radius;
+					const float searchMinX = originPos.x - radius;
 
 					for (std::uint32_t x = 0; x < gridLength; ++x) {
 						for (std::uint32_t y = 0; y < gridLength; ++y) {
 							if (const auto cell = tesSingleton->gridCells->GetCell(x, y); cell && cell->IsAttached()) {
 								if (const auto cellCoords = cell->GetCoordinates(); cellCoords) {
 									const RE::NiPoint2 worldPos{ cellCoords->worldX, cellCoords->worldY };
-									if (worldPos.x < xPlus && (worldPos.x + 4096.0f) > xMinus &&
-										worldPos.y < yPlus && (worldPos.y + 4096.0f) > yMinus) {
+									if (worldPos.x < searchMaxX && (worldPos.x + 4096.0f) > searchMinX &&
+										worldPos.y < searchMaxY && (worldPos.y + 4096.0f) > searchMinY) {
 										cell->ForEachReferenceInRange(originPos, radius,
 											[&](RE::TESObjectREFR* a_ref) {
 												return callback(*a_ref);

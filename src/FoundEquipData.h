@@ -1,36 +1,47 @@
 #pragma once
 
 
-struct FoundEquipData {
-	RE::TESForm* pForm;
-	RE::ExtraDataList* pExtraData;
-	std::string name;
+class FoundEquipData {
+public:
+	RE::TESForm* baseForm;
+	RE::ExtraDataList* objectData;
+	RE::TESBoundObject* refForm;
+	std::string objectName;
+	
 
-	FoundEquipData() : pForm(nullptr), pExtraData(nullptr) {
-	}
-	explicit FoundEquipData(RE::TESForm* a_pForm) : pForm(a_pForm), pExtraData(nullptr) {
-	}
+	// Regular Generators
+	FoundEquipData() : baseForm(nullptr), objectData(nullptr), refForm(nullptr) {}
+	explicit FoundEquipData(RE::TESForm* a_Form) : baseForm(a_Form), objectData(nullptr), refForm(nullptr) {}
+	explicit FoundEquipData(RE::TESForm* a_Form, RE::ExtraDataList* a_ExtraData) : baseForm(a_Form), objectData(a_ExtraData), refForm(nullptr) {}
 
-	void GenerateName();
+	// Naming
+	void CreateName();
+	void SetBrokenName();
+	void SetFixedName();
 
+	// Item Getters
 	float GetItemHealthPercent();
-	void SetItemHealthPercent(float value);
+	float GetItemHealthForWidget();
+	float GetItemHealthRounded();
 
-	int GetRandom(int a, int b);
-	int GetEnchantmentListSize();
+	// Item Setters
+	void SetItemHealthPercent(float value);
 	void SetItemEnchantment(int level);
 	
-	std::string GetType();
-
+	// Status Checks
 	bool IsTempered();
 	bool IsEnchanted();
-
+	bool IsBroken();
 	bool CanBreak();
 	bool CanTemper();
 
-	float BreakChance();
-	float DegredationRate();
-
-	static FoundEquipData FindEquippedWeapon(RE::InventoryChanges *exChanges, bool abLeftHand, RE::TESForm* form);
-	static FoundEquipData FindEquippedArmor(RE::InventoryChanges *exChanges, RE::BGSBipedObjectForm::BipedObjectSlot slotMask);
+private:
+	int GetRandom(int a, int b);
+	int GetEnchantmentListSize();
+	std::string GetType();
+	float RoundTo5Decimals(float value);
+	float Truncate3(float value);
 };
+
+FoundEquipData FindEquippedWeapon(RE::InventoryChanges* a_Changes, RE::TESForm* a_Form, bool a_LeftHand);
+FoundEquipData FindEquippedArmor(RE::InventoryChanges* a_Changes, RE::BGSBipedObjectForm::BipedObjectSlot a_SlotMask);

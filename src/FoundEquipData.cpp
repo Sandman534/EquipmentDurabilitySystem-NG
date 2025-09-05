@@ -3,300 +3,322 @@
 #include "Settings.h"
 #include "Utility.h"
 
-void FoundEquipData::GenerateName() {
-	if (!pForm || !pExtraData)
-		return;
+void FoundEquipData::CreateName() {
+	if (!baseForm || !objectData) return;
 
-	RE::InventoryEntryData NewEntry = RE::InventoryEntryData(pForm->As<RE::TESBoundObject>(), pExtraData->GetCount());
-	NewEntry.AddExtraList(pExtraData);
+    // Resolve the extra data to an object to pull information about it
+    RE::InventoryEntryData entry(baseForm->As<RE::TESBoundObject>(), objectData->GetCount());
+    entry.AddExtraList(objectData);
 
-	// Set name to unarmed, or the object fine
-	if (pForm->formID == 0x0001F4)
-		name = "Unarmed";
-	else
-		name = std::string(NewEntry.GetDisplayName());
+	// Get the basic name
+    objectName = (baseForm->formID == 0x0001F4) ? "Unarmed" : std::string(entry.GetDisplayName());
 
-	// Add the poison if applicable
-	if (pForm->IsWeapon() && ini.GetWidgetSettings("HidePoisonName") == 0 && pExtraData->HasType(RE::ExtraDataType::kPoison)) {
-		RE::ExtraPoison* xPoison = static_cast<RE::ExtraPoison*>(pExtraData->GetByType(RE::ExtraDataType::kPoison));
-		if (xPoison && xPoison->poison)
-			name += " " + std::string(xPoison->poison->GetFullName()) + " (" + std::to_string(xPoison->count) + ")";
+    // Append poison name if applicable
+	if (baseForm->IsWeapon() && Settings::GetSingleton()->ED_Widget_ShowPoisonName && objectData->HasType(RE::ExtraDataType::kPoison)) {
+        if (auto* xPoison = static_cast<RE::ExtraPoison*>(objectData->GetByType(RE::ExtraDataType::kPoison))) {
+            if (xPoison->poison) objectName += " " + std::string(xPoison->poison->GetFullName()) + " (" + std::to_string(xPoison->count) + ")";
+        }
+    }
+}
+
+void FoundEquipData::SetBrokenName() {
+	if (!objectData) return;
+
+    // Get the text data
+    RE::ExtraTextDisplayData* textData = objectData->GetExtraTextDisplayData();
+	if (!textData) return;
+
+    // Get the current name and remove any 
+    std::string oldName = textData->displayName.c_str();
+
+    // Remove any tempering name from the object
+	if (GetItemHealthPercent() >= 1.1f) {
+		std::size_t pos = oldName.rfind('(');
+		if (pos != std::string::npos) {
+			oldName = oldName.substr(0, pos);
+			if (!oldName.empty() && oldName.back() == ' ')
+				oldName.pop_back();
+		}
 	}
-	NewEntry.extraLists->clear();
+
+    // Set the name and prefix it with the broken attribute
+	std::string newName = "[B]";
+	newName += oldName;
+
+    // Assign back to displayName (BSFixedString)
+	textData->SetName(newName.c_str());
+
+}
+
+void FoundEquipData::SetFixedName() {
+	if (!baseForm || !objectData) return;
+
+    // Get the text data
+    RE::ExtraTextDisplayData* textData = objectData->GetExtraTextDisplayData();
+	if (!textData) return;
+
+    // Create a new string with the prefix
+    std::string name = textData->displayName.c_str();
+
+    // Find and remove "[B]"
+    const std::string brokenTag = "[B]";
+    size_t pos = name.find(brokenTag);
+    if (pos != std::string::npos)
+        name.erase(pos, brokenTag.length());
+
+    // Assign back to displayName (BSFixedString)
+	textData->SetName(name.c_str());
+
+}
+
+float FoundEquipData::GetItemHealthForWidget() {
+	if (!objectData) return 1.1f;
+    if (auto* xHealth = objectData->GetByType<RE::ExtraHealth>()) return Truncate3(xHealth->health) + 0.001f;
+	return 1.1f;
 }
 
 float FoundEquipData::GetItemHealthPercent() {
-	if (!pExtraData)
-		return 1.0f;
+	if (!objectData) return 1.099f;
+    if (auto* xHealth = objectData->GetByType<RE::ExtraHealth>()) return xHealth->health;
+	return 1.099f;
+}
 
-	RE::ExtraHealth* xHealth = static_cast<RE::ExtraHealth*>(pExtraData->GetByType(RE::ExtraDataType::kHealth));
-	if (xHealth)
-		return xHealth->health;
-
-	return 1.0f;
+float FoundEquipData::GetItemHealthRounded() {
+    if (!objectData) return 1.099f;
+	if (auto* xHealth = objectData->GetByType<RE::ExtraHealth>()) return RoundTo5Decimals(xHealth->health);
+	return 1.099f;
 }
 
 void FoundEquipData::SetItemHealthPercent(float value) {
-	if (!pExtraData)
-		return;
+	if (!objectData) return;
 
-	RE::ExtraHealth* xHealth = static_cast<RE::ExtraHealth*>(pExtraData->GetByType(RE::ExtraDataType::kHealth));
-	if (xHealth) {
-		xHealth->health = value;
-	} else if (pExtraData) {
-		RE::ExtraHealth* newHealth = static_cast<RE::ExtraHealth*>(RE::ExtraHealth::Create(sizeof(RE::ExtraHealth), RE::VTABLE_ExtraHealth[0].address()));
-		newHealth->health = value;
-		pExtraData->Add(newHealth);
-	}
-}
-
-int FoundEquipData::GetEnchantmentListSize() {
-	if (!pForm)
-		return 0;
-
-	// Return the size of the enchantment list based on the object
-	if (pForm->IsWeapon())
-		return ini.GetEnchantmentSize("weapon");
-	else if (pForm->IsArmor()) {
-		RE::TESObjectARMO *armor = pForm->As<RE::TESObjectARMO>();
-		if (armor->HasPartOf(RE::BGSBipedObjectForm::BipedObjectSlot::kBody) || armor->HasPartOf(RE::BGSBipedObjectForm::BipedObjectSlot::kTail))
-			return ini.GetEnchantmentSize("body");
-		else if (armor->HasPartOf(RE::BGSBipedObjectForm::BipedObjectSlot::kHead) || armor->HasPartOf(RE::BGSBipedObjectForm::BipedObjectSlot::kHair) || armor->HasPartOf(RE::BGSBipedObjectForm::BipedObjectSlot::kLongHair))
-			return ini.GetEnchantmentSize("head");
-		else if (armor->HasPartOf(RE::BGSBipedObjectForm::BipedObjectSlot::kHands) || armor->HasPartOf(RE::BGSBipedObjectForm::BipedObjectSlot::kForearms))
-			return ini.GetEnchantmentSize("hand");
-		else if (armor->HasPartOf(RE::BGSBipedObjectForm::BipedObjectSlot::kFeet) || armor->HasPartOf(RE::BGSBipedObjectForm::BipedObjectSlot::kCalves))
-			return ini.GetEnchantmentSize("foot");
-		else if (armor->HasPartOf(RE::BGSBipedObjectForm::BipedObjectSlot::kShield))
-			return ini.GetEnchantmentSize("shield");
-	}
-
-	return 0;
-}
-
-int FoundEquipData::GetRandom(int a, int b) {
-	std::mt19937 mt(std::random_device{}());
-	std::mutex lock_mt;
-
-	std::uniform_real_distribution<> score(a, b);
-	std::lock_guard<std::mutex> guard(lock_mt);
-	return score(mt);
+    auto* extraHealth = objectData->GetByType<RE::ExtraHealth>();
+    if (!extraHealth) {
+        extraHealth = static_cast<RE::ExtraHealth*>(
+            RE::ExtraHealth::Create(sizeof(RE::ExtraHealth), RE::VTABLE_ExtraHealth[0].address())
+        );
+        objectData->Add(extraHealth);
+    }
+    extraHealth->health = RoundTo5Decimals(value);
 }
 
 void FoundEquipData::SetItemEnchantment(int level) {
-	if (!pExtraData)
-		return;
+	if (!objectData) return;
 
-	// Set enchantment value to the nearest 100th
-	int value = GetRandom(100, 500);
-	int newValue = value;
-	int remainder = value % 100;
-	if (remainder >= 50)
-		newValue = value + 100 - remainder;
-	else if (remainder != 0)
-		newValue = value - remainder;
+    // Round a random value between 100 and 500 to the nearest 100
+    auto roundTo100 = [](int value) {
+        int remainder = value % 100;
+        if (remainder >= 50) return value + 100 - remainder;
+        if (remainder != 0) return value - remainder;
+        return value;
+    };
+    int newValue = roundTo100(GetRandom(100, 500));
 
-	int prevSize = ini.GetEnchantmentSize(GetType());
-	std::vector<Enchantments>* tempEnch = ini.GetEnchantmentList(GetType());
-	std::vector<Enchantments> newEnch;
-	Enchantments selectEnch;
+	// Determine magnitude threshold based on level
+    float magMax = 70.0f;
+    if (level <= 8) magMax = 12.5f;
+    else if (level <= 16) magMax = 15.0f;
+    else if (level <= 24) magMax = 20.0f;
+    else if (level <= 32) magMax = 30.0f;
+    else if (level <= 40) magMax = 45.0f;
 
-	// Set Magnitude threshold
-	float magMax = 70.0;
-	if (level <= 8)
-		magMax = 12.5;
-	else if (level <= 16)
-		magMax = 15.0;
-	else if (level <= 24)
-		magMax = 20.0;
-	else if (level <= 32)
-		magMax = 30.0;
-	else if (level <= 40)
-		magMax = 45.0;
+    // Filter enchantments by magnitude
+    auto* tempEnch = Settings::GetSingleton()->GetEnchantmentList(GetType());
+    std::vector<Enchantments> validEnch;
+    std::copy_if(tempEnch->begin(), tempEnch->end(), std::back_inserter(validEnch), [magMax](const Enchantments& e) { return e.enchantment->effects[0]->GetMagnitude() <= magMax; });
 
-	// Copy values within the level range
-	std::copy_if(tempEnch->begin(), tempEnch->end(), std::back_inserter(newEnch), [magMax](Enchantments i) {return i.enchantment->effects[0]->GetMagnitude() <= magMax; });
+    if (validEnch.empty()) return;
+
+	// Pick a random enchantment
+    Enchantments selectEnch = validEnch.at(GetRandom(0, validEnch.size() - 1));
 	
-	// Get the enchantment, return if no enchantments found
-	int maxSize = newEnch.size();
-	if (maxSize > 0)
-		selectEnch = newEnch.at(GetRandom(0,newEnch.size()-1));
+	// Apply or create ExtraEnchantment
+    auto* xEnch = static_cast<RE::ExtraEnchantment*>(objectData->GetByType(RE::ExtraDataType::kEnchantment));
+    if (!xEnch) {
+        xEnch = static_cast<RE::ExtraEnchantment*>(RE::ExtraEnchantment::Create(sizeof(RE::ExtraEnchantment), RE::VTABLE_ExtraEnchantment[0].address()));
+        objectData->Add(xEnch);
+    }
+    xEnch->enchantment = selectEnch.enchantment;
+    xEnch->charge = newValue;
+	
+    // Set item name with enchantment
+    objectName = std::string(baseForm->GetName()) + " " + selectEnch.name;
+
+    auto* xTextData = static_cast<RE::ExtraTextDisplayData*>(objectData->GetByType(RE::ExtraDataType::kTextDisplayData));
+    if (!xTextData) {
+        xTextData = static_cast<RE::ExtraTextDisplayData*>(RE::ExtraTextDisplayData::Create(sizeof(RE::ExtraTextDisplayData), RE::VTABLE_ExtraTextDisplayData[0].address()));
+        objectData->Add(xTextData);
+    }
+    xTextData->SetName(objectName.c_str());
+}
+
+bool FoundEquipData::IsTempered() {
+	return objectData && objectData->GetByType<RE::ExtraHealth>() != nullptr && objectData->GetByType<RE::ExtraHealth>()->health > 1.0f;
+}
+
+bool FoundEquipData::IsEnchanted() {
+	return objectData && (
+		(baseForm && baseForm->IsWeapon() && baseForm->As<RE::TESObjectWEAP>()->formEnchanting) ||
+		(baseForm && baseForm->IsArmor() && baseForm->As<RE::TESObjectARMO>()->formEnchanting) ||
+		objectData->HasType(RE::ExtraDataType::kEnchantment)
+	);
+}
+
+bool FoundEquipData::IsBroken() {
+    if (!baseForm || !objectData) return false;
+
+    // Get the text data
+    RE::ExtraTextDisplayData* textData = objectData->GetExtraTextDisplayData();
+	if (!textData) return false;
+
+    std::string name = textData->displayName.c_str();
+    const std::string brokenTag = "[B]";
+    size_t pos = name.find(brokenTag);
+	if (pos != std::string::npos)
+		return true;
 	else
-		return;
-	
-	// Looks for enchantment data or create it
-	RE::ExtraEnchantment* xEnchantment = static_cast<RE::ExtraEnchantment*>(pExtraData->GetByType(RE::ExtraDataType::kEnchantment));
-	if (xEnchantment) {
-		xEnchantment->enchantment = selectEnch.enchantment;
-		xEnchantment->charge = newValue;
-	} else {
-		RE::ExtraEnchantment* newEnchantment = static_cast<RE::ExtraEnchantment*>(RE::ExtraEnchantment::Create(sizeof(RE::ExtraEnchantment), RE::VTABLE_ExtraEnchantment[0].address()));
-		newEnchantment->enchantment = selectEnch.enchantment;
-		newEnchantment->charge = newValue;
-		pExtraData->Add(newEnchantment);
+		return false;
+}
+
+bool FoundEquipData::CanBreak() {
+    if (!baseForm || !objectData) return false;
+
+    if (Settings::GetSingleton()->ED_BreakDisabled) return false;
+
+    auto utility = Utility::GetSingleton();
+	bool disallowMagic = Settings::GetSingleton()->ED_NoBreakNoEnchant &&
+                         ((baseForm->IsWeapon() && baseForm->As<RE::TESObjectWEAP>()->HasKeyword(utility->keywordMagicDisallow)) ||
+                          (baseForm->IsArmor()  && baseForm->As<RE::TESObjectARMO>()->HasKeyword(utility->keywordMagicDisallow)));
+
+    return !disallowMagic &&
+           baseForm->formID != 0x0001F4 &&
+           !Settings::GetSingleton()->HasNoBreakForms(baseForm->formID) &&
+           !RE::InventoryEntryData(baseForm->As<RE::TESBoundObject>(), 1).IsQuestObject();
+}
+
+bool FoundEquipData::CanTemper() {
+	if (!baseForm) return false;
+	auto utility = Utility::GetSingleton();
+
+	// Weapon processing
+	if (auto* weap = baseForm->As<RE::TESObjectWEAP>()) {
+		return !weap->IsStaff() && !weap->IsBound();
+
+	// Armor processing
+	} else if (auto* armo = baseForm->As<RE::TESObjectARMO>()) {
+		auto hasValidSlot = [&](auto... slots){ return (... || armo->HasPartOf(slots)); };
+        return hasValidSlot(
+                    RE::BGSBipedObjectForm::BipedObjectSlot::kHead,
+                    RE::BGSBipedObjectForm::BipedObjectSlot::kHair,
+                    RE::BGSBipedObjectForm::BipedObjectSlot::kBody,
+                    RE::BGSBipedObjectForm::BipedObjectSlot::kHands,
+                    RE::BGSBipedObjectForm::BipedObjectSlot::kFeet,
+                    RE::BGSBipedObjectForm::BipedObjectSlot::kShield
+               ) &&
+               !armo->HasKeyword(utility->keywordClothing) &&
+               !armo->IsClothing();
 	}
 
-	// Look for name data or create it
-	name = std::string(pForm->GetName()) + " " + selectEnch.name;
-	RE::ExtraTextDisplayData* xTextData = static_cast<RE::ExtraTextDisplayData*>(pExtraData->GetByType(RE::ExtraDataType::kTextDisplayData));
-	if (xTextData) {
-		xTextData->SetName(name.c_str());
-	} else {
-		RE::ExtraTextDisplayData* newTextdata = static_cast<RE::ExtraTextDisplayData*>(RE::ExtraTextDisplayData::Create(sizeof(RE::ExtraTextDisplayData), RE::VTABLE_ExtraTextDisplayData[0].address()));
-		newTextdata->SetName(name.c_str());
-		pExtraData->Add(newTextdata);
-	}
+	return false;
+}
+
+// Private Functions
+int FoundEquipData::GetEnchantmentListSize() {
+    if (!baseForm) return 0;
+
+    std::string type = GetType();
+    if (type == "none") return 0;
+
+    return Settings::GetSingleton()->GetEnchantmentSize(type);
 }
 
 std::string FoundEquipData::GetType() {
-	if (pForm->IsWeapon()) {
-		return "weapon";
-	} else if (pForm->IsArmor()) {
-		RE::TESObjectARMO *armor = pForm->As<RE::TESObjectARMO>();
-		if (armor->HasPartOf(RE::BGSBipedObjectForm::BipedObjectSlot::kBody) || armor->HasPartOf(RE::BGSBipedObjectForm::BipedObjectSlot::kTail))
-			return "body";
-		else if (armor->HasPartOf(RE::BGSBipedObjectForm::BipedObjectSlot::kHead) || armor->HasPartOf(RE::BGSBipedObjectForm::BipedObjectSlot::kHair) || armor->HasPartOf(RE::BGSBipedObjectForm::BipedObjectSlot::kLongHair))
-			return "head";
-		else if (armor->HasPartOf(RE::BGSBipedObjectForm::BipedObjectSlot::kHands) || armor->HasPartOf(RE::BGSBipedObjectForm::BipedObjectSlot::kForearms))
-			return "hand";
-		else if (armor->HasPartOf(RE::BGSBipedObjectForm::BipedObjectSlot::kFeet) || armor->HasPartOf(RE::BGSBipedObjectForm::BipedObjectSlot::kCalves))
-			return "foot";
-		else if (armor->HasPartOf(RE::BGSBipedObjectForm::BipedObjectSlot::kShield))
-			return "shield";
+	if (baseForm->IsWeapon()) return "weapon";
+
+	else if (auto* armor = baseForm->As<RE::TESObjectARMO>()) {
+		auto hasSlot = [&](auto... slots){ return (... || armor->HasPartOf(slots)); };
+
+        if (hasSlot(RE::BGSBipedObjectForm::BipedObjectSlot::kBody,
+                    RE::BGSBipedObjectForm::BipedObjectSlot::kTail)) return "body";
+
+        else if (hasSlot(RE::BGSBipedObjectForm::BipedObjectSlot::kHead,
+                    RE::BGSBipedObjectForm::BipedObjectSlot::kHair,
+                    RE::BGSBipedObjectForm::BipedObjectSlot::kLongHair)) return "head";
+
+        else if (hasSlot(RE::BGSBipedObjectForm::BipedObjectSlot::kHands,
+                    RE::BGSBipedObjectForm::BipedObjectSlot::kForearms)) return "hand";
+
+        else if (hasSlot(RE::BGSBipedObjectForm::BipedObjectSlot::kFeet,
+                    RE::BGSBipedObjectForm::BipedObjectSlot::kCalves)) return "foot";
+
+        else if (hasSlot(RE::BGSBipedObjectForm::BipedObjectSlot::kShield)) return "shield";
 	}
 
 	return "none";
 }
 
-bool FoundEquipData::IsTempered() {
-	if (!pExtraData)
-		return false;
-
-	RE::ExtraHealth* xHealth = static_cast<RE::ExtraHealth*>(pExtraData->GetByType(RE::ExtraDataType::kHealth));
-	if (xHealth)
-		return true;
-
-	return false;
+int FoundEquipData::GetRandom(int a, int b) {
+    thread_local std::mt19937 mt{ std::random_device{}() };  // one RNG per thread
+    std::uniform_int_distribution<int> dist(a, b);
+    return dist(mt);
 }
 
-bool FoundEquipData::IsEnchanted() {
-	if (!pExtraData)
-		return false;
-
-	// Is the item a weapon and enchanted
-	if (pForm && pForm->IsWeapon() && pForm->As<RE::TESObjectWEAP>()->formEnchanting)
-		return true;
-
-	// Is the item armor and enchanted
-	if (pForm && pForm->IsArmor() && pForm->As<RE::TESObjectARMO>()->formEnchanting)
-		return true;
-
-	// Is there already enchanted data
-	if(pExtraData->HasType(RE::ExtraDataType::kEnchantment))
-		return true;
-
-	// We can enchant
-	return false;
+float FoundEquipData::RoundTo5Decimals(float value) {
+    return std::round(value * 100000.0f) / 100000.0f;
 }
 
-bool FoundEquipData::CanBreak() {
-	if (!pForm || !pExtraData)
-		return false;
-
-	// Do not break items that you cannot disenchant, user preference
-	auto utility = Utility::GetSingleton();
-	if (ini.GetDegradationSettings("NoBreakMagicDisallowEnchanting") == 1) {
-		if (pForm->IsWeapon() && pForm->As<RE::TESObjectWEAP>()->HasKeyword(utility->keywordMagicDisallow))
-			return false;
-		else if (pForm->IsArmor() && pForm->As<RE::TESObjectARMO>()->HasKeyword(utility->keywordMagicDisallow))
-			return false;
-	}
-
-	// Unarmed
-	if (pForm->formID == 0x0001F4)
-		return false;
-
-	// Compare to the break form list
-	if (ini.HasNoBreakForms(pForm->formID))
-		return false;
-
-	// Dont break quest items
-	RE::InventoryEntryData newData(pForm->As<RE::TESBoundObject>(), 1);
-	if (newData.IsQuestObject())
-		return false;
-
-	return true;
+float FoundEquipData::Truncate3(float value) {
+    return std::trunc(value * 1000.0) / 1000.0;
 }
 
-bool FoundEquipData::CanTemper() {
-	if (!pForm)
-		return false;
-
-	auto utility = Utility::GetSingleton();
-	if (pForm->IsWeapon()) {
-		// Form cannot be a staff or a bound weapon
-		RE::TESObjectWEAP* weap = pForm->As<RE::TESObjectWEAP>();
-		if (!weap->IsStaff() && !weap->IsBound())
-			return true;
-	} else if (pForm->IsArmor()) {
-		// Armor has to bip one of the given armor slots
-		RE::TESObjectARMO *armo = pForm->As<RE::TESObjectARMO>();
-		if (armo->HasPartOf(RE::BGSBipedObjectForm::BipedObjectSlot::kHead) || armo->HasPartOf(RE::BGSBipedObjectForm::BipedObjectSlot::kHair) 
-			|| armo->HasPartOf(RE::BGSBipedObjectForm::BipedObjectSlot::kBody) || armo->HasPartOf(RE::BGSBipedObjectForm::BipedObjectSlot::kHands) 
-			|| armo->HasPartOf(RE::BGSBipedObjectForm::BipedObjectSlot::kFeet) || armo->HasPartOf(RE::BGSBipedObjectForm::BipedObjectSlot::kShield))
-		{
-			if (!armo->HasKeyword(utility->keywordClothing) && !armo->IsClothing())
-				return true;
-		}
-	}
-
-	return false;
-}
-
-FoundEquipData FoundEquipData::FindEquippedWeapon(RE::InventoryChanges *exChanges, bool abLeftHand, RE::TESForm* form) {
+// Static Functions
+FoundEquipData FindEquippedWeapon(RE::InventoryChanges* a_Changes, RE::TESForm* a_Form, bool a_LeftHand) {
 	FoundEquipData equipData;
 
-	if (exChanges->entryList) {
-		for (const auto& pEntry : *exChanges->entryList) {
-			if (!pEntry || pEntry->GetObject() != form || !pEntry->extraLists)
-				continue;
+	if (!a_Changes || !a_Changes->entryList)
+		return equipData;
 
-			for (const auto& pExtraDataList : *pEntry->extraLists) {
-				if (pExtraDataList) {
-					if ((!abLeftHand && pExtraDataList->HasType(RE::ExtraDataType::kWorn)) || (abLeftHand && pExtraDataList->HasType(RE::ExtraDataType::kWornLeft))) {
-						equipData.pForm = pEntry->GetObject();
-						equipData.pExtraData = pExtraDataList;
+	for (const auto& entry : *a_Changes->entryList) {
+		if (!entry || entry->GetObject() != a_Form || !entry->extraLists)
+			continue;
 
-						return equipData;
-					}
-				}
-			}
+		auto extraIt = std::find_if(entry->extraLists->begin(), entry->extraLists->end(), [&](const RE::ExtraDataList* pExtra) {
+			return pExtra && pExtra->HasType(a_LeftHand ? RE::ExtraDataType::kWornLeft : RE::ExtraDataType::kWorn);
+		});
+
+		if (extraIt != entry->extraLists->end()) {
+			equipData.baseForm = entry->GetObject();
+            equipData.refForm = entry->GetObject();
+			equipData.objectData = *extraIt;
+			break;  // found first match, done
 		}
 	}
 
 	return equipData;
 }
 
-FoundEquipData FoundEquipData::FindEquippedArmor(RE::InventoryChanges *exChanges, RE::BGSBipedObjectForm::BipedObjectSlot slotMask) {
-	FoundEquipData equipData;
+FoundEquipData FindEquippedArmor(RE::InventoryChanges* a_Changes, RE::BGSBipedObjectForm::BipedObjectSlot a_SlotMask) {
+    FoundEquipData equipData;
 
-	if (exChanges->entryList) {
-		for (const auto& pEntry : *exChanges->entryList) {
-			if (!pEntry || !pEntry->GetObject()->IsArmor() || !pEntry->GetObject()->As<RE::TESObjectARMO>()->HasPartOf(slotMask) || !pEntry->extraLists)
-				continue;
+    if (!a_Changes || !a_Changes->entryList) return equipData;
 
-			for (const auto& pExtraDataList : *pEntry->extraLists) {
-				if (pExtraDataList) {
-					if (pExtraDataList->HasType(RE::ExtraDataType::kWorn) || pExtraDataList->HasType(RE::ExtraDataType::kWornLeft)) {
-						equipData.pForm = pEntry->GetObject();
-						equipData.pExtraData = pExtraDataList;
+    for (const auto& entry : *a_Changes->entryList) {
+        if (!entry || !entry->extraLists) continue;
 
-						return equipData;
-					}
-				}
-			}
-		}
+        auto* armor = entry->GetObject()->As<RE::TESObjectARMO>();
+        if (!armor || !armor->HasPartOf(a_SlotMask)) continue;
+
+		auto extraIt = std::find_if(entry->extraLists->begin(), entry->extraLists->end(), [](const RE::ExtraDataList* extra) {
+			return extra && (extra->HasType(RE::ExtraDataType::kWorn) || extra->HasType(RE::ExtraDataType::kWornLeft));
+		});
+
+        if (extraIt != entry->extraLists->end()) {
+            equipData.baseForm = armor;
+            equipData.refForm = entry->GetObject();
+            equipData.objectData = *extraIt;
+            break; // found first valid equipped armor
+        }
 	}
 
-	return equipData;
+    return equipData;
 }

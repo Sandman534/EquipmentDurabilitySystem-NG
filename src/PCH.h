@@ -109,7 +109,6 @@
 #include <spdlog/sinks/basic_file_sink.h>
 #include <spdlog/sinks/msvc_sink.h>
 
-
 using namespace std::literals;
 using namespace REL::literals;
 
@@ -127,9 +126,5 @@ namespace util
 	using SKSE::stl::report_and_fail;
 }
 
-
 // Plugin
 #include "Plugin.h"
-
-// DKUtil
-#include "DKUtil/Logger.hpp"

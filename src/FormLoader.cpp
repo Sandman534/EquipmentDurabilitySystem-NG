@@ -47,10 +47,6 @@ void FormLoader::LoadMiscForms([[maybe_unused]] RE::TESDataHandler* dataHandler)
     utility->keywordJewelry = dataHandler->LookupForm(RE::FormID(0x08F95A), pluginSkyrim)->As<RE::BGSKeyword>();
     utility->keywordMagicDisallow = dataHandler->LookupForm(RE::FormID(0x0C27BD), pluginSkyrim)->As<RE::BGSKeyword>();
 
-    // Follower Factions
-    utility->factionFollower1 = dataHandler->LookupForm(RE::FormID(0x05C84D), pluginSkyrim)->As<RE::TESFaction>();
-    utility->factionFollower2 = dataHandler->LookupForm(RE::FormID(0x09A7B2), pluginSkyrim)->As<RE::TESFaction>();
-
     // Locations
     utility->locationBoss = dataHandler->LookupForm(RE::FormID(0x0130F7), pluginSkyrim)->As<RE::BGSLocationRefType>();
     utility->locationBossContainer = dataHandler->LookupForm(RE::FormID(0x0130F8), pluginSkyrim)->As<RE::BGSLocationRefType>();

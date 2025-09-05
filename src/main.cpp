@@ -1,14 +1,16 @@
 ﻿#include <stddef.h>
-
 #include "DurabilityMenu.h"
 #include "Events.h"
 #include "FormLoader.h"
 #include "Settings.h"
+#include "Serialization.h"
+#include "EDUI.h"
 
 using namespace RE::BSScript;
 using namespace SKSE;
 using namespace SKSE::log;
 using namespace SKSE::stl;
+
 
 void SetupLog()
 {
@@ -29,26 +31,17 @@ void InitListener(SKSE::MessagingInterface::Message* a_msg)
 	switch (a_msg->type) {
 	case SKSE::MessagingInterface::kDataLoaded:
 		FormLoader::GetSingleton()->LoadAllForms();
-		ini.Load();
+		Settings::GetSingleton()->LoadINI();
 		Events::Init();
-
-		if (ini.GetWidgetSettings("DisableWidget") == 0)
-			DurabilityMenu::Register();
-
+		Menu::Init();
+		Menu::AnimationInit();
+		RE::UI::GetSingleton()->Register("DurabilityMenu", &DurabilityMenu::Create);
 		break;
 	}
 }
 
 SKSEPluginLoad(const LoadInterface* skse)
 {
-#ifndef NDEBUG
-	while (!IsDebuggerPresent()) {
-		Sleep(100);
-	}
-#endif
-
-	DKUtil::Logger::Init(Plugin::NAME, REL::Module::get().version().string());
-
 	SetupLog();
 	logger::info("{} {} is loading...", Plugin::NAME, REL::Module::get().version().string());
 
@@ -62,6 +55,15 @@ SKSEPluginLoad(const LoadInterface* skse)
 		return false;
 	}
 
+	// Load Dynamic Processing Cache
+	if (auto serialization = SKSE::GetSerializationInterface()) {
+		serialization->SetUniqueID(Serialization::ID);
+		serialization->SetSaveCallback(&Serialization::SaveCallback);
+		serialization->SetLoadCallback(&Serialization::LoadCallback);
+		serialization->SetRevertCallback(&Serialization::RevertCallback);
+	}
+
+	EDUI::Register();
 	logger::info("{} has finished loading.", Plugin::NAME);
 	return true;
 }
