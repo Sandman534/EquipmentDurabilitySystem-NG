@@ -128,7 +128,7 @@ class DurabilityWidget {
 		d_icon: String, d_text: String, d_value: Number, d_color: Number, d_data: Object,
 		e_icon: String, e_text: String, e_value: Number, e_color: Number, e_data: Object,
 		f_icon: String, f_text: String, f_value: Number, f_color: Number, f_data: Object,
-		g_icon: String, g_text: String, g_value: Number, g_color: Number, g_data: Object	
+		g_icon: String, g_text: String, g_value: Number, g_color: Number, g_data: Object
 	):Void
 	{
 		var a_icons = new Array(a_icon,b_icon,c_icon,d_icon,e_icon,f_icon,g_icon);
@@ -149,7 +149,8 @@ class DurabilityWidget {
 			//==============================================================
 			var newSource = DEFAULT_ICON_SOURCE;
 			var newIcon = a_icons[i];
-					
+			var newColor = a_colors[i];
+			
 			// If we have item Data, otherwise populate with defaults
 			if(a_data[i]) {
 				// Call i4 if it is installed
@@ -173,8 +174,8 @@ class DurabilityWidget {
 			// Set Text Color
 			var colorTransform = new ColorTransform();
 			var transform = new Transform(MovieClip(iconHolders[i]));
-			if(typeof(a_colors[i]) == "number") {
-				colorTransform.rgb = a_colors[i];
+			if(typeof(newColor) == "number") {
+				colorTransform.rgb = newColor;
 			}
 			transform.colorTransform = colorTransform;			
 			

@@ -106,6 +106,7 @@ void Settings::LoadINI() {
 	get_value(iniSettings, ED_Widget_ShowWeaponName, "Widget", "ShowWeaponName");
 	get_value(iniSettings, ED_Widget_ShowArmorName, "Widget", "ShowArmorName");
 	get_value(iniSettings, ED_Widget_ShowHealth, "Widget", "ShowHealth");
+	get_value(iniSettings, ED_Widget_ShowUnarmed, "Widget", "ShowUnarmed");
 
 	iniSettings.SaveFile(setting_path);
 
@@ -235,6 +236,7 @@ void Settings::SaveINI() {
 	set_value(iniSettings, ED_Widget_ShowWeaponName, "Widget", "ShowWeaponName");
 	set_value(iniSettings, ED_Widget_ShowArmorName, "Widget", "ShowArmorName");
 	set_value(iniSettings, ED_Widget_ShowHealth, "Widget", "ShowHealth");
+	set_value(iniSettings, ED_Widget_ShowUnarmed, "Widget", "ShowUnarmed");
 
 	iniSettings.SaveFile(setting_path);
 }
@@ -258,7 +260,7 @@ void Settings::ProcessNoBreakForms() {
 		if (index.value() != 0xFF) noBreakForms.insert((index.value() << 24) + std::stoull(parts[1], nullptr, 0));
 	}
 
-	logger::info("Loaded {} No Break Forms", noBreakForms.size());
+	logger::info("Loaded: {} No Break Forms", noBreakForms.size());
 }
 
 void Settings::ProcessEnchantingForms() {
@@ -298,12 +300,12 @@ void Settings::ProcessEnchantingForms() {
 		}
 	}
 
-	logger::info("Loaded {} Weapon Enchantments", enchantWeapon.size());
-	logger::info("Loaded {} Head Enchantments", enchantHead.size());
-	logger::info("Loaded {} Body Enchantments", enchantBody.size());
-	logger::info("Loaded {} Hand Enchantments", enchantHand.size());
-	logger::info("Loaded {} Foot Enchantments", enchantFoot.size());
-	logger::info("Loaded {} Shield Enchantments", enchantShield.size());
+	logger::info("Loaded: {} Weapon Enchantments", enchantWeapon.size());
+	logger::info("Loaded: {} Head Enchantments", enchantHead.size());
+	logger::info("Loaded: {} Body Enchantments", enchantBody.size());
+	logger::info("Loaded: {} Hand Enchantments", enchantHand.size());
+	logger::info("Loaded: {} Foot Enchantments", enchantFoot.size());
+	logger::info("Loaded: {} Shield Enchantments", enchantShield.size());
 }
 
 void Settings::ProcessMaterialForms() {
@@ -549,7 +551,7 @@ void Settings::SetVendorList() {
 			}
 	}
 
-	logger::debug("Vendor Containers Found: {}", vendorContainers.size());
+	logger::debug("Loaded: {} Vendor Containers", vendorContainers.size());
 }
 
 // String Functions

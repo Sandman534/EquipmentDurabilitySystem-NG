@@ -33,6 +33,14 @@ namespace QuickLoot::Items
 			return *this;
 		}
 
+		// Construct value in place
+		template <typename... Args>
+		void emplace(Args&&... args)
+		{
+			value = TValue(std::forward<Args>(args)...);
+			valid = true;
+		}
+
 		void unset()
 		{
 			valid = false;
@@ -221,6 +229,7 @@ namespace QuickLoot::Items
 		MandatoryEnumField<RE::MagicSystem::SpellType> spellType;
 		MandatoryField<int32_t> trueCost;
 		OptionalField<RE::FormID> equipSlot;
+		OptionalField<RE::BGSKeywordForm*> effectKeywords;
 	};
 
 	struct ScrollItemData : SpellItemData

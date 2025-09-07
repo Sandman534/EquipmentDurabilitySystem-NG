@@ -128,3 +128,7 @@ namespace util
 
 // Plugin
 #include "Plugin.h"
+
+// My Common Functions
+#include "SKSEMenuFramework.h"
+#include "HelperFunctions.h"

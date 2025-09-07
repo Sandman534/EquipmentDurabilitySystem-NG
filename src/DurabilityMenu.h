@@ -5,8 +5,23 @@
 
 namespace Menu {
 	void Init(void);
-	void AnimationInit(void);
+	void MenuInit(void);
 }
+
+class PlayerGraphEventHook {
+public:
+    static void Install() {
+        REL::Relocation<uintptr_t> AnimEventVtbl_PC{RE::VTABLE_PlayerCharacter[2]};
+        _ProcessEvent = AnimEventVtbl_PC.write_vfunc(0x1, ProcessEvent);
+        SKSE::log::info("Hook Installed: Player Graph Event");
+    }
+
+private:
+    static RE::BSEventNotifyControl ProcessEvent(RE::BSTEventSink<RE::BSAnimationGraphEvent> *a_sink, RE::BSAnimationGraphEvent *a_event, RE::BSTEventSource<RE::BSAnimationGraphEvent> *a_eventSource);
+    static inline REL::Relocation<decltype(ProcessEvent)> _ProcessEvent;
+
+
+};
 
 class DurabilityMenu : public RE::IMenu {
 private:
@@ -36,5 +51,4 @@ public:
 	void HideMenu();
 	void UpdatePosition();
 	void ResetTimer() { startTime = std::chrono::steady_clock::now(); };
-	void HotkeyActivation(bool activated);
 };

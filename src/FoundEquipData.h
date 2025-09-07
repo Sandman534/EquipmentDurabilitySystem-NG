@@ -32,6 +32,7 @@ public:
 	bool IsTempered();
 	bool IsEnchanted();
 	bool IsBroken();
+	bool IsUnarmed();
 	bool CanBreak();
 	bool CanTemper();
 
@@ -40,7 +41,7 @@ private:
 	int GetEnchantmentListSize();
 	std::string GetType();
 	float RoundTo5Decimals(float value);
-	float Truncate3(float value);
+	float TruncateToDecimals(float value, int decimals);
 };
 
 FoundEquipData FindEquippedWeapon(RE::InventoryChanges* a_Changes, RE::TESForm* a_Form, bool a_LeftHand);

@@ -4,6 +4,13 @@
 #include "Utility.h"
 
 void FoundEquipData::CreateName() {
+    // Specificall create unarmed
+	if (IsUnarmed()) {
+		objectName = "Unarmed";
+		return;
+	}
+
+    // Process normally
 	if (!baseForm || !objectData) return;
 
     // Resolve the extra data to an object to pull information about it
@@ -11,7 +18,7 @@ void FoundEquipData::CreateName() {
     entry.AddExtraList(objectData);
 
 	// Get the basic name
-    objectName = (baseForm->formID == 0x0001F4) ? "Unarmed" : std::string(entry.GetDisplayName());
+    objectName = (IsUnarmed()) ? "Unarmed" : std::string(entry.GetDisplayName());
 
     // Append poison name if applicable
 	if (baseForm->IsWeapon() && Settings::GetSingleton()->ED_Widget_ShowPoisonName && objectData->HasType(RE::ExtraDataType::kPoison)) {
@@ -72,25 +79,26 @@ void FoundEquipData::SetFixedName() {
 }
 
 float FoundEquipData::GetItemHealthForWidget() {
-	if (!objectData) return 1.1f;
-    if (auto* xHealth = objectData->GetByType<RE::ExtraHealth>()) return Truncate3(xHealth->health) + 0.001f;
-	return 1.1f;
+	if (IsUnarmed()) return 0.0f;
+	if (!objectData) return Utility::GetSingleton()->DefaultWidgetHealth() + 0.001f;
+	if (auto* xHealth = objectData->GetByType<RE::ExtraHealth>()) return TruncateToDecimals(xHealth->health,3) + Utility::GetSingleton()->StepToMin + 0.001f;
+	return Utility::GetSingleton()->DefaultWidgetHealth() + 0.001f;
 }
 
 float FoundEquipData::GetItemHealthPercent() {
-	if (!objectData) return 1.099f;
+	if (!objectData) return Utility::GetSingleton()->DefaultHealth();
     if (auto* xHealth = objectData->GetByType<RE::ExtraHealth>()) return xHealth->health;
-	return 1.099f;
+	return Utility::GetSingleton()->DefaultHealth();
 }
 
 float FoundEquipData::GetItemHealthRounded() {
-    if (!objectData) return 1.099f;
+    if (!objectData) return Utility::GetSingleton()->DefaultHealth();
 	if (auto* xHealth = objectData->GetByType<RE::ExtraHealth>()) return RoundTo5Decimals(xHealth->health);
-	return 1.099f;
+	return Utility::GetSingleton()->DefaultHealth();
 }
 
 void FoundEquipData::SetItemHealthPercent(float value) {
-	if (!objectData) return;
+	if (!objectData || IsUnarmed()) return;
 
     auto* extraHealth = objectData->GetByType<RE::ExtraHealth>();
     if (!extraHealth) {
@@ -180,6 +188,10 @@ bool FoundEquipData::IsBroken() {
 		return false;
 }
 
+bool FoundEquipData::IsUnarmed() {
+	return (baseForm && baseForm->formID == 0x0001F4);
+}
+
 bool FoundEquipData::CanBreak() {
     if (!baseForm || !objectData) return false;
 
@@ -191,7 +203,7 @@ bool FoundEquipData::CanBreak() {
                           (baseForm->IsArmor()  && baseForm->As<RE::TESObjectARMO>()->HasKeyword(utility->keywordMagicDisallow)));
 
     return !disallowMagic &&
-           baseForm->formID != 0x0001F4 &&
+           !IsUnarmed() &&
            !Settings::GetSingleton()->HasNoBreakForms(baseForm->formID) &&
            !RE::InventoryEntryData(baseForm->As<RE::TESBoundObject>(), 1).IsQuestObject();
 }
@@ -200,12 +212,15 @@ bool FoundEquipData::CanTemper() {
 	if (!baseForm) return false;
 	auto utility = Utility::GetSingleton();
 
+    // Ignore Unarmed
+    if (IsUnarmed()) return false;
+
 	// Weapon processing
-	if (auto* weap = baseForm->As<RE::TESObjectWEAP>()) {
+	if (auto* weap = baseForm->As<RE::TESObjectWEAP>())
 		return !weap->IsStaff() && !weap->IsBound();
 
 	// Armor processing
-	} else if (auto* armo = baseForm->As<RE::TESObjectARMO>()) {
+	else if (auto* armo = baseForm->As<RE::TESObjectARMO>()) {
 		auto hasValidSlot = [&](auto... slots){ return (... || armo->HasPartOf(slots)); };
         return hasValidSlot(
                     RE::BGSBipedObjectForm::BipedObjectSlot::kHead,
@@ -263,17 +278,21 @@ int FoundEquipData::GetRandom(int a, int b) {
     return dist(mt);
 }
 
+float FoundEquipData::TruncateToDecimals(float value, int decimals) {
+    float factor = std::pow(10.0f, decimals);
+    float scaled = value * factor;
+    float epsilon = 1e-6f;
+    float truncated = std::trunc(scaled + (scaled >= 0 ? epsilon : -epsilon));
+    return truncated / factor;
+}
+
 float FoundEquipData::RoundTo5Decimals(float value) {
     return std::round(value * 100000.0f) / 100000.0f;
 }
 
-float FoundEquipData::Truncate3(float value) {
-    return std::trunc(value * 1000.0) / 1000.0;
-}
-
 // Static Functions
 FoundEquipData FindEquippedWeapon(RE::InventoryChanges* a_Changes, RE::TESForm* a_Form, bool a_LeftHand) {
-	FoundEquipData equipData;
+	FoundEquipData equipData(Utility::GetSingleton()->Unarmed);
 
 	if (!a_Changes || !a_Changes->entryList)
 		return equipData;

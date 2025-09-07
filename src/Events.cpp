@@ -78,7 +78,7 @@ static void RemoveEquipment(FoundEquipData* eqD, RE::Actor* actor) {
 
 	// Update the name and reset the temper status
 	eqD->SetBrokenName();
-	eqD->SetItemHealthPercent(0.999f);
+	eqD->SetItemHealthPercent(utility->MinHealth);
 }
 
 static void TemperDecay(FoundEquipData* eqD, RE::Actor* actor, bool powerAttack) {
@@ -86,20 +86,21 @@ static void TemperDecay(FoundEquipData* eqD, RE::Actor* actor, bool powerAttack)
 	auto setting = Settings::GetSingleton();
 
 	if (!eqD->baseForm || !AddActor(actor)) return;
+	if (eqD->baseForm == utility->Unarmed) return;
 
 	// Get current health percent
 	float itemHealthPercent = eqD->GetItemHealthPercent();
 
 	// --- Breack Chance ---
-	if ((itemHealthPercent - 0.999f) <= (setting->ED_BreakThreshold / 1000.0f)) {
+	if (utility->NormalizedHealth(itemHealthPercent) <= (setting->ED_BreakThreshold / 1000.0f)) {
 		float chance = setting->GetBreakChance(eqD->baseForm);
 
 		// Apply modifiers
 		if (chance != 0.0 && eqD->CanBreak()) {
 
 			// Increased Durability
-			if (setting->ED_IncreasedDurability && itemHealthPercent > 0.999f)
-				chance *= 1.0 - ((itemHealthPercent - 0.999f) / (setting->ED_BreakThreshold / 1000.0f));
+			if (setting->ED_IncreasedDurability && itemHealthPercent > utility->MinimumHealth())
+				chance *= 1.0 - (utility->NormalizedHealth(itemHealthPercent) / (setting->ED_BreakThreshold / 1000.0f));
 
 			// Power Attack
 			if (powerAttack) 
@@ -118,7 +119,7 @@ static void TemperDecay(FoundEquipData* eqD, RE::Actor* actor, bool powerAttack)
 	}
 
 	// --- Degradation ---
-	if (itemHealthPercent <= 0.999f) return;
+	if (itemHealthPercent <= utility->MinimumHealth()) return;
 
 	double rate = setting->GetDegradationRate(eqD->baseForm);
 	if (rate == 0.0) return;
@@ -136,7 +137,7 @@ static void TemperDecay(FoundEquipData* eqD, RE::Actor* actor, bool powerAttack)
 	itemHealthPercent = std::round(itemHealthPercent * 100000.0f) / 100000.0f;
 
 	// The default health of an item is always one, so it cant go lower
-	if (itemHealthPercent < 0.999f) itemHealthPercent = 0.999f;
+	if (itemHealthPercent < utility->MinimumHealth()) itemHealthPercent = utility->MinimumHealth();
 
 	// Set the new health of the item
 	eqD->SetItemHealthPercent(itemHealthPercent);
@@ -273,7 +274,7 @@ public:
     static void Register() {
         RE::ScriptEventSourceHolder* eventHolder = RE::ScriptEventSourceHolder::GetSingleton();
         eventHolder->AddEventSink(HitEventHandler::GetSingleton());
-		logger::info("Hit Handler Installed");
+		logger::info("Handler Installed: On Hit");
     }
 
 private:
@@ -300,6 +301,19 @@ inline static bool IsPlayerIndoors(RE::Actor* player)
     return cell->IsInteriorCell();
 }
 
+inline static bool IsPlayerOwned(RE::Actor* player) {
+    if (!player) return false;
+    auto cell = player->GetParentCell();
+    if (!cell) return false;
+
+	// Get owners and verify if the player is the owner
+    auto ownerActor = cell->GetActorOwner();
+	auto ownerFaction = cell->GetFactionOwner();
+	if ((ownerActor && ownerActor == player->GetActorBase()) || (ownerFaction && ownerFaction == Utility::GetSingleton()->playerFaction)) return true;
+	
+	return false;
+}
+
 inline static void ProcessReference(RE::TESObjectREFR* ref, NearbyObjects& result) {
 	if (!ref) RE::BSContainer::ForEachResult::kContinue;
 	auto* setting = Settings::GetSingleton();
@@ -311,14 +325,9 @@ inline static void ProcessReference(RE::TESObjectREFR* ref, NearbyObjects& resul
 			setting->processedContainers.insert(ref);
 		}
 	} else if (auto actor = ref->As<RE::Actor>()) {
-		if (!processedNPCs.contains(ref)) {
+		if (setting->processedNPCs.contains(ref)) {
 			result.npcs.push_back(actor);
 			setting->processedNPCs.insert(ref);
-		}
-	} else if (ref->GetBaseObject()->IsArmor() || ref->GetBaseObject()->IsWeapon()) {
-		if (!setting->processedEquipment.contains(ref)) {
-			result.equipment.push_back(ref);
-			setting->processedEquipment.insert(ref);
 		}
 	}
 }
@@ -326,6 +335,7 @@ inline static void ProcessReference(RE::TESObjectREFR* ref, NearbyObjects& resul
 NearbyObjects GetNearbyObjects(RE::Actor* player) {
     NearbyObjects result;
     if (!player) return result;
+	if (IsPlayerOwned(player)) return result;
 
     float radius = IsPlayerIndoors(player) ? 2000.0f : 7000.0f; // 20m indoors, 70m outdoors
     float radiusSq = radius * radius;
@@ -371,8 +381,7 @@ NearbyObjects GetNearbyObjects(RE::Actor* player) {
     return result;
 }
 
-static void ProcessItem(FoundEquipData* equipData, int actorLevel, bool isVendor = false, bool isBoss = false)
-{
+static void ProcessItem(FoundEquipData* equipData, int actorLevel, bool isVendor = false, bool isBoss = false) {
 	auto* setting = Settings::GetSingleton(); 
 
 	// Temper Process
@@ -400,10 +409,7 @@ static void ProcessItem(FoundEquipData* equipData, int actorLevel, bool isVendor
 			if (Probability(chanceEnchant))
 				equipData->SetItemEnchantment(actorLevel);
 		}
-	}		
-	
-	// Add health data so that we won't reprocess item again
-	//if (!equipData->IsTempered()) equipData->SetItemHealthPercent(1.0f);
+	}
 }
 
 static void ProcessInventory(RE::TESObjectREFR* ref) {
@@ -463,49 +469,28 @@ static void ProcessInventory(RE::TESObjectREFR* ref) {
 	}
 }
 
-static void ProcessEquipment(RE::TESObjectREFR* ref) {
-	if (!ref || !ref->GetBaseObject()) return;
-
-	auto utility = Utility::GetSingleton();
-
-	// Get Equipment
-	FoundEquipData equipData(ref->GetBaseObject());
-
-	// Get the level of the Actor or the Player
-	int level = 0;
-	if (RE::Actor* actor = ref->As<RE::Actor>())
-		if (!actor->IsPlayer() && !actor->IsPlayerTeammate()) level = actor->GetLevel();
-	else
-		level = utility->GetPlayer()->GetLevel();
-
-	// Set extra data
-	equipData.objectData = &ref->extraList;
-
-	// Process the item
-	ProcessItem(&equipData, level);
-}
-
 static void DynamicTemperEnchant() {
 	// Prune Cache
 	auto* setting = Settings::GetSingleton();
-	if (setting->processedEquipment.size() > kMaxProcessedEquipment) setting->processedEquipment.clear();
 	if (setting->processedContainers.size() > kMaxProcessedContainers) setting->processedContainers.clear();
 	if (setting->processedNPCs.size() > kMaxProcessedNPCs) setting->processedNPCs.clear();
 
-	// Get nearby Equipment and Containers
+	// Do not process player owned locations
+	auto* player = Utility::GetSingleton()->GetPlayer();
+	if (player && IsPlayerOwned(player)) return;
+
+	// Get nearby NPCs and Containers
 	NearbyObjects nearby = GetNearbyObjects(Utility::GetSingleton()->GetPlayer());
 
 	// Process Containers, Actors and Equipment
 	for (RE::TESObjectREFR* container : nearby.containers) ProcessInventory(container);
 	for (RE::Actor* npc : nearby.npcs) ProcessInventory(npc);
-	for (RE::TESObjectREFR* equipRef : nearby.equipment) ProcessEquipment(equipRef);
 }
 
 // =============================================================
 // Break System Handler
 // =============================================================
-class ItemCraftedHandler : public RE::BSTEventSink<RE::ItemCrafted::Event>
-{
+class ItemCraftedHandler : public RE::BSTEventSink<RE::ItemCrafted::Event> {
 public:
 	static ItemCraftedHandler* GetSingleton() {
 		static ItemCraftedHandler singleton;
@@ -527,23 +512,18 @@ public:
 				for (auto* dataList : *entry->extraLists) {
 					FoundEquipData eqD(entry->GetObject(), dataList);
 					eqD.refForm = entry->GetObject();
-
+					auto utility = Utility::GetSingleton();
+					
 					// Set health if tempered
 					if (float health = eqD.GetItemHealthRounded()) {
-						if (health == 1.1f) eqD.SetItemHealthPercent(health + 0.099f);
-						else if (health == 1.2f) eqD.SetItemHealthPercent(health + 0.099f);
-						else if (health == 1.3f) eqD.SetItemHealthPercent(health + 0.099f);
-						else if (health == 1.4f) eqD.SetItemHealthPercent(health + 0.099f);
-						else if (health == 1.5f) eqD.SetItemHealthPercent(health + 0.099f);
-						else if (health == 1.6f) eqD.SetItemHealthPercent(health + 0.099f);
-						else if (health == 1.7f) eqD.SetItemHealthPercent(health + 0.099f);
-						else if (health == 1.8f) eqD.SetItemHealthPercent(health + 0.099f);
-						else if (health == 1.9f) eqD.SetItemHealthPercent(health + 0.099f);
-						else if (health == 2.0f) eqD.SetItemHealthPercent(health + 0.099f);
-					}
+						int tenths = static_cast<int>(std::round(health * 10.0f));
 
-					if (eqD.IsTempered() && eqD.IsBroken())
-						eqD.SetFixedName();
+						if (tenths >= 11 && tenths <= 30 && std::fabs(health * 10.0f - tenths) < 1e-6f)
+							eqD.SetItemHealthPercent(health + 0.099f - utility->StepToMin);
+
+						if (eqD.IsBroken())
+							eqD.SetFixedName();
+					}		
 				}
 			}
 		}
@@ -554,7 +534,7 @@ public:
 		using GetEventSource_t = RE::BSTEventSource<RE::ItemCrafted::Event>* (*)();
 		auto* eventHolder = REL::Relocation<GetEventSource_t>(RE::Offset::ItemCrafted::GetEventSource)();
 		eventHolder->AddEventSink(ItemCraftedHandler::GetSingleton());
-		logger::info("Crafted Item Handler Installed");
+		logger::info("Handler Installed: Crafted Item");
 	}
 };
 
@@ -576,7 +556,7 @@ static void EquipObject(RE::ActorEquipManager* a_manager, RE::Actor* a_actor, RE
 // Update Hook
 // =============================================================
 static std::int32_t OnUpdate() {
-	if (!Utility::GetUI()->GameIsPaused()) {
+	if (!RE::UI::GetSingleton()->GameIsPaused()) {
 
 		// Clear out the actor list
 		ClearActor();
@@ -595,11 +575,9 @@ static std::int32_t OnUpdate() {
 	return _OnUpdate();
 }
 
-
 namespace Events {
 	inline static REL::Relocation<std::uintptr_t> On_Update_Hook{ REL::RelocationID(35565, 36564), REL::Relocate(0x748, 0xC26) };
 	inline static REL::Relocation<std::uintptr_t> EquipObject_Hook{ REL::RelocationID(37938, 38894), REL::Relocate(0xE5, 0x170) };
-	inline static REL::Relocation<std::uintptr_t> EqipImpl_Hook{ REL::RelocationID(37937, 38893), REL::Relocate(0xBC, 0xBC) };
 
 	void Init(void) {
 		HitEventHandler::Register();
@@ -608,8 +586,9 @@ namespace Events {
 		// Install hooks
 		auto& trampoline = SKSE::GetTrampoline();
 		_OnUpdate = trampoline.write_call<5>(On_Update_Hook.address(), OnUpdate);
-		logger::info("Installed Update Hook");
+		logger::info("Hook Installed: On Update");
 		_EquipObject = trampoline.write_call<5>(EquipObject_Hook.address(), EquipObject);
-		logger::info("Installed Equip Hook");
+		logger::info("Hook Installed: On Equip");
+
 	}
 }

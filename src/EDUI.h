@@ -1,6 +1,4 @@
 #pragma once
-
-#include "SKSEMenuFramework.h"
 #include "Settings.h"
 
 namespace EDUI {
@@ -18,7 +16,4 @@ namespace EDUI {
 
     // Additional Functions
     void SliderEntryMaterial(float& value, const char* id);
-    int ImGuiKeyToIDCode(ImGuiKey key);
-	ImGuiKey IDCodeToImGuiKey(int idCode);
-
 };

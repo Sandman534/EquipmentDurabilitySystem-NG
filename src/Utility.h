@@ -2,120 +2,89 @@
 #include "Settings.h"
 
 class Utility {
+private:
+    const std::string_view pluginSkyrim = "Skyrim.esm";
+    const std::string_view pluginUpdate = "Update.esm";
+    const std::string_view pluginDawnguard = "Dawnguard.esm";
+    const std::string_view pluginHeathfire = "HearthFires.esm";
+
 public:
+    // Keywords to identify items
     RE::BGSKeyword* keywordWarhammer;
     RE::BGSKeyword* keywordClothing;
     RE::BGSKeyword* keywordJewelry;
     RE::BGSKeyword* keywordMagicDisallow;
 
+    // Boss Location References
     RE::BGSLocationRefType* locationBoss;
     RE::BGSLocationRefType* locationBossContainer;
 
-    std::vector<RE::BSFixedString> menuList;
+    // Player Faction
+    RE::TESFaction* playerFaction;
 
+    // Unarmed Form
+	RE::TESForm* Unarmed;
+
+    // Weapon Health Star
+	float MinHealth = 0.099f;
+    float StepToMin = 0.0;
+
+    // Singleton
     uintptr_t PlayerSingletonAddress;
-    uintptr_t UISingletonAddress;
-    uintptr_t MenuControlsSingletonAddress;
-
     static Utility* GetSingleton() {
         static Utility playerStatus;
         return &playerStatus; 
     }
 
-    static RE::PlayerCharacter* GetPlayer() {
-        REL::Relocation<RE::NiPointer<RE::PlayerCharacter>*> singleton{Utility::GetSingleton()->PlayerSingletonAddress};
-        return singleton->get();
+    void LoadForms() {
+        const auto dataHandler = RE::TESDataHandler::GetSingleton();
+
+        // Keywords
+        keywordWarhammer = dataHandler->LookupForm(RE::FormID(0x06D930), pluginSkyrim)->As<RE::BGSKeyword>();
+        keywordClothing = dataHandler->LookupForm(RE::FormID(0x08F95B), pluginSkyrim)->As<RE::BGSKeyword>();
+        keywordJewelry = dataHandler->LookupForm(RE::FormID(0x08F95A), pluginSkyrim)->As<RE::BGSKeyword>();
+        keywordMagicDisallow = dataHandler->LookupForm(RE::FormID(0x0C27BD), pluginSkyrim)->As<RE::BGSKeyword>();
+
+        // Locations
+        locationBoss = dataHandler->LookupForm(RE::FormID(0x0130F7), pluginSkyrim)->As<RE::BGSLocationRefType>();
+        locationBossContainer = dataHandler->LookupForm(RE::FormID(0x0130F8), pluginSkyrim)->As<RE::BGSLocationRefType>();
+
+        // Player Faction
+        playerFaction = dataHandler->LookupForm(RE::FormID(0x000dB1), pluginSkyrim)->As<RE::TESFaction>();
+
+        // Unarmed Form
+        Unarmed = dataHandler->LookupForm(RE::FormID(0x0001F4), pluginSkyrim)->As<RE::TESForm>();
+
+        logger::info("Loaded: All Required Forms");
     }
 
-    static RE::UI* GetUI() {
-        REL::Relocation<RE::NiPointer<RE::UI>*> singleton{Utility::GetSingleton()->UISingletonAddress};
-        return singleton->get();
+
+    // Public Functions
+    RE::PlayerCharacter* GetPlayer() { return RE::PlayerCharacter::GetSingleton(); }
+
+    void ModifyHealth(float a_min, float a_step) { 
+        MinHealth = a_min; 
+        StepToMin = a_step;
     }
 
-    static RE::MenuControls* GetMenuControls() {
-        REL::Relocation<RE::NiPointer<RE::MenuControls>*> singleton{
-            Utility::GetSingleton()->MenuControlsSingletonAddress};
-        return singleton->get();
+    float DefaultWidgetHealth() {
+		return 1.0f + MinHealth + StepToMin;
     }
 
-    static void ShowNotification(std::string msg, bool messageBox = false, const char* a_soundToPlay = 0) {
-        if (messageBox)
-            RE::DebugMessageBox(msg.c_str());
-        else
-            RE::DebugNotification(msg.c_str(), a_soundToPlay);
+    float DefaultHealth() {
+		return 1.0f + MinHealth;
     }
 
-    static bool IsSystemMenu(RE::BSFixedString menuName) {
-        auto menu = Utility::GetSingleton()->menuList;
-        return (std::find(menu.begin(), menu.end(), menuName) != menu.end());
+    float MinimumHealth() {
+		return 0.999f - StepToMin;
     }
 
-    static bool IsSystemMenuOpen(RE::BSFixedString menuName = "") {
-        auto ui = Utility::GetSingleton()->GetUI();
-        auto menu = Utility::GetSingleton()->menuList;
-
-        for (auto & element : menu) {
-            if (menuName.c_str() != "" && std::strcmp(element.c_str(), menuName.c_str()))
-                continue;
-
-            if (ui->IsMenuOpen(element))
-                return true;
-        }
-
-        return false;
+    float NormalizedHealth(float a_Health) {
+		return (a_Health + StepToMin) - 0.999f;
     }
 
-    // Player checks
-    static bool IsPlayerInDialogue() {
-        return Utility::GetSingleton()->GetUI()->IsMenuOpen(RE::DialogueMenu::MENU_NAME);
+    void ShowNotification(std::string msg, bool messageBox = false, const char* a_soundToPlay = 0) {
+        if (messageBox) RE::DebugMessageBox(msg.c_str());
+        else RE::DebugNotification(msg.c_str(), a_soundToPlay);
     }
-
-    static bool PlayerNotInMenu() {
-        auto ui = Utility::GetSingleton()->GetUI();
-
-        if (ui && !ui->GameIsPaused() && !ui->IsApplicationMenuOpen() && !ui->IsItemMenuOpen() && !ui->IsMenuOpen(RE::InterfaceStrings::GetSingleton()->dialogueMenu))
-            return true;
-        else
-            return false;
-    }
-
-    // Workaround for 1170
-	static void ForEachReferenceInRange(RE::TESObjectREFR* origin, float radius, std::function<RE::BSContainer::ForEachResult(RE::TESObjectREFR& ref)> callback) {
-		if (origin && radius > 0.0f) {
-			const auto originPos = origin->GetPosition();
-			auto* tesSingleton = RE::TES::GetSingleton();
-			auto* interiorCell = tesSingleton->interiorCell;
-
-			if (interiorCell) {
-				interiorCell->ForEachReferenceInRange(originPos, radius, [&](RE::TESObjectREFR* a_ref) { return callback(*a_ref); });
-			} else {
-				if (const auto gridLength = tesSingleton->gridCells ? tesSingleton->gridCells->length : 0;
-					gridLength > 0) {
-					const float searchMaxY = originPos.y + radius;
-					const float searchMinY = originPos.y - radius;
-					const float searchMaxX = originPos.x + radius;
-					const float searchMinX = originPos.x - radius;
-
-					for (std::uint32_t x = 0; x < gridLength; ++x) {
-						for (std::uint32_t y = 0; y < gridLength; ++y) {
-							if (const auto cell = tesSingleton->gridCells->GetCell(x, y); cell && cell->IsAttached()) {
-								if (const auto cellCoords = cell->GetCoordinates(); cellCoords) {
-									const RE::NiPoint2 worldPos{ cellCoords->worldX, cellCoords->worldY };
-									if (worldPos.x < searchMaxX && (worldPos.x + 4096.0f) > searchMinX &&
-										worldPos.y < searchMaxY && (worldPos.y + 4096.0f) > searchMinY) {
-										cell->ForEachReferenceInRange(originPos, radius,
-											[&](RE::TESObjectREFR* a_ref) {
-												return callback(*a_ref);
-											});
-									}
-								}
-							}
-						}
-					}
-				}
-			}
-		} else {
-			RE::TES::GetSingleton()->ForEachReference([&](RE::TESObjectREFR* a_ref) { return callback(*a_ref); });
-		}
-	}
 };

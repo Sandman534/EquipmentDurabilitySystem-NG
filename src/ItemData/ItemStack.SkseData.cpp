@@ -123,7 +123,8 @@ namespace QuickLoot::Items
 
 		// https://github.com/ianpatt/skse64/blob/9843a236aa12b12fa4c6530c29113adfb941da72/skse64/ScaleformExtendedData.cpp#L724
 
-		if (const auto keywordForm = skyrim_cast<RE::BGSKeywordForm*>(_object)) {
+		if (const auto keywordForm = skyrim_cast<RE::BGSKeywordForm*>(_object))
+		{
 			_data.keywords = keywordForm;
 		}
 
@@ -184,6 +185,13 @@ namespace QuickLoot::Items
 
 			if (const auto equipSlot = spellItem->GetEquipSlot()) {
 				_data.spell.equipSlot = equipSlot->formID;
+			}
+
+			const auto effect = spellItem->GetCostliestEffectItem(static_cast<RE::MagicSystem::Delivery>(5), false);
+			if (effect && effect->baseEffect) {
+				if (const auto keywordForm = skyrim_cast<RE::BGSKeywordForm*>(effect->baseEffect)) {
+					_data.spell.effectKeywords = keywordForm;
+				}
 			}
 		}
 

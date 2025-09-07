@@ -18,7 +18,7 @@ public:
 	bool ED_NoBreakNoEnchant{ true };
 	bool ED_IncreasedDurability{ false };
 	bool ED_Material_Multiplier{ true };
-	int ED_BreakThreshold{ 0 };
+	int ED_BreakThreshold{ 50 };
 
 	// Degredaton Rates
 	float ED_Degrade_Sword{ 3.0 };
@@ -105,6 +105,7 @@ public:
 	bool ED_Widget_ShowWeaponName{ true };
 	bool ED_Widget_ShowArmorName{ true };
 	bool ED_Widget_ShowHealth{ true };
+	bool ED_Widget_ShowUnarmed{ true };
 
 	// Processing
 	void LoadINI();
@@ -128,7 +129,6 @@ public:
 	double GetBreakChance(RE::TESForm* form);
 
 	// Track processed items for dynamic throttling
-	std::unordered_set<RE::TESObjectREFR*> processedEquipment;
 	std::unordered_set<RE::TESObjectREFR*> processedContainers;
 	std::unordered_set<RE::TESObjectREFR*> processedNPCs;
 

@@ -3,11 +3,12 @@
 
 namespace QuickLoot::Items
 {
-	ItemStack::ItemStack(RE::InventoryEntryData* entry, RE::ObjectRefHandle container, RE::ObjectRefHandle dropRef) :
+	ItemStack::ItemStack(RE::InventoryEntryData* entry, RE::ObjectRefHandle container, RE::ObjectRefHandle dropRef, RE::SpellItem* spellRef) :
 		_entry(entry),
 		_object(entry->object),
 		_container(std::move(container)),
-		_dropRef(std::move(dropRef))
+		_dropRef(std::move(dropRef)),
+		_spellRef(spellRef)
 	{
 	}
 
@@ -179,6 +180,7 @@ namespace QuickLoot::Items
 			SetDataMember(_dataObj, "spellType", data.spell.spellType);
 			SetDataMember(_dataObj, "trueCost", data.spell.trueCost);
 			SetDataMember(_dataObj, "equipSlot", data.spell.equipSlot);
+			SetDataMember(_dataObj, "effectKeywords", BuildKeywordsObject(view, data.spell.effectKeywords));
 			break;
 
 		case RE::FormType::Book:

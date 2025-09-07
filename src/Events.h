@@ -3,12 +3,8 @@
 // =============================================================
 // Dynamic Scan Throttle
 // =============================================================
-constexpr size_t kMaxProcessedEquipment = 1000;
-constexpr size_t kMaxProcessedContainers = 2000;
-constexpr size_t kMaxProcessedNPCs = 1000;
-
-static std::unordered_set<RE::TESObjectREFR*> processedContainers;
-static std::unordered_set<RE::TESObjectREFR*> processedNPCs;
+constexpr size_t kMaxProcessedContainers = 5000;
+constexpr size_t kMaxProcessedNPCs = 2000;
 
 // =============================================================
 // On Update

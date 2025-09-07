@@ -18,7 +18,7 @@ namespace QuickLoot::Items
 		ItemStack& operator=(ItemStack&&) = delete;
 		ItemStack& operator=(const ItemStack&) = delete;
 
-		ItemStack(RE::InventoryEntryData* entry, RE::ObjectRefHandle container, RE::ObjectRefHandle dropRef = {});
+		ItemStack(RE::InventoryEntryData* entry, RE::ObjectRefHandle container, RE::ObjectRefHandle dropRef = {}, RE::SpellItem* spellRef = nullptr);
 		virtual ~ItemStack() = default;
 
 		[[nodiscard]] RE::InventoryEntryData* GetEntry() const { return _entry.get(); }
@@ -39,6 +39,7 @@ namespace QuickLoot::Items
 		RE::TESBoundObject* _object;
 		RE::ObjectRefHandle _container;
 		RE::ObjectRefHandle _dropRef;
+		RE::SpellItem* _spellRef;
 
 		mutable ItemData _data{};
 		mutable RE::GFxValue _dataObj{};

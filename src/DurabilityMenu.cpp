@@ -5,6 +5,9 @@
 #include <vector>
 #include "ItemData/ItemStack.h"
 
+//===============================================
+// Durability HUD
+//===============================================
 DurabilityMenu::DurabilityMenu() {
 	// Set up menu flags
 	menuFlags.set(RE::UI_MENU_FLAGS::kRequiresUpdate); // Receives AdvanceMovie
@@ -94,15 +97,6 @@ void DurabilityMenu::UpdatePosition() {
 	}
 }
 
-void DurabilityMenu::HotkeyActivation(bool activated) {
-	hotkeyActivated = activated;
-
-	if (activated)
-		ShowMenu();
-	else
-		HideMenu();
-}
-
 void DurabilityMenu::UpdateItemData() {
 	auto utility = Utility::GetSingleton();
 	if (!uiMovie || !uiMovie->GetVisible()) return;
@@ -140,7 +134,7 @@ void DurabilityMenu::UpdateItemData() {
 		else if (left)
 			eqDs.push_back(FoundEquipData(left));
 		else
-			eqDs.push_back(FoundEquipData());
+			eqDs.push_back(FoundEquipData(utility->Unarmed));
 
 		// Add Right Hand
 		RE::TESForm* right = utility->GetPlayer()->GetEquippedObject(false);
@@ -149,7 +143,7 @@ void DurabilityMenu::UpdateItemData() {
 		else if (right)
 			eqDs.push_back(FoundEquipData(right));
 		else
-			eqDs.push_back(FoundEquipData());
+			eqDs.push_back(FoundEquipData(utility->Unarmed));
 
 		// Add Power
 		eqDs.push_back(FoundEquipData(utility->GetPlayer()->GetActorRuntimeData().selectedPower));
@@ -170,7 +164,7 @@ void DurabilityMenu::UpdateItemData() {
 		stackData.SetNull();
 
 		// Process the form
-		if (eqD.baseForm) {
+		if (eqD.baseForm && ((eqD.IsUnarmed() && setting->ED_Widget_ShowUnarmed) || !eqD.IsUnarmed())) {
 			if (auto* boundObj = eqD.baseForm->As<RE::TESBoundObject>()) {
 
 				// ownership transfers to the item stack, so we don't delete this.
@@ -178,7 +172,11 @@ void DurabilityMenu::UpdateItemData() {
 				if (eqD.objectData) entry->AddExtraList(eqD.objectData);
 
 				// Process the inventory through the stack
-				const QuickLoot::Items::ItemStack stack{ entry, RE::PlayerCharacter::GetSingleton()->GetHandle() };
+				RE::SpellItem* spellObject = nullptr;
+				if (eqD.baseForm && eqD.baseForm->GetFormType() == RE::FormType::Spell) {
+					spellObject = skyrim_cast<RE::SpellItem*>(eqD.baseForm);
+				}
+				const QuickLoot::Items::ItemStack stack{ entry, RE::PlayerCharacter::GetSingleton()->GetHandle(), {}, spellObject };
 				const auto& data = stack.GetData();
 
 				// Icon Label
@@ -192,9 +190,8 @@ void DurabilityMenu::UpdateItemData() {
 
 					// Get Health Value and Color
 					if (eqD.CanTemper()) {
-						float itemHealthPercent = eqD.GetItemHealthForWidget();
 						using std::max;
-						iconValue = max(std::round((itemHealthPercent - 1.0f) * 1000.0), 0.0);
+						iconValue = max(std::round((eqD.GetItemHealthForWidget() - 1.0f) * 1000.0), 0.0);
 						if (setting->GetBreakChance(eqD.baseForm) != 0.0 && iconValue <= setting->ED_BreakThreshold && eqD.CanBreak())
 							iconCustomColor = setting->ED_Color_Broken;
 					}
@@ -220,27 +217,9 @@ void DurabilityMenu::UpdateItemData() {
 	uiMovie->Invoke("_root.widget.UpdateMenu", nullptr, args, 35);
 }
 
-// Activation Listeners
-class MenuLoadHandler : public RE::BSTEventSink<RE::TESLoadGameEvent> {
-public:
-	static MenuLoadHandler* GetSingleton() {
-		static MenuLoadHandler singleton;
-        return &singleton;
-    }
-
-    RE::BSEventNotifyControl ProcessEvent(const RE::TESLoadGameEvent*, RE::BSTEventSource<RE::TESLoadGameEvent>*) {
-		DurabilityMenu::GetSingleton()->ShowMenu();
-        return RE::BSEventNotifyControl::kContinue;
-    }
-
-	static void Register()
-	{
-		RE::ScriptEventSourceHolder *eventHolder = RE::ScriptEventSourceHolder::GetSingleton();
-        eventHolder->AddEventSink(MenuLoadHandler::GetSingleton());
-		logger::info("Game Load Handler Installed");
-	}
-};
-
+//===============================================
+// Event Sinks
+//===============================================
 class MenuListener : RE::BSTEventSink<RE::MenuOpenCloseEvent> {
 public:
 	static MenuListener* GetSingleton() {
@@ -270,110 +249,47 @@ public:
 	static void Register() {
 		RE::UI *eventHolder = RE::UI::GetSingleton();
         eventHolder->AddEventSink(MenuListener::GetSingleton());
-		logger::info("Menu Handler Installed");
+		logger::info("Handler Installed: Menu OpenClose");
 	}
 };
 
 class MenuInputHandler : public RE::BSTEventSink<RE::InputEvent*> {
 	public:
     static MenuInputHandler* GetSingleton() {
-        static MenuInputHandler singleton;
-        return &singleton;
+		static MenuInputHandler singleton;
+		return &singleton;
     }
 
     RE::BSEventNotifyControl ProcessEvent(RE::InputEvent* const* a_event,RE::BSTEventSource<RE::InputEvent*>* a_eventSource) {
 		if (a_event) {
-			auto utility = Utility::GetSingleton();
+			auto ui = RE::UI::GetSingleton();
 			
-			if (utility->PlayerNotInMenu()) {
-                const auto controlMap = RE::ControlMap::GetSingleton();
-                const auto playerCharacter = RE::PlayerCharacter::GetSingleton();
-                const auto playerControls = RE::PlayerControls::GetSingleton();
+			if (!ui || ui->GameIsPaused() || !ui->IsCursorHiddenWhenTopmost() || !ui->IsShowingMenus() || !ui->GetMenu<RE::HUDMenu>() || ui->IsMenuOpen(RE::LoadingMenu::MENU_NAME))
+				return RE::BSEventNotifyControl::kContinue;
 
-				if (controlMap && playerCharacter && playerControls) {
-					for (auto event = *a_event; event; event = event->next) {
-						if (event->eventType == RE::INPUT_EVENT_TYPE::kButton) {
-							const auto button = static_cast<RE::ButtonEvent*>(event);
-							if (!button || (button->IsPressed() && !button->IsDown())) continue;
+			const auto controlMap = RE::ControlMap::GetSingleton();
+			const auto playerCharacter = RE::PlayerCharacter::GetSingleton();
+			const auto playerControls = RE::PlayerControls::GetSingleton();
 
-							auto device = button->device.get();
-							auto scan_code = button->GetIDCode();
+			if (!controlMap || !playerCharacter || !playerControls) return RE::BSEventNotifyControl::kContinue;
 
-							if (device == RE::INPUT_DEVICE::kMouse) {
-								scan_code += 257;
-							} else if (device == RE::INPUT_DEVICE::kGamepad) {
-								RE::BSWin32GamepadDevice::Key gamepadKey =
-									static_cast<RE::BSWin32GamepadDevice::Key>(scan_code);
-								switch (gamepadKey) {
-									case RE::BSWin32GamepadDevice::Key::kUp:
-										scan_code = 266;
-										break;
-									case RE::BSWin32GamepadDevice::Key::kDown:
-										scan_code = 267;
-										break;
-									case RE::BSWin32GamepadDevice::Key::kLeft:
-										scan_code = 268;
-										break;
-									case RE::BSWin32GamepadDevice::Key::kRight:
-										scan_code = 269;
-										break;
-									case RE::BSWin32GamepadDevice::Key::kStart:
-										scan_code = 270;
-										break;
-									case RE::BSWin32GamepadDevice::Key::kBack:
-										scan_code = 271;
-										break;
-									case RE::BSWin32GamepadDevice::Key::kLeftThumb:
-										scan_code = 272;
-										break;
-									case RE::BSWin32GamepadDevice::Key::kRightThumb:
-										scan_code = 273;
-										break;
-									case RE::BSWin32GamepadDevice::Key::kLeftShoulder:
-										scan_code = 274;
-										break;
-									case RE::BSWin32GamepadDevice::Key::kRightShoulder:
-										scan_code = 275;
-										break;
-									case RE::BSWin32GamepadDevice::Key::kA:
-										scan_code = 276;
-										break;
-									case RE::BSWin32GamepadDevice::Key::kB:
-										scan_code = 277;
-										break;
-									case RE::BSWin32GamepadDevice::Key::kX:
-										scan_code = 278;
-										break;
-									case RE::BSWin32GamepadDevice::Key::kY:
-										scan_code = 279;
-										break;
-									case RE::BSWin32GamepadDevice::Key::kLeftTrigger:
-										scan_code = 280;
-										break;
-									case RE::BSWin32GamepadDevice::Key::kRightTrigger:
-										scan_code = 281;
-										break;
-									default:
-										scan_code = static_cast<uint32_t>(-1);
-										break;
-								}
-							}
+			for (auto event = *a_event; event; event = event->next) {
+				if (event->eventType == RE::INPUT_EVENT_TYPE::kButton) {
+					const auto button = static_cast<RE::ButtonEvent*>(event);
+					if (!button || (button->IsPressed() && !button->IsDown())) continue;
 
-							if ((device == RE::INPUT_DEVICE::kKeyboard || device == RE::INPUT_DEVICE::kGamepad) && !button->IsUp()) {
-								auto settings = Settings::GetSingleton();
-								auto durability = DurabilityMenu::GetSingleton();
-								if (durability && scan_code == settings->ED_Widget_ToggleKeyCode) {
-									if (!RE::UI::GetSingleton()->IsMenuOpen(durability->MENU_NAME)) {
-										durability->hotkeyActivated = true;
-										durability->ShowMenu();
-									} else {
-										durability->hotkeyActivated = false;
-										durability->ShowMenu();
-									}
-								}
-							}
+					auto device = button->device.get();
+					auto scan_code = HelperFunctions::AdjustScanCodes(device, button->GetIDCode());
 
-
+					if ((device == RE::INPUT_DEVICE::kKeyboard || device == RE::INPUT_DEVICE::kGamepad) && !button->IsUp()) {
+						auto settings = Settings::GetSingleton();
+						auto durability = DurabilityMenu::GetSingleton();
+						if (durability && scan_code == settings->ED_Widget_ToggleKeyCode) {
+							if (!RE::UI::GetSingleton()->IsMenuOpen(durability->MENU_NAME))
+								durability->hotkeyActivated = true;
+							else
+								durability->hotkeyActivated = false;
+							durability->ShowMenu();	
 						}
 					}
 				}
@@ -381,71 +297,37 @@ class MenuInputHandler : public RE::BSTEventSink<RE::InputEvent*> {
 		}
 
 		return RE::BSEventNotifyControl::kContinue;
-    }
+	}
 
 	static void Register() {
         RE::BSInputDeviceManager* inputDeviceManager = RE::BSInputDeviceManager::GetSingleton();
         inputDeviceManager->AddEventSink(MenuInputHandler::GetSingleton());
-		logger::info("Input Handler Installed");
+		logger::info("Handler Installed: Input");
     }
 };
 
-class MenuAnimationHandler : public RE::BSTEventSink<RE::BSAnimationGraphEvent> {
-public:
-    static MenuAnimationHandler* GetSingleton() {
-        static MenuAnimationHandler singleton;
-        return &singleton;
-    }
-
-	RE::BSEventNotifyControl ProcessEvent(const RE::BSAnimationGraphEvent* a_event, RE::BSTEventSource<RE::BSAnimationGraphEvent>* a_eventSource) override {
-        if (!a_event) return RE::BSEventNotifyControl::kContinue;
-
-        // Make sure that the event source is the player
-        auto actor = a_event->holder ? a_event->holder->As<RE::Actor>() : nullptr;
-		if (!actor || actor != RE::PlayerCharacter::GetSingleton()) return RE::BSEventNotifyControl::kContinue;
-
-		auto ui = RE::UI::GetSingleton();
-		auto dm = DurabilityMenu::GetSingleton();
-		auto setting = Settings::GetSingleton();
-
-		// IF the durability exists and is not visible, don't do anything
-		if (!dm) return RE::BSEventNotifyControl::kContinue;
-
-        if (a_event->tag == "weaponDraw") {
-			dm->sheathActivated = true;
-			dm->ShowMenu();
-		} else if (a_event->tag == "weaponSheathe") {
-			dm->sheathActivated = false;
-			dm->ShowMenu();
-        }
-
-        return RE::BSEventNotifyControl::kContinue;
-    }
-
-
-	static void Register() {
-		// Get the animation graph for the player
-		RE::BSAnimationGraphManagerPtr graphManager;
-		Utility::GetSingleton()->GetPlayer()->GetAnimationGraphManager(graphManager);
-
-		// Add the event
-		auto eventSource = graphManager->graphs.front()->GetEventSource<RE::BSAnimationGraphEvent>();
-		if (eventSource) {
-			eventSource->AddEventSink(MenuAnimationHandler::GetSingleton());
+RE::BSEventNotifyControl PlayerGraphEventHook::ProcessEvent(RE::BSTEventSink<RE::BSAnimationGraphEvent> *a_sink, RE::BSAnimationGraphEvent *a_event, RE::BSTEventSource<RE::BSAnimationGraphEvent> *a_eventSource) {
+	if (a_event->tag == "weaponDraw" || a_event->tag == "weaponSheathe") {
+		if (auto durability = DurabilityMenu::GetSingleton()) {
+			if (a_event->tag == "weaponDraw") durability->sheathActivated = true;
+			else if (a_event->tag == "weaponSheathe") durability->sheathActivated = false;
+			durability->ShowMenu();
 		}
-
-		logger::info("Animation Handler Installed");
 	}
-};
+    return _ProcessEvent(a_sink, a_event, a_eventSource);
+}
 
 namespace Menu {
 	void Init(void) {
-		MenuLoadHandler::Register();
 		MenuInputHandler::Register();
 		MenuListener::Register();
 	}
 
-	void AnimationInit(void) {
-		MenuAnimationHandler::Register();
+	void MenuInit(void) {
+		auto ui = RE::UI::GetSingleton();
+		if (!ui) return;
+		RE::UI::GetSingleton()->Register("DurabilityMenu", &DurabilityMenu::Create);
+		DurabilityMenu::GetSingleton()->ShowMenu();
+		logger::info("Loaded: HUD");
 	}
 }

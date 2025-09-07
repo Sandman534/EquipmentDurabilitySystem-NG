@@ -13,7 +13,7 @@ include(GNUInstallDirs)
 # info
 project(
 	EquipmentDurabilitySystem-NG
-	VERSION 2.2.0
+	VERSION 3.0.0
 	LANGUAGES CXX
 )
 
