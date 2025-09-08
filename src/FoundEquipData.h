@@ -8,7 +8,6 @@ public:
 	RE::TESBoundObject* refForm;
 	std::string objectName;
 	
-
 	// Regular Generators
 	FoundEquipData() : baseForm(nullptr), objectData(nullptr), refForm(nullptr) {}
 	explicit FoundEquipData(RE::TESForm* a_Form) : baseForm(a_Form), objectData(nullptr), refForm(nullptr) {}
@@ -28,6 +27,10 @@ public:
 	void SetItemHealthPercent(float value);
 	void SetItemEnchantment(int level);
 	
+	// Process State
+	bool HasBeenProcessed();
+	void ProcessItem();
+
 	// Status Checks
 	bool IsTempered();
 	bool IsEnchanted();

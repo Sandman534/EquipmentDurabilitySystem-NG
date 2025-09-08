@@ -161,7 +161,26 @@ void FoundEquipData::SetItemEnchantment(int level) {
 }
 
 bool FoundEquipData::IsTempered() {
-	return objectData && objectData->GetByType<RE::ExtraHealth>() != nullptr && objectData->GetByType<RE::ExtraHealth>()->health > 1.0f;
+	return objectData 
+        && objectData->GetByType<RE::ExtraHealth>() != nullptr 
+        && objectData->GetByType<RE::ExtraHealth>()->health > Utility::GetSingleton()->DefaultHealth();
+}
+
+bool FoundEquipData::HasBeenProcessed() {
+	return objectData && objectData->GetByType<RE::ExtraHealth>() != nullptr;
+}
+
+void FoundEquipData::ProcessItem() {
+    if (!objectData || IsUnarmed()) return;
+
+    auto* extraHealth = objectData->GetByType<RE::ExtraHealth>();
+    if (!extraHealth) {
+        extraHealth = static_cast<RE::ExtraHealth*>(
+            RE::ExtraHealth::Create(sizeof(RE::ExtraHealth), RE::VTABLE_ExtraHealth[0].address())
+        );
+        objectData->Add(extraHealth);
+    }
+    extraHealth->health = RoundTo5Decimals(Utility::GetSingleton()->DefaultHealth());
 }
 
 bool FoundEquipData::IsEnchanted() {

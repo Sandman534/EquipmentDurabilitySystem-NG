@@ -2,7 +2,7 @@
 
 #include "ItemDefines.h"
 
-namespace QuickLoot::Items
+namespace I4Data::Items
 {
 	template <typename TValue>
 	struct MandatoryField

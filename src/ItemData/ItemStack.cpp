@@ -1,19 +1,11 @@
 #include "ItemStack.h"
 #include "ItemDefines.h"
 
-namespace QuickLoot::Items
+namespace I4Data::Items
 {
-	ItemStack::ItemStack(RE::InventoryEntryData* entry, RE::ObjectRefHandle container, RE::ObjectRefHandle dropRef, RE::SpellItem* spellRef) :
-		_entry(entry),
-		_object(entry->object),
-		_container(std::move(container)),
-		_dropRef(std::move(dropRef)),
-		_spellRef(spellRef)
-	{
-	}
+	ItemStack::ItemStack(FoundEquipData* foundEquip) : _foundEquip(foundEquip) {}
 
-	ItemData& ItemStack::GetData() const
-	{
+	ItemData& ItemStack::GetData() const {
 		if (_dataInitialized) {
 			return _data;
 		}
@@ -32,8 +24,7 @@ namespace QuickLoot::Items
 		return _data;
 	}
 
-	RE::GFxValue BuildBasicFormInfoObject(RE::GFxMovieView* view, RE::TESForm* form)
-	{
+	RE::GFxValue BuildBasicFormInfoObject(RE::GFxMovieView* view, RE::TESForm* form) {
 		if (!form) {
 			return {};
 		}
@@ -58,8 +49,7 @@ namespace QuickLoot::Items
 		return data;
 	}
 
-	RE::GFxValue BuildKeywordsObject(RE::GFxMovieView* view, const RE::BGSKeywordForm* form)
-	{
+	RE::GFxValue BuildKeywordsObject(RE::GFxMovieView* view, const RE::BGSKeywordForm* form) {
 		if (!form) {
 			return {};
 		}
@@ -82,8 +72,7 @@ namespace QuickLoot::Items
 		return keywords;
 	}
 
-	RE::GFxValue& ItemStack::BuildDataObject(RE::GFxMovieView* view) const
-	{
+	RE::GFxValue& ItemStack::BuildDataObject(RE::GFxMovieView* view) const {
 		if (_dataObj.IsObject()) {
 			return _dataObj;
 		}
@@ -208,7 +197,7 @@ namespace QuickLoot::Items
 			break;
 		}
 
-		if (skyrim_cast<RE::MagicItem*>(_object)) {
+		if (skyrim_cast<RE::MagicItem*>(_foundEquip->baseForm)) {
 			SetDataMember(_dataObj, "spellName", data.magic.spellName);
 			SetDataMember(_dataObj, "magnitude", data.magic.magnitude);
 			SetDataMember(_dataObj, "duration", data.magic.duration);
@@ -230,192 +219,27 @@ namespace QuickLoot::Items
 		return _dataObj;
 	}
 
-	void ItemStack::TakeStack(RE::Actor* actor) const
-	{
-		Take(actor, _entry->countDelta);
-	}
-
-	void ItemStack::TakeOne(RE::Actor* actor) const
-	{
-		Take(actor, 1);
-	}
-
-	void ItemStack::Take(RE::Actor* actor, int count) const
-	{
-		PROFILE_SCOPE
-
-		if (_dropRef) {
-			if (const auto reference = _dropRef.get()) {
-				actor->PlayPickUpSound(_object, true, false);
-				PROFILE_SCOPE_NAMED("RE::Actor::PickUpObject")
-				actor->PickUpObject(reference.get(), count);
-			}
-
-			return;
-		}
-
-		if (const auto container = _container.get()) {
-			const auto player = RE::PlayerCharacter::GetSingleton();
-			const auto containerActor = skyrim_cast<RE::Actor*>(container.get());
-			const auto extraList = GetInventoryEntryExtraListForRemoval(_entry.get(), count, container.get() != player);
-			const auto stealing = _data.isStealing;
-			const auto value = _data.value;
-			const auto reason = stealing ? RE::ITEM_REMOVE_REASON::kSteal : RE::ITEM_REMOVE_REASON::kStoreInContainer;
-			const auto owner = container->GetOwner();
-
-			if (actor == player) {
-				auto eventType = RE::PlayerCharacter::EventType::kContainer;
-				if (stealing) {
-					eventType = RE::PlayerCharacter::EventType::kThief;
-				} else if (containerActor && containerActor->IsDead(false)) {
-					eventType = RE::PlayerCharacter::EventType::kDeadBody;
-				}
-
-				PROFILE_SCOPE_NAMED("RE::PlayerCharacter::PlayPickupEvent")
-				player->PlayPickupEvent(_object, owner, container.get(), eventType);
-			}
-
-			actor->PlayPickUpSound(_object, true, false);
-			{
-				PROFILE_SCOPE_NAMED("RE::TESObjectREFR::RemoveItem")
-				container->RemoveItem(_object, count, reason, extraList, actor);
-			}
-			{
-				PROFILE_SCOPE_NAMED("RE::TESBoundObject::HandleRemoveItemFromContainer")
-				_object->HandleRemoveItemFromContainer(container.get());
-			}
-
-			if (containerActor && _object->IsAmmo()) {
-				PROFILE_SCOPE_NAMED("RE::Actor::ClearExtraArrows")
-				containerActor->ClearExtraArrows();
-			}
-
-			if (stealing) {
-				PROFILE_SCOPE_NAMED("RE::Actor::StealAlarm")
-				actor->StealAlarm(container.get(), _object, count, value, owner, true);
-			}
-		}
-	}
-
-	void ItemStack::Use(RE::Actor* actor) const
-	{
-		if (_entry->object->formType == RE::FormType::Ammo) {
-			TakeStack(actor);
-		} else {
-			TakeOne(actor);
-		}
-
-		if (_entry->object->formType == RE::FormType::Book) {
-			const auto book = skyrim_cast<RE::TESObjectBOOK*>(_entry->object);
-			const auto extraList = !_entry->extraLists || _entry->extraLists->empty() ? nullptr : _entry->extraLists->front();
-
-			if (book->TeachesSpell()) {
-				const auto player = RE::PlayerCharacter::GetSingleton();
-				if (book->Read(player)) {
-					player->RemoveItem(book, 1, RE::ITEM_REMOVE_REASON::kRemove, extraList, nullptr);
-				}
-			} else {
-				RE::BSString text{};
-				book->GetDescription(text, nullptr);
-				RE::BookMenu::OpenBookMenu(text, extraList, nullptr, book, {}, {}, 1, true);
-			}
-		} else {
-			RE::ActorEquipManager::GetSingleton()->EquipObject(actor, _entry->object);
-		}
-	}
-
-	const char* ItemStack::GetUseLabel() const
-	{
-		const auto& data = GetData();
-
-		switch (data.type.value.get()) {
-		case ItemType::kArmor:
-		case ItemType::kWeapon:
-			return "$Equip";
-
-		case ItemType::kBook:
-			return "$Read";
-
-		case ItemType::kFood:
-		case ItemType::kIngredient:
-			if (data.formType == RE::FormType::AlchemyItem && data.potion.subType == PotionType::kDrink) {
-				return "$Use";
-			}
-			return "$Eat";
-
-		default:
-			return "$Use";
-		}
-	}
-
-	void ItemStack::SetVanillaData() const
-	{
+	void ItemStack::SetVanillaData() const {
 		PROFILE_SCOPE;
 
-		// Some hacking is required to create a StandardItemData instance.
-		char buffer[sizeof(RE::StandardItemData)]{};
-		const auto vtable = RE::VTABLE_StandardItemData[0].address();
-		*reinterpret_cast<uintptr_t*>(buffer) = vtable;
-
-		auto itemData = reinterpret_cast<RE::StandardItemData*>(buffer);
-
-		itemData->objDesc = _entry.get();
-		itemData->owner = _container.native_handle();
-
 		// ItemList::Item constructor
-		_data.text = itemData->GetName();
-		_data.count = itemData->GetCount();
-		_data.equipState = itemData->GetEquipState();
-		_data.filterFlag = itemData->GetFilterFlag();
-		_data.favorite = itemData->GetFavorite();
-		_data.enabled = itemData->GetEnabled();
+		_data.text = _foundEquip->baseForm->GetName();
+		_data.count = 1;
+		_data.equipState = 0;
+		_data.filterFlag = 0;
+		_data.favorite = 0;
+		_data.enabled = true;
 
 		// InventoryEntryData::PopulateSoulLevel
-		if (_object->Is(RE::FormType::SoulGem)) {
-			_data.soulLVL = static_cast<SoulLevel>(_entry->GetSoulLevel());
+		if (_foundEquip->baseForm->Is(RE::FormType::SoulGem) && _foundEquip->objectData) {
+			_data.soulLVL = static_cast<SoulLevel>(_foundEquip->objectData->GetSoulLevel());
 		}
 
-		_data.isStealing = IsStealing();
+		_data.isStealing = false;
 	}
 
-	bool ItemStack::IsStealing() const
-	{
-		// SetIsStealingFlags (RELOCATION_ID(50231, ?))
-
-		const auto player = RE::PlayerCharacter::GetSingleton();
-		const auto container = _container.get().get();
-		const auto actor = container->As<RE::Actor>();
-		const auto owner = container->GetOwner();
-
-		// player can't steal from their own inventory
-		if (container == player) {
-			return false;
-		}
-
-		// taking from dead actors is never considered stealing
-		if (actor && actor->IsDead(false)) {
-			return false;
-		}
-
-		// if the container is not an actor and not owned by anyone, we're not stealing
-		if (!actor && !owner) {
-			return false;
-		}
-
-		auto itemOwner = _entry->GetOwner();
-		if (!itemOwner) {
-			itemOwner = actor ? actor : owner;
-		}
-
-		const auto allowed = IsPlayerAllowedToTakeItemWithValue(player, itemOwner, _entry->GetValue());
-		return owner && !allowed;
-	}
-
-	ItemType ItemStack::GetItemType() const
-	{
-		// From ItemCard::ShowItemInfo (RELOCATION_ID(51019, 51897))
-
-		switch (_object->formType.get()) {
+	ItemType ItemStack::GetItemType() const {
+		switch (_foundEquip->baseForm->formType.get()) {
 		case RE::FormType::Armor:
 			return ItemType::kArmor;
 
@@ -424,7 +248,7 @@ namespace QuickLoot::Items
 			return ItemType::kWeapon;
 
 		case RE::FormType::Book:
-			if (const auto book = skyrim_cast<RE::TESObjectBOOK*>(_object)) {
+			if (const auto book = skyrim_cast<RE::TESObjectBOOK*>(_foundEquip->baseForm)) {
 				return book->TeachesSpell() ? ItemType::kMagicItem : ItemType::kBook;
 			}
 			return ItemType::kBook;
@@ -440,7 +264,7 @@ namespace QuickLoot::Items
 			return ItemType::kKey;
 
 		case RE::FormType::AlchemyItem:
-			if (const auto alchemyItem = skyrim_cast<RE::AlchemyItem*>(_object)) {
+			if (const auto alchemyItem = skyrim_cast<RE::AlchemyItem*>(_foundEquip->baseForm)) {
 				return alchemyItem->IsFood() ? ItemType::kFood : ItemType::kMagicItem;
 			}
 			return ItemType::kMagicItem;
@@ -453,45 +277,24 @@ namespace QuickLoot::Items
 		}
 	}
 
-	int ItemStack::GetPickpocketChance() const
-	{
-		const auto player = RE::PlayerCharacter::GetSingleton();
-		const auto victim = skyrim_cast<RE::Actor*>(_container.get().get());
-		if (!victim) {
-			return {};
-		}
-
-		const auto count = _entry->countDelta;
-		const auto value = victim->GetStealValue(_entry.get(), count, true);
-		const auto weight = _object->GetWeight();
-		const auto detected = victim->RequestDetectionLevel(player) != 0;
-		const auto playerSkill = player->AsActorValueOwner()->GetClampedActorValue(RE::ActorValue::kPickpocket);
-		const auto victimSkill = victim->AsActorValueOwner()->GetActorValue(RE::ActorValue::kPickpocket);
-
-		return RE::AIFormulas::ComputePickpocketSuccess(playerSkill, victimSkill, value, weight, player, victim, detected, _object);
-	}
-
-	float ItemStack::RoundValue(float value)
-	{
+	float ItemStack::RoundValue(float value) {
 		return value >= 0 ? floorf(value + 0.5f) : ceilf(value - 0.5f);
 	}
 
-	float ItemStack::TruncatePrecision(float value)
-	{
+	float ItemStack::TruncatePrecision(float value) {
 		return RoundValue(value * 100) / 100;
 	}
 
-	EnchantmentType ItemStack::GetEnchantmentType() const
-	{
+	EnchantmentType ItemStack::GetEnchantmentType() const {
 		// https://github.com/ahzaab/moreHUDSE/blob/0b6995a8628cec786f822d2e177eae46dcee0569/src/AHZTarget.cpp#L185
 
 		static const auto magicDisallowEnchanting = KnownForms::MagicDisallowEnchanting.LookupForm<RE::BGSKeyword>();
 
-		const auto enchantable = skyrim_cast<RE::TESEnchantableForm*>(_object);
+		const auto enchantable = skyrim_cast<RE::TESEnchantableForm*>(_foundEquip->baseForm);
 		auto enchantment = enchantable ? enchantable->formEnchanting : nullptr;
 
-		if (const auto reference = _dropRef.get()) {
-			if (const auto extraEnchantment = reference->extraList.GetByType<RE::ExtraEnchantment>()) {
+		if (const auto reference = _foundEquip->objectData) {
+			if (const auto extraEnchantment = reference->GetByType<RE::ExtraEnchantment>()) {
 				enchantment = extraEnchantment->enchantment;
 			}
 		}
@@ -521,40 +324,4 @@ namespace QuickLoot::Items
 		return EnchantmentType::kUnknown;
 	}
 
-	// Native calls
-
-	void ItemStack::ShowItemInfo(RE::ItemCard* itemCard, RE::InventoryEntryData* entry, bool isContainerItem)
-	{
-		using func_t = decltype(&ShowItemInfo);
-		REL::Relocation<func_t> func{ RELOCATION_ID(51019, 51897) };
-		return func(itemCard, entry, isContainerItem);
-	}
-
-	bool ItemStack::IsPlayerAllowedToTakeItemWithValue(RE::PlayerCharacter* player, RE::TESForm* ownerNpcOrFaction, int value)
-	{
-		using func_t = decltype(&IsPlayerAllowedToTakeItemWithValue);
-		REL::Relocation<func_t> func{ RELOCATION_ID(39584, 40670) };
-		return func(player, ownerNpcOrFaction, value);
-	}
-
-	void ItemStack::RefreshEnchantedWeapons(RE::Actor* actor, RE::InventoryChanges* changes)
-	{
-		using func_t = decltype(&RefreshEnchantedWeapons);
-		REL::Relocation<func_t> func{ RELOCATION_ID(50946, 51823) };
-		return func(actor, changes);
-	}
-
-	RE::InventoryEntryData* ItemStack::GetInventoryEntryAt(RE::InventoryChanges* changes, int index)
-	{
-		using func_t = decltype(&GetInventoryEntryAt);
-		REL::Relocation<func_t> func{ RELOCATION_ID(15866, 16106) };
-		return func(changes, index);
-	}
-
-	RE::ExtraDataList* ItemStack::GetInventoryEntryExtraListForRemoval(RE::InventoryEntryData* entry, int count, bool isViewingContainer)
-	{
-		using func_t = decltype(&GetInventoryEntryExtraListForRemoval);
-		REL::Relocation<func_t> func{ RELOCATION_ID(50948, 51825) };
-		return func(entry, count, isViewingContainer);
-	}
 }

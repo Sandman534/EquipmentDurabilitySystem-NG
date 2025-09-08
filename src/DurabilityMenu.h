@@ -47,6 +47,7 @@ public:
 
 	void AdvanceMovie(float a_interval, std::uint32_t a_currentTime) override;
 	
+	void ShowHideMenu();
 	void ShowMenu();
 	void HideMenu();
 	void UpdatePosition();

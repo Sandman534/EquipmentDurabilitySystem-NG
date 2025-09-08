@@ -9,12 +9,10 @@
 // Durability HUD
 //===============================================
 DurabilityMenu::DurabilityMenu() {
-	// Set up menu flags
-	menuFlags.set(RE::UI_MENU_FLAGS::kRequiresUpdate); // Receives AdvanceMovie
-	menuFlags.set(RE::UI_MENU_FLAGS::kAllowSaving);	   // Doesn’t block saving
-	menuFlags.set(RE::UI_MENU_FLAGS::kAlwaysOpen);	   // Always open
-	menuFlags.reset(RE::UI_MENU_FLAGS::kModal);		   // Allow other menus to get input
-	menuFlags.set(RE::UI_MENU_FLAGS::kCustomRendering);		   // Allow other menus to get input
+	 // Base flags
+	menuFlags.set(RE::UI_MENU_FLAGS::kRequiresUpdate);
+	menuFlags.set(RE::UI_MENU_FLAGS::kAllowSaving);
+	menuFlags.set(RE::UI_MENU_FLAGS::kAlwaysOpen);
 
 	// Set Menu Depth (Higher = drawn above others (vanilla pause menu is 3)
 	depthPriority = 0;
@@ -30,6 +28,8 @@ DurabilityMenu::DurabilityMenu() {
 }
 
 void DurabilityMenu::AdvanceMovie(float a_interval, std::uint32_t a_currentTime) {
+	if(RE::UI::GetSingleton()->IsMenuOpen(RE::Console::MENU_NAME)) return;
+
 	// Call base to handle input/messages
 	RE::IMenu::AdvanceMovie(a_interval, a_currentTime);
 
@@ -53,7 +53,7 @@ void DurabilityMenu::AdvanceMovie(float a_interval, std::uint32_t a_currentTime)
 	UpdateItemData();
 }
 
-void DurabilityMenu::ShowMenu() {
+void DurabilityMenu::ShowHideMenu() {
 	auto settings = Settings::GetSingleton();
 	bool shouldShow = false;
 	switch (settings->ED_Widget_Display) {
@@ -68,16 +68,39 @@ void DurabilityMenu::ShowMenu() {
 			break;
 	}
 
-	if (!RE::UI::GetSingleton()->IsMenuOpen(MENU_NAME) && shouldShow) {
-		RE::UIMessageQueue::GetSingleton()->AddMessage(MENU_NAME, RE::UI_MESSAGE_TYPE::kShow, nullptr);
+	if (shouldShow)
+		ShowMenu();
+	else if (!shouldShow)
+		HideMenu();
+
+	if (hotkeyActivated)
 		startTime = std::chrono::steady_clock::now();
-	} else if (RE::UI::GetSingleton()->IsMenuOpen(MENU_NAME) && !shouldShow)
-		RE::UIMessageQueue::GetSingleton()->AddMessage(MENU_NAME, RE::UI_MESSAGE_TYPE::kHide, nullptr);
+}
+
+void DurabilityMenu::ShowMenu() {
+	auto hud = RE::UI::GetSingleton()->GetMenu("DurabilityMenu");
+	if (hud) {
+		// Fully hide it for the engine
+		RE::UIMessage msg(MENU_NAME,RE::UI_MESSAGE_TYPE::kShow);
+		hud->ProcessMessage(msg);
+
+		// Hide the movie visually
+		if (hud->uiMovie)
+			hud->uiMovie->SetVisible(true);
+	}
 }
 
 void DurabilityMenu::HideMenu() {
-	if (RE::UI::GetSingleton()->IsMenuOpen(MENU_NAME))
-		RE::UIMessageQueue::GetSingleton()->AddMessage(MENU_NAME,RE::UI_MESSAGE_TYPE::kHide,nullptr);
+	auto hud = RE::UI::GetSingleton()->GetMenu("DurabilityMenu");
+	if (hud) {
+		// Fully hide it for the engine
+		RE::UIMessage msg(MENU_NAME,RE::UI_MESSAGE_TYPE::kHide);
+		hud->ProcessMessage(msg); 
+
+		// Hide the movie visually
+		if (hud->uiMovie)
+			hud->uiMovie->SetVisible(false);
+	}
 }
 
 void DurabilityMenu::UpdatePosition() {
@@ -165,42 +188,31 @@ void DurabilityMenu::UpdateItemData() {
 
 		// Process the form
 		if (eqD.baseForm && ((eqD.IsUnarmed() && setting->ED_Widget_ShowUnarmed) || !eqD.IsUnarmed())) {
-			if (auto* boundObj = eqD.baseForm->As<RE::TESBoundObject>()) {
+			// Process the inventory through the stack
+			const I4Data::Items::ItemStack stack{ &eqD };
+			const auto& data = stack.GetData();
 
-				// ownership transfers to the item stack, so we don't delete this.
-				const auto entry = new RE::InventoryEntryData(boundObj, 1);
-				if (eqD.objectData) entry->AddExtraList(eqD.objectData);
+			// Icon Label
+			iconLabel = data.iconLabel.value;
 
-				// Process the inventory through the stack
-				RE::SpellItem* spellObject = nullptr;
-				if (eqD.baseForm && eqD.baseForm->GetFormType() == RE::FormType::Spell) {
-					spellObject = skyrim_cast<RE::SpellItem*>(eqD.baseForm);
+			// Get Name and Health Value
+			if (eqD.baseForm->IsWeapon() || eqD.baseForm->IsArmor()) {
+				// Generate Name
+				eqD.CreateName();
+				iconText = eqD.objectName.c_str();
+
+				// Get Health Value and Color
+				if (eqD.CanTemper()) {
+					using std::max;
+					iconValue = max(std::round((eqD.GetItemHealthForWidget() - 1.0f) * 1000.0), 0.0);
+					if (setting->GetBreakChance(eqD.baseForm) != 0.0 && iconValue <= setting->ED_BreakThreshold && eqD.CanBreak())
+						iconCustomColor = setting->ED_Color_Broken;
 				}
-				const QuickLoot::Items::ItemStack stack{ entry, RE::PlayerCharacter::GetSingleton()->GetHandle(), {}, spellObject };
-				const auto& data = stack.GetData();
+			} else
+				iconText = eqD.baseForm->GetName();
 
-				// Icon Label
-				iconLabel = data.iconLabel.value;
-
-				// Get Name and Health Value
-				if (eqD.baseForm->IsWeapon() || eqD.baseForm->IsArmor()) {
-					// Generate Name
-					eqD.CreateName();
-					iconText = eqD.objectName.c_str();
-
-					// Get Health Value and Color
-					if (eqD.CanTemper()) {
-						using std::max;
-						iconValue = max(std::round((eqD.GetItemHealthForWidget() - 1.0f) * 1000.0), 0.0);
-						if (setting->GetBreakChance(eqD.baseForm) != 0.0 && iconValue <= setting->ED_BreakThreshold && eqD.CanBreak())
-							iconCustomColor = setting->ED_Color_Broken;
-					}
-				} else
-					iconText = eqD.baseForm->GetName();
-
-				// Create the stack data
-				stackData = stack.BuildDataObject(uiMovie.get());
-			}
+			// Create the stack data
+			stackData = stack.BuildDataObject(uiMovie.get());
 		}
 
 		// Add our values to the argument list
@@ -228,21 +240,26 @@ public:
 	}
 
 	RE::BSEventNotifyControl ProcessEvent(const RE::MenuOpenCloseEvent* ev, RE::BSTEventSource<RE::MenuOpenCloseEvent>*) override {
-        if (!ev || ev->menuName == "DurabilityMenu") return RE::BSEventNotifyControl::kContinue;
+		// If the menu is the Durability HUD or Quick Loot, move on
+		if (!ev || ev->menuName == "DurabilityMenu" || (ev->menuName == "LootMenu" && !RE::UI::GetSingleton()->IsMenuOpen(RE::Console::MENU_NAME))) 
+			return RE::BSEventNotifyControl::kContinue;
 
-		auto ui = RE::UI::GetSingleton();
-		auto dm = DurabilityMenu::GetSingleton();
-
-		// IF the durability exists and is not visible, don't do anything
-		if (!dm) return RE::BSEventNotifyControl::kContinue;
-
+		auto durability = DurabilityMenu::GetSingleton();
+		if (!durability) return RE::BSEventNotifyControl::kContinue;
 
 		// Depending on whats going on we will display or hide the menu
-		if (!ui || ui->GameIsPaused() || !ui->IsCursorHiddenWhenTopmost() || !ui->IsShowingMenus() || !ui->GetMenu<RE::HUDMenu>() || ui->IsMenuOpen(RE::LoadingMenu::MENU_NAME))
-			dm->HideMenu();
-		else
-			dm->ShowMenu();
+		if (Utility::GetSingleton()->MenuShouldHide(RE::UI::GetSingleton()) && ev->opening) {
+			durability->HideMenu();
+		} else if (ev->menuName == "LootMenu" && !ev->opening) {
+			SKSE::GetTaskInterface()->AddTask([] {
+				auto hud = DurabilityMenu::GetSingleton();
+				hud->HideMenu();
+			});
+		} else {
+			durability->ShowMenu();
+		}
 
+		// Continue
         return RE::BSEventNotifyControl::kContinue;
     }
 
@@ -262,17 +279,17 @@ class MenuInputHandler : public RE::BSTEventSink<RE::InputEvent*> {
 
     RE::BSEventNotifyControl ProcessEvent(RE::InputEvent* const* a_event,RE::BSTEventSource<RE::InputEvent*>* a_eventSource) {
 		if (a_event) {
-			auto ui = RE::UI::GetSingleton();
-			
-			if (!ui || ui->GameIsPaused() || !ui->IsCursorHiddenWhenTopmost() || !ui->IsShowingMenus() || !ui->GetMenu<RE::HUDMenu>() || ui->IsMenuOpen(RE::LoadingMenu::MENU_NAME))
-				return RE::BSEventNotifyControl::kContinue;
+			// If a block menu is open, do not process
+			if (Utility::GetSingleton()->MenuShouldHide(RE::UI::GetSingleton())) return RE::BSEventNotifyControl::kContinue;
 
 			const auto controlMap = RE::ControlMap::GetSingleton();
 			const auto playerCharacter = RE::PlayerCharacter::GetSingleton();
 			const auto playerControls = RE::PlayerControls::GetSingleton();
 
+			// If we dont have any of these, return
 			if (!controlMap || !playerCharacter || !playerControls) return RE::BSEventNotifyControl::kContinue;
 
+			// Was a key pressed that matches our menu hotkey
 			for (auto event = *a_event; event; event = event->next) {
 				if (event->eventType == RE::INPUT_EVENT_TYPE::kButton) {
 					const auto button = static_cast<RE::ButtonEvent*>(event);
@@ -282,14 +299,13 @@ class MenuInputHandler : public RE::BSTEventSink<RE::InputEvent*> {
 					auto scan_code = HelperFunctions::AdjustScanCodes(device, button->GetIDCode());
 
 					if ((device == RE::INPUT_DEVICE::kKeyboard || device == RE::INPUT_DEVICE::kGamepad) && !button->IsUp()) {
-						auto settings = Settings::GetSingleton();
 						auto durability = DurabilityMenu::GetSingleton();
-						if (durability && scan_code == settings->ED_Widget_ToggleKeyCode) {
-							if (!RE::UI::GetSingleton()->IsMenuOpen(durability->MENU_NAME))
+						if (durability && scan_code == Settings::GetSingleton()->ED_Widget_ToggleKeyCode) {
+							if (!durability->hotkeyActivated)
 								durability->hotkeyActivated = true;
 							else
 								durability->hotkeyActivated = false;
-							durability->ShowMenu();	
+							durability->ShowHideMenu();	
 						}
 					}
 				}
@@ -311,7 +327,7 @@ RE::BSEventNotifyControl PlayerGraphEventHook::ProcessEvent(RE::BSTEventSink<RE:
 		if (auto durability = DurabilityMenu::GetSingleton()) {
 			if (a_event->tag == "weaponDraw") durability->sheathActivated = true;
 			else if (a_event->tag == "weaponSheathe") durability->sheathActivated = false;
-			durability->ShowMenu();
+			durability->ShowHideMenu();
 		}
 	}
     return _ProcessEvent(a_sink, a_event, a_eventSource);
@@ -327,7 +343,7 @@ namespace Menu {
 		auto ui = RE::UI::GetSingleton();
 		if (!ui) return;
 		RE::UI::GetSingleton()->Register("DurabilityMenu", &DurabilityMenu::Create);
-		DurabilityMenu::GetSingleton()->ShowMenu();
+		RE::UIMessageQueue::GetSingleton()->AddMessage("DurabilityMenu", RE::UI_MESSAGE_TYPE::kShow, nullptr);
 		logger::info("Loaded: HUD");
 	}
 }

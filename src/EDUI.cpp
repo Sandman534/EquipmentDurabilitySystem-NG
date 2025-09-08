@@ -94,12 +94,12 @@ void __stdcall EDUI::RenderRates() {
 
 			ImGui::TableNextRow();
 			ImGui::TableSetColumnIndex(0); ImGui::Text("Heavy Armor");
-			ImGui::TableSetColumnIndex(1); ImGui::SliderFloat("##Degrade_HeavyArmor", &Settings->ED_Degrade_HeavyArmor, 0.0, 10.0, "%d%%");
+			ImGui::TableSetColumnIndex(1); ImGui::SliderFloat("##Degrade_HeavyArmor", &Settings->ED_Degrade_HeavyArmor, 0.0, 10.0, "%.01f");
 			ImGui::TableSetColumnIndex(2); ImGui::SliderInt("##Break_HeavyArmor", &Settings->ED_Break_HeavyArmor, 0, 100, "%d%%");
 
 			ImGui::TableNextRow();
 			ImGui::TableSetColumnIndex(0); ImGui::Text("Clothing");
-			ImGui::TableSetColumnIndex(1); ImGui::SliderFloat("##Degrade_Clothing", &Settings->ED_Degrade_Clothing, 0.0, 10.0, "%d%%");
+			ImGui::TableSetColumnIndex(1); ImGui::SliderFloat("##Degrade_Clothing", &Settings->ED_Degrade_Clothing, 0.0, 10.0, "%.01f");
 			ImGui::TableSetColumnIndex(2); ImGui::SliderInt("##Break_Clothing", &Settings->ED_Break_Clothing, 0, 100, "%d%%");
 
 			ImGui::TableNextRow();
@@ -258,7 +258,7 @@ void __stdcall EDUI::RenderHUD() {
 					if (!durabilityMenu) return;
 
 					// Call your function
-					durabilityMenu->ShowMenu();
+					durabilityMenu->ShowHideMenu();
 				}
 			}
 			ImGui::EndCombo();
@@ -370,9 +370,7 @@ void __stdcall EDUI::RenderHUD() {
 			}
 		}
 
-		ImGui::SameLine();
 		ImGui::Text("  Display Duration (0 is persistent)");
-		ImGui::SameLine();
 		ImGui::SliderInt("##Hotkey_Duration", &Settings->ED_Widget_ToggleDuration, 0, 30);
 	}
 }

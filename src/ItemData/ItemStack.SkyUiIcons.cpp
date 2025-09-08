@@ -1,15 +1,11 @@
 #include "ItemStack.h"
 #include "ItemDefines.h"
 
-namespace QuickLoot::Items
-{
-	void ItemStack::SkyUiSelectIcon() const
-	{
+namespace I4Data::Items {
+	void ItemStack::SkyUiSelectIcon() const {
 		PROFILE_SCOPE;
 
-		// https://github.com/schlangster/skyui/blob/835428728e2305865e220fdfc99d791434955eb1/src/ItemMenus/InventoryIconSetter.as#L40
-
-		switch (_object->formType.get()) {
+		switch (_foundEquip->baseForm->formType.get()) {
 		case RE::FormType::Scroll:
 			_data.iconLabel = "default_scroll";
 			SkyUiSelectScrollColor();
@@ -60,10 +56,7 @@ namespace QuickLoot::Items
 		}
 	}
 
-	void ItemStack::SkyUiSelectScrollColor() const
-	{
-		// https://github.com/schlangster/skyui/blob/835428728e2305865e220fdfc99d791434955eb1/src/ItemMenus/InventoryIconSetter.as#L93
-
+	void ItemStack::SkyUiSelectScrollColor() const {
 		switch (_data.scroll.resistance) {
 		case RE::ActorValue::kResistFire:
 			_data.iconColor = 0xC73636;
@@ -82,10 +75,7 @@ namespace QuickLoot::Items
 		}
 	}
 
-	void ItemStack::SkyUiSelectArmorIcon() const
-	{
-		// https://github.com/schlangster/skyui/blob/835428728e2305865e220fdfc99d791434955eb1/src/ItemMenus/InventoryIconSetter.as#L113
-
+	void ItemStack::SkyUiSelectArmorIcon() const {
 		_data.iconLabel = "default_armor";
 		_data.iconColor = 0xEDDA87;
 
@@ -111,10 +101,7 @@ namespace QuickLoot::Items
 		}
 	}
 
-	void ItemStack::SkyUiSelectLightArmorIcon() const
-	{
-		// https://github.com/schlangster/skyui/blob/835428728e2305865e220fdfc99d791434955eb1/src/ItemMenus/InventoryIconSetter.as#L138
-
+	void ItemStack::SkyUiSelectLightArmorIcon() const {
 		_data.iconColor = 0x756000;
 
 		switch (_data.armor.subType) {
@@ -155,10 +142,7 @@ namespace QuickLoot::Items
 		}
 	}
 
-	void ItemStack::SkyUiSelectHeavyArmorIcon() const
-	{
-		// https://github.com/schlangster/skyui/blob/835428728e2305865e220fdfc99d791434955eb1/src/ItemMenus/InventoryIconSetter.as#L185
-
+	void ItemStack::SkyUiSelectHeavyArmorIcon() const {
 		_data.iconColor = 0x6B7585;
 
 		switch (_data.armor.subType) {
@@ -199,10 +183,7 @@ namespace QuickLoot::Items
 		}
 	}
 
-	void ItemStack::SkyUiSelectClothingIcon() const
-	{
-		// https://github.com/schlangster/skyui/blob/835428728e2305865e220fdfc99d791434955eb1/src/ItemMenus/InventoryIconSetter.as#L251
-
+	void ItemStack::SkyUiSelectClothingIcon() const {
 		switch (_data.armor.subType) {
 		case ArmorSubType::kHead:
 		case ArmorSubType::kHair:
@@ -240,10 +221,7 @@ namespace QuickLoot::Items
 		}
 	}
 
-	void ItemStack::SkyUiSelectJewelryIcon() const
-	{
-		// https://github.com/schlangster/skyui/blob/835428728e2305865e220fdfc99d791434955eb1/src/ItemMenus/InventoryIconSetter.as#L231
-
+	void ItemStack::SkyUiSelectJewelryIcon() const {
 		switch (_data.armor.subType) {
 		case ArmorSubType::kLongHair:
 			_data.iconLabel = "armor_amulet";
@@ -262,10 +240,7 @@ namespace QuickLoot::Items
 		}
 	}
 
-	void ItemStack::SkyUiSelectBookIcon() const
-	{
-		// https://github.com/schlangster/skyui/blob/835428728e2305865e220fdfc99d791434955eb1/src/ItemMenus/InventoryIconSetter.as#L292
-
+	void ItemStack::SkyUiSelectBookIcon() const {
 		switch (_data.book.subType) {
 		case BookSubType::kSpellTome:
 			_data.iconLabel = "book_tome";
@@ -282,10 +257,7 @@ namespace QuickLoot::Items
 		}
 	}
 
-	void ItemStack::SkyUiSelectMiscIcon() const
-	{
-		// https://github.com/schlangster/skyui/blob/835428728e2305865e220fdfc99d791434955eb1/src/ItemMenus/InventoryIconSetter.as#L514
-
+	void ItemStack::SkyUiSelectMiscIcon() const {
 		switch (_data.misc.subType) {
 		case MiscType::kGem:
 			_data.iconLabel = "misc_gem";
@@ -353,10 +325,7 @@ namespace QuickLoot::Items
 		}
 	}
 
-	void ItemStack::SkyUiSelectWeaponIcon() const
-	{
-		// https://github.com/schlangster/skyui/blob/835428728e2305865e220fdfc99d791434955eb1/src/ItemMenus/InventoryIconSetter.as#L309
-
+	void ItemStack::SkyUiSelectWeaponIcon() const {
 		_data.iconColor = 0xA4A5BF;
 
 		switch (_data.weapon.subType) {
@@ -414,10 +383,7 @@ namespace QuickLoot::Items
 		}
 	}
 
-	void ItemStack::SkyUiSelectAmmoIcon() const
-	{
-		// https://github.com/schlangster/skyui/blob/835428728e2305865e220fdfc99d791434955eb1/src/ItemMenus/InventoryIconSetter.as#L372
-
+	void ItemStack::SkyUiSelectAmmoIcon() const {
 		_data.iconColor = 0xA89E8C;
 
 		if (_data.ammo.subType == AmmoType::kBolt) {
@@ -427,10 +393,7 @@ namespace QuickLoot::Items
 		}
 	}
 
-	void ItemStack::SkyUiSelectPotionIcon() const
-	{
-		// https://github.com/schlangster/skyui/blob/835428728e2305865e220fdfc99d791434955eb1/src/ItemMenus/InventoryIconSetter.as#L387
-
+	void ItemStack::SkyUiSelectPotionIcon() const {
 		switch (_data.potion.subType) {
 		case PotionType::kHealth:
 		case PotionType::kHealRate:
@@ -487,10 +450,7 @@ namespace QuickLoot::Items
 		}
 	}
 
-	void ItemStack::SkyUiSelectSoulGemIcon() const
-	{
-		// https://github.com/schlangster/skyui/blob/835428728e2305865e220fdfc99d791434955eb1/src/ItemMenus/InventoryIconSetter.as#L444
-
+	void ItemStack::SkyUiSelectSoulGemIcon() const {
 		switch (_data.soulGem.subType) {
 		case SoulLevel::kPetty:
 			SkyUiSelectSoulGemStatusIcon(false);
@@ -529,11 +489,7 @@ namespace QuickLoot::Items
 		}
 	}
 
-	void ItemStack::SkyUiSelectSoulGemStatusIcon(bool grand) const
-	{
-		// https://github.com/schlangster/skyui/blob/835428728e2305865e220fdfc99d791434955eb1/src/ItemMenus/InventoryIconSetter.as#L482
-		// https://github.com/schlangster/skyui/blob/835428728e2305865e220fdfc99d791434955eb1/src/ItemMenus/InventoryIconSetter.as#L498
-
+	void ItemStack::SkyUiSelectSoulGemStatusIcon(bool grand) const {
 		switch (_data.soulGem.status) {
 		case SoulGemStatus::kEmpty:
 			_data.iconLabel = grand ? "soulgem_grandempty" : "soulgem_empty";

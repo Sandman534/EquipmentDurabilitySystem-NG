@@ -61,8 +61,6 @@ SKSEPluginLoad(const LoadInterface* skse) {
 	if (auto serialization = SKSE::GetSerializationInterface()) {
 		serialization->SetUniqueID(Serialization::ID);
 		serialization->SetSaveCallback(&Serialization::SaveCallback);
-		serialization->SetLoadCallback(&Serialization::LoadCallback);
-		serialization->SetRevertCallback(&Serialization::RevertCallback);
 	}
 
 	// Register the SKSE Menu

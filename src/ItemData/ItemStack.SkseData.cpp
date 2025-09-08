@@ -1,13 +1,9 @@
 #include "ItemStack.h"
 #include "ItemDefines.h"
 
-namespace QuickLoot::Items
-{
-	void ItemStack::SkseExtendItemData() const
-	{
+namespace I4Data::Items {
+	void ItemStack::SkseExtendItemData() const {
 		PROFILE_SCOPE;
-
-		// https://github.com/ianpatt/skse64/blob/9843a236aa12b12fa4c6530c29113adfb941da72/skse64/Hooks_Scaleform.cpp#L1164
 
 		SkseExtendCommonItemData();
 		SkseExtendItemInfoData();
@@ -19,49 +15,39 @@ namespace QuickLoot::Items
 		// but we don't have access to those. It seems to be a pretty rarely used feature though.
 	}
 
-	void ItemStack::SkseExtendCommonItemData() const
-	{
+	void ItemStack::SkseExtendCommonItemData() const {
 		PROFILE_SCOPE;
 
-		// https://github.com/ianpatt/skse64/blob/9843a236aa12b12fa4c6530c29113adfb941da72/skse64/ScaleformExtendedData.cpp#L113
-
-		_data.formType = _object->formType;
-		_data.formId = _object->formID;
+		_data.formType = _foundEquip->baseForm->formType;
+		_data.formId = _foundEquip->baseForm->formID;
 	}
 
-	void ItemStack::SkseExtendItemInfoData() const
-	{
+	void ItemStack::SkseExtendItemInfoData() const {
 		PROFILE_SCOPE;
 
-		// https://github.com/ianpatt/skse64/blob/9843a236aa12b12fa4c6530c29113adfb941da72/skse64/ScaleformExtendedData.cpp#L782
-
-		_data.value = _entry->GetValue();
-		_data.weight = _object->GetWeight();
-		//_data.isStolen = _entry->IsOwnedBy(RE::PlayerCharacter::GetSingleton(), true); // SkyUI overwrites this
+		_data.value = _foundEquip->baseForm->GetGoldValue();
+		_data.weight = _foundEquip->baseForm->GetWeight();
 	}
 
-	void ItemStack::SkseExtendStandardItemData() const
-	{
+	void ItemStack::SkseExtendStandardItemData() const {
 		PROFILE_SCOPE;
 
-		// https://github.com/ianpatt/skse64/blob/9843a236aa12b12fa4c6530c29113adfb941da72/skse64/ScaleformExtendedData.cpp#L122
-
-		switch (_object->formType.get()) {
+		switch (_foundEquip->baseForm->formType.get()) {
 		case RE::FormType::Armor:
-			if (const auto armor = skyrim_cast<RE::TESObjectARMO*>(_object)) {
+			if (const auto armor = skyrim_cast<RE::TESObjectARMO*>(_foundEquip->baseForm)) {
 				_data.armor.partMask = armor->bipedModelData.bipedObjectSlots;
 				_data.armor.weightClass = static_cast<ArmorWeightClass>(armor->bipedModelData.armorType.get());
 			}
 			break;
 
 		case RE::FormType::Ammo:
-			if (const auto ammo = skyrim_cast<RE::TESAmmo*>(_object)) {
+			if (const auto ammo = skyrim_cast<RE::TESAmmo*>(_foundEquip->baseForm)) {
 				_data.ammo.flags = ammo->GetRuntimeData().data.flags;
 			}
 			break;
 
 		case RE::FormType::Weapon:
-			if (const auto weapon = skyrim_cast<RE::TESObjectWEAP*>(_object)) {
+			if (const auto weapon = skyrim_cast<RE::TESObjectWEAP*>(_foundEquip->baseForm)) {
 				_data.weapon.weaponType = weapon->weaponData.animationType;
 				_data.weapon.speed = weapon->weaponData.speed;
 				_data.weapon.reach = weapon->weaponData.reach;
@@ -78,20 +64,21 @@ namespace QuickLoot::Items
 			break;
 
 		case RE::FormType::SoulGem:
-			if (const auto soulGem = skyrim_cast<RE::TESSoulGem*>(_object)) {
+			if (const auto soulGem = skyrim_cast<RE::TESSoulGem*>(_foundEquip->baseForm)) {
 				_data.soulGem.gemSize = static_cast<SoulLevel>(soulGem->soulCapacity.get());
-				_data.soulGem.soulSize = static_cast<SoulLevel>(_entry->GetSoulLevel());
+				if (_foundEquip->objectData)
+					_data.soulGem.soulSize = static_cast<SoulLevel>(_foundEquip->objectData->GetSoulLevel());
 			}
 			break;
 
 		case RE::FormType::AlchemyItem:
-			if (const auto alchemyItem = skyrim_cast<RE::AlchemyItem*>(_object)) {
+			if (const auto alchemyItem = skyrim_cast<RE::AlchemyItem*>(_foundEquip->baseForm)) {
 				_data.potion.flags = alchemyItem->data.flags;
 			}
 			break;
 
 		case RE::FormType::Book:
-			if (const auto book = skyrim_cast<RE::TESObjectBOOK*>(_object)) {
+			if (const auto book = skyrim_cast<RE::TESObjectBOOK*>(_foundEquip->baseForm)) {
 				_data.book.flags = book->data.flags;
 				_data.book.bookType = book->data.type;
 
@@ -117,30 +104,27 @@ namespace QuickLoot::Items
 		}
 	}
 
-	void ItemStack::SkseExtendInventoryData() const
-	{
+	void ItemStack::SkseExtendInventoryData() const {
 		PROFILE_SCOPE;
 
-		// https://github.com/ianpatt/skse64/blob/9843a236aa12b12fa4c6530c29113adfb941da72/skse64/ScaleformExtendedData.cpp#L724
-
-		if (const auto keywordForm = skyrim_cast<RE::BGSKeywordForm*>(_object))
+		if (const auto keywordForm = skyrim_cast<RE::BGSKeywordForm*>(_foundEquip->baseForm))
 		{
 			_data.keywords = keywordForm;
 		}
 
 		const auto player = RE::PlayerCharacter::GetSingleton();
 
-		switch (_object->formType.get()) {
+		switch (_foundEquip->baseForm->formType.get()) {
 		case RE::FormType::Armor:
-			_data.armor.armor = RoundValue(player->GetArmorValue(_entry.get()));
+			_data.armor.armor = _foundEquip->baseForm->As<RE::TESObjectARMO>()->armorRating;
 			break;
 
 		case RE::FormType::Weapon:
-			_data.weapon.damage = RoundValue(player->GetDamage(_entry.get()));
+			_data.weapon.damage = _foundEquip->baseForm->As<RE::TESObjectWEAP>()->attackDamage;
 			break;
 
 		case RE::FormType::Ammo:
-			_data.ammo.damage = RoundValue(player->GetDamage(_entry.get()));
+			_data.ammo.damage = _foundEquip->baseForm->As<RE::TESAmmo>()->data.damage;
 			break;
 
 		default:
@@ -148,13 +132,10 @@ namespace QuickLoot::Items
 		}
 	}
 
-	void ItemStack::SkseExtendMagicItemData() const
-	{
+	void ItemStack::SkseExtendMagicItemData() const {
 		PROFILE_SCOPE;
 
-		// https://github.com/ianpatt/skse64/blob/9843a236aa12b12fa4c6530c29113adfb941da72/skse64/ScaleformExtendedData.cpp#L227
-
-		if (const auto magicItem = skyrim_cast<RE::MagicItem*>(_object)) {
+		if (const auto magicItem = skyrim_cast<RE::MagicItem*>(_foundEquip->baseForm)) {
 			_data.magic.spellName = magicItem->fullName.c_str();
 
 			const auto effect = magicItem->GetCostliestEffectItem(static_cast<RE::MagicSystem::Delivery>(5), false);
@@ -179,7 +160,7 @@ namespace QuickLoot::Items
 			}
 		}
 
-		if (const auto spellItem = skyrim_cast<RE::SpellItem*>(_object)) {
+		if (const auto spellItem = skyrim_cast<RE::SpellItem*>(_foundEquip->baseForm)) {
 			_data.spell.spellType = spellItem->data.spellType;
 			_data.spell.trueCost = spellItem->data.costOverride;
 
@@ -195,19 +176,19 @@ namespace QuickLoot::Items
 			}
 		}
 
-		if (const auto alchemyItem = skyrim_cast<RE::AlchemyItem*>(_object)) {
+		if (const auto alchemyItem = skyrim_cast<RE::AlchemyItem*>(_foundEquip->baseForm)) {
 			if (const auto sound = alchemyItem->data.consumptionSound) {
 				_data.potion.useSound = sound;
 			}
 		}
 
-		if (const auto enchantmentItem = skyrim_cast<RE::EnchantmentItem*>(_object)) {
+		if (const auto enchantmentItem = skyrim_cast<RE::EnchantmentItem*>(_foundEquip->baseForm)) {
 			_data.enchantment.flags = enchantmentItem->formFlags;
 			_data.enchantment.baseEnchant = enchantmentItem->data.baseEnchantment;
 			_data.enchantment.restrictions = enchantmentItem->data.wornRestrictions;
 		}
 
-		if (const auto shout = skyrim_cast<RE::TESShout*>(_object)) {
+		if (const auto shout = skyrim_cast<RE::TESShout*>(_foundEquip->baseForm)) {
 			_data.shout.fullName = shout->fullName.c_str();
 
 			for (int i = 0; i < 3; ++i) {

@@ -1,6 +1,6 @@
 #pragma once
 
-namespace QuickLoot::Items
+namespace I4Data::Items
 {
 #pragma region General
 

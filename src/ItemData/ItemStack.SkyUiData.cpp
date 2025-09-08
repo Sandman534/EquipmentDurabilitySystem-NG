@@ -1,28 +1,21 @@
 #include "ItemStack.h"
 #include "ItemDefines.h"
 
-namespace QuickLoot::Items
-{
-	void ItemStack::SkyUiProcessEntry() const
-	{
+namespace I4Data::Items {
+	void ItemStack::SkyUiProcessEntry() const {
 		PROFILE_SCOPE;
-
-		// https://github.com/schlangster/skyui/blob/835428728e2305865e220fdfc99d791434955eb1/src/ItemMenus/InventoryDataSetter.as#L24
 
 		const auto player = RE::PlayerCharacter::GetSingleton();
 		const auto value = _data.value.value;
 		using std::max;
 		const auto weight = max(0.0f, _data.weight.value);
 
-		_data.baseId = _object->formID & 0xFFFFFF;
+		_data.baseId = _foundEquip->baseForm->formID & 0xFFFFFF;
 		_data.type = GetItemType();
 
 		_data.isEquipped = _data.equipState > 0;
-		_data.isStolen = _container == player->GetHandle() && !_entry->IsOwnedBy(player, true);
+		_data.isStolen = false;
 
-		//if (value > 0) { // This does nothing for integers
-		//	_data.infoValue = TruncatePrecision(value);
-		//}
 		if (weight > 0) {
 			_data.infoWeight = TruncatePrecision(weight);
 		}
@@ -30,7 +23,7 @@ namespace QuickLoot::Items
 			_data.infoValueWeight = RoundValue(value / weight);
 		}
 
-		switch (_object->formType.get()) {
+		switch (_foundEquip->baseForm->formType.get()) {
 		case RE::FormType::Scroll:
 			_data.subTypeDisplay = "$Scroll";
 
@@ -39,8 +32,8 @@ namespace QuickLoot::Items
 			break;
 
 		case RE::FormType::Armor:
-			_data.armor.isEnchanted = _entry->IsEnchanted();
-			_data.armor.infoArmor = TruncatePrecision(player->GetArmorValue(_entry.get()));
+			_data.armor.isEnchanted = _foundEquip->IsEnchanted();
+			_data.armor.infoArmor = TruncatePrecision(_foundEquip->baseForm->As<RE::TESObjectARMO>()->armorRating);
 
 			SkyUiProcessArmorClass();
 			SkyUiProcessArmorPartMask();
@@ -67,9 +60,9 @@ namespace QuickLoot::Items
 			break;
 
 		case RE::FormType::Weapon:
-			_data.weapon.isEnchanted = _entry->IsEnchanted();
-			_data.weapon.isPoisoned = _entry->extraLists && !_entry->extraLists->empty() && !_entry->extraLists->front()->HasType(RE::ExtraDataType::kPoison);
-			_data.weapon.infoDamage = TruncatePrecision(player->GetDamage(_entry.get()));
+			_data.weapon.isEnchanted = _foundEquip->IsEnchanted();
+			_data.weapon.isPoisoned = _foundEquip->objectData ? _foundEquip->objectData->HasType(RE::ExtraDataType::kPoison) : false;
+			_data.weapon.infoDamage = TruncatePrecision(_foundEquip->baseForm->As<RE::TESObjectWEAP>()->attackDamage);
 
 			SkyUiProcessWeaponType();
 			SkyUiProcessMaterialKeywords();
@@ -77,8 +70,8 @@ namespace QuickLoot::Items
 			break;
 
 		case RE::FormType::Ammo:
-			_data.ammo.isEnchanted = _entry->IsEnchanted();
-			_data.ammo.infoDamage = TruncatePrecision(player->GetDamage(_entry.get()));
+			_data.ammo.isEnchanted = _foundEquip->IsEnchanted();
+			_data.ammo.infoDamage = TruncatePrecision(_foundEquip->baseForm->As<RE::TESAmmo>()->data.damage);
 
 			SkyUiProcessAmmoType();
 			SkyUiProcessMaterialKeywords();
@@ -107,13 +100,10 @@ namespace QuickLoot::Items
 		}
 	}
 
-	void ItemStack::SkyUiProcessArmorClass() const
-	{
+	void ItemStack::SkyUiProcessArmorClass() const {
 		PROFILE_SCOPE;
 
-		// https://github.com/schlangster/skyui/blob/835428728e2305865e220fdfc99d791434955eb1/src/ItemMenus/InventoryDataSetter.as#L115
-
-		if (const auto armor = skyrim_cast<RE::TESObjectARMO*>(_object)) {
+		if (const auto armor = skyrim_cast<RE::TESObjectARMO*>(_foundEquip->baseForm)) {
 			switch (static_cast<ArmorWeightClass>(armor->bipedModelData.armorType.underlying())) {
 			case ArmorWeightClass::kLight:
 				_data.armor.weightClassDisplay = "$Light";
@@ -124,13 +114,13 @@ namespace QuickLoot::Items
 				break;
 
 			case ArmorWeightClass::kNone:
-				if (_object->HasKeywordByEditorID("VendorItemClothing")) {
+				if (_foundEquip->baseForm->HasKeywordByEditorID("VendorItemClothing")) {
 					_data.armor.weightClass = ArmorWeightClass::kClothing;
 					_data.armor.weightClassDisplay = "$Clothing";
 					break;
 				}
 
-				if (_object->HasKeywordByEditorID("VendorItemJewelry")) {
+				if (_foundEquip->baseForm->HasKeywordByEditorID("VendorItemJewelry")) {
 					_data.armor.weightClass = ArmorWeightClass::kJewelry;
 					_data.armor.weightClassDisplay = "$Jewelry";
 					break;
@@ -146,13 +136,10 @@ namespace QuickLoot::Items
 		}
 	}
 
-	void ItemStack::SkyUiProcessArmorPartMask() const
-	{
+	void ItemStack::SkyUiProcessArmorPartMask() const {
 		PROFILE_SCOPE;
 
-		// https://github.com/schlangster/skyui/blob/835428728e2305865e220fdfc99d791434955eb1/src/ItemMenus/InventoryDataSetter.as#L415
-
-		if (const auto armor = skyrim_cast<RE::TESObjectARMO*>(_object)) {
+		if (const auto armor = skyrim_cast<RE::TESObjectARMO*>(_foundEquip->baseForm)) {
 			const auto partMask = armor->bipedModelData.bipedObjectSlots;
 			auto mainPartMask = ArmorSlot::kNone;
 
@@ -179,11 +166,8 @@ namespace QuickLoot::Items
 		}
 	}
 
-	void ItemStack::SkyUiProcessArmorOther() const
-	{
+	void ItemStack::SkyUiProcessArmorOther() const {
 		PROFILE_SCOPE;
-
-		// https://github.com/schlangster/skyui/blob/835428728e2305865e220fdfc99d791434955eb1/src/ItemMenus/InventoryDataSetter.as#L506
 
 		if (_data.armor.weightClass.valid) {
 			return;
@@ -218,31 +202,25 @@ namespace QuickLoot::Items
 		}
 	}
 
-	void ItemStack::SkyUiProcessArmorKnownForms() const
-	{
+	void ItemStack::SkyUiProcessArmorKnownForms() const {
 		PROFILE_SCOPE;
 
-		// https://github.com/schlangster/skyui/blob/835428728e2305865e220fdfc99d791434955eb1/src/ItemMenus/InventoryDataSetter.as#L536
-
-		if (_object == KnownForms::ClothesWeddingWreath) {
+		if (_foundEquip->baseForm == KnownForms::ClothesWeddingWreath) {
 			_data.armor.weightClass = ArmorWeightClass::kJewelry;
 			_data.armor.weightClassDisplay = "$Jewelry";
 		}
 
-		if (_object == KnownForms::DLC1ClothesVampireLordArmor) {
+		if (_foundEquip->baseForm == KnownForms::DLC1ClothesVampireLordArmor) {
 			_data.armor.subType = ArmorSubType::kBody;
 			_data.subTypeDisplay = "$Body";
 		}
 	}
 
-	void ItemStack::SkyUiProcessMaterialKeywords() const
-	{
+	void ItemStack::SkyUiProcessMaterialKeywords() const {
 		PROFILE_SCOPE;
 
-		// https://github.com/schlangster/skyui/blob/835428728e2305865e220fdfc99d791434955eb1/src/ItemMenus/InventoryDataSetter.as#L145
-
 		for (const auto& entry : MaterialTable) {
-			if (_object->HasAnyKeywordByEditorID(entry.keywords)) {
+			if (_foundEquip->baseForm->HasAnyKeywordByEditorID(entry.keywords)) {
 				_data.material.material = entry.material;
 				_data.material.materialDisplay = entry.materialDisplay;
 				return;
@@ -252,23 +230,20 @@ namespace QuickLoot::Items
 		_data.material.materialDisplay = "$Other";
 	}
 
-	void ItemStack::SkyUiProcessBookType() const
-	{
+	void ItemStack::SkyUiProcessBookType() const {
 		PROFILE_SCOPE;
 
-		// https://github.com/schlangster/skyui/blob/835428728e2305865e220fdfc99d791434955eb1/src/ItemMenus/InventoryDataSetter.as#L550
-
-		if (const auto book = skyrim_cast<RE::TESObjectBOOK*>(_object)) {
+		if (const auto book = skyrim_cast<RE::TESObjectBOOK*>(_foundEquip->baseForm)) {
 			_data.book.isRead = book->data.flags.all(BookFlags::kHasBeenRead);
 		}
 
-		if (_object->HasKeywordByEditorID("VendorItemRecipe")) {
+		if (_foundEquip->baseForm->HasKeywordByEditorID("VendorItemRecipe")) {
 			_data.book.subType = BookSubType::kRecipe;
 			_data.subTypeDisplay = "$Recipe";
 			return;
 		}
 
-		if (_object->HasKeywordByEditorID("VendorItemSpellTome")) {
+		if (_foundEquip->baseForm->HasKeywordByEditorID("VendorItemSpellTome")) {
 			_data.book.subType = BookSubType::kSpellTome;
 			_data.subTypeDisplay = "$Spell Tome";
 			return;
@@ -284,14 +259,11 @@ namespace QuickLoot::Items
 		_data.subTypeDisplay = "$Book";
 	}
 
-	void ItemStack::SkyUiProcessMiscType() const
-	{
+	void ItemStack::SkyUiProcessMiscType() const {
 		PROFILE_SCOPE;
 
-		// https://github.com/schlangster/skyui/blob/835428728e2305865e220fdfc99d791434955eb1/src/ItemMenus/InventoryDataSetter.as#L774
-
 		for (const auto& entry : MiscSubTypeTable) {
-			if (_object->HasAnyKeywordByEditorID(entry.keywords)) {
+			if (_foundEquip->baseForm->HasAnyKeywordByEditorID(entry.keywords)) {
 				_data.misc.subType = entry.subType;
 				_data.subTypeDisplay = entry.subTypeDisplay;
 				return;
@@ -302,66 +274,60 @@ namespace QuickLoot::Items
 		_data.subTypeDisplay = "$Misc";
 	}
 
-	void ItemStack::SkyUiProcessMiscKnownForms() const
-	{
+	void ItemStack::SkyUiProcessMiscKnownForms() const {
 		PROFILE_SCOPE;
 
-		// https://github.com/schlangster/skyui/blob/835428728e2305865e220fdfc99d791434955eb1/src/ItemMenus/InventoryDataSetter.as#L836
-
-		if (_object == KnownForms::Gold001) {
+		if (_foundEquip->baseForm == KnownForms::Gold001) {
 			_data.misc.subType = MiscType::kGold;
 			_data.subTypeDisplay = "$Gold";
 			return;
 		}
 
-		if (_object == KnownForms::Lockpick) {
+		if (_foundEquip->baseForm == KnownForms::Lockpick) {
 			_data.misc.subType = MiscType::kLockpick;
 			_data.subTypeDisplay = "$Lockpick";
 			return;
 		}
 
-		if (_object == KnownForms::Leather01) {
+		if (_foundEquip->baseForm == KnownForms::Leather01) {
 			_data.misc.subType = MiscType::kLeather;
 			_data.subTypeDisplay = "$Leather";
 			return;
 		}
 
-		if (_object == KnownForms::LeatherStrips) {
+		if (_foundEquip->baseForm == KnownForms::LeatherStrips) {
 			_data.misc.subType = MiscType::kLeatherStrips;
 			_data.subTypeDisplay = "$Strips";
 			return;
 		}
 
-		if (_object == KnownForms::GemAmethystFlawless) {
+		if (_foundEquip->baseForm == KnownForms::GemAmethystFlawless) {
 			_data.misc.subType = MiscType::kGem;
 			_data.subTypeDisplay = "$Gem";
 			return;
 		}
 
-		if (_object == KnownForms::dunDeadMensRubyDragonClaw ||
-			_object == KnownForms::dunFolgunthurIvoryDragonClaw ||
-			_object == KnownForms::dunForelhostGlassClaw ||
-			_object == KnownForms::dunKorvanjundEbonyDragonClaw ||
-			_object == KnownForms::dunReachwaterRockEmeraldDragonClaw ||
-			_object == KnownForms::dunSkuldafnDiamondClaw ||
-			_object == KnownForms::dunValthumeIronClaw ||
-			_object == KnownForms::dunYngolBarrowCoralClaw ||
-			_object == KnownForms::E3GoldenClaw ||
-			_object == KnownForms::FFI01Claw ||
-			_object == KnownForms::MS13GoldenClaw) {
+		if (_foundEquip->baseForm == KnownForms::dunDeadMensRubyDragonClaw ||
+			_foundEquip->baseForm == KnownForms::dunFolgunthurIvoryDragonClaw ||
+			_foundEquip->baseForm == KnownForms::dunForelhostGlassClaw ||
+			_foundEquip->baseForm == KnownForms::dunKorvanjundEbonyDragonClaw ||
+			_foundEquip->baseForm == KnownForms::dunReachwaterRockEmeraldDragonClaw ||
+			_foundEquip->baseForm == KnownForms::dunSkuldafnDiamondClaw ||
+			_foundEquip->baseForm == KnownForms::dunValthumeIronClaw ||
+			_foundEquip->baseForm == KnownForms::dunYngolBarrowCoralClaw ||
+			_foundEquip->baseForm == KnownForms::E3GoldenClaw ||
+			_foundEquip->baseForm == KnownForms::FFI01Claw ||
+			_foundEquip->baseForm == KnownForms::MS13GoldenClaw) {
 			_data.misc.subType = MiscType::kDragonClaw;
 			_data.subTypeDisplay = "$Claw";
 			return;
 		}
 	}
 
-	void ItemStack::SkyUiProcessWeaponType() const
-	{
+	void ItemStack::SkyUiProcessWeaponType() const {
 		PROFILE_SCOPE;
 
-		// https://github.com/schlangster/skyui/blob/835428728e2305865e220fdfc99d791434955eb1/src/ItemMenus/InventoryDataSetter.as#L325
-
-		if (const auto weapon = skyrim_cast<RE::TESObjectWEAP*>(_object)) {
+		if (const auto weapon = skyrim_cast<RE::TESObjectWEAP*>(_foundEquip->baseForm)) {
 			auto animationType = weapon->weaponData.animationType;
 			if (animationType >= WeaponAnimationType::kTotal) {
 				animationType -= WeaponAnimationType::kTotal;
@@ -399,7 +365,7 @@ namespace QuickLoot::Items
 				break;
 
 			case WeaponAnimationType::kTwoHandAxe:
-				if (_object->HasKeywordByEditorID("WeapTypeWarhammer")) {
+				if (_foundEquip->baseForm->HasKeywordByEditorID("WeapTypeWarhammer")) {
 					_data.weapon.subType = WeaponType::kWarhammer;
 					_data.subTypeDisplay = "$Warhammer";
 				} else {
@@ -431,35 +397,29 @@ namespace QuickLoot::Items
 		}
 	}
 
-	void ItemStack::SkyUiProcessWeaponKnownForms() const
-	{
+	void ItemStack::SkyUiProcessWeaponKnownForms() const {
 		PROFILE_SCOPE;
 
-		// https://github.com/schlangster/skyui/blob/835428728e2305865e220fdfc99d791434955eb1/src/ItemMenus/InventoryDataSetter.as#L398
-
-		if (_object == KnownForms::weapPickaxe ||
-			_object == KnownForms::SSDRocksplinterPickaxe ||
-			_object == KnownForms::dunVolunruudPickaxe) {
+		if (_foundEquip->baseForm == KnownForms::weapPickaxe ||
+			_foundEquip->baseForm == KnownForms::SSDRocksplinterPickaxe ||
+			_foundEquip->baseForm == KnownForms::dunVolunruudPickaxe) {
 			_data.weapon.subType = WeaponType::kPickaxe;
 			_data.subTypeDisplay = "$Pickaxe";
 			return;
 		}
 
-		if (_object == KnownForms::Axe01 ||
-			_object == KnownForms::dunHaltedStreamPoachersAxe) {
+		if (_foundEquip->baseForm == KnownForms::Axe01 ||
+			_foundEquip->baseForm == KnownForms::dunHaltedStreamPoachersAxe) {
 			_data.weapon.subType = WeaponType::kWoodAxe;
 			_data.subTypeDisplay = "$Wood Axe";
 			return;
 		}
 	}
 
-	void ItemStack::SkyUiProcessAmmoType() const
-	{
+	void ItemStack::SkyUiProcessAmmoType() const {
 		PROFILE_SCOPE;
 
-		// https://github.com/schlangster/skyui/blob/835428728e2305865e220fdfc99d791434955eb1/src/ItemMenus/InventoryDataSetter.as#L574
-
-		if (const auto ammo = skyrim_cast<RE::TESAmmo*>(_object)) {
+		if (const auto ammo = skyrim_cast<RE::TESAmmo*>(_foundEquip->baseForm)) {
 			if (ammo->GetRuntimeData().data.flags.all(AmmoFlags::kNonBolt)) {
 				_data.ammo.subType = AmmoType::kArrow;
 				_data.subTypeDisplay = "$Arrow";
@@ -470,99 +430,96 @@ namespace QuickLoot::Items
 		}
 	}
 
-	void ItemStack::SkyUiProcessAmmoKnownForms() const
-	{
+	void ItemStack::SkyUiProcessAmmoKnownForms() const {
 		PROFILE_SCOPE;
 
-		// https://github.com/schlangster/skyui/blob/835428728e2305865e220fdfc99d791434955eb1/src/ItemMenus/InventoryDataSetter.as#L585
-
-		if (_object == KnownForms::DaedricArrow) {
+		if (_foundEquip->baseForm == KnownForms::DaedricArrow) {
 			_data.material.material = MaterialType::kDaedric;
 			_data.material.materialDisplay = "$Daedric";
 			return;
 		}
 
-		if (_object == KnownForms::EbonyArrow) {
+		if (_foundEquip->baseForm == KnownForms::EbonyArrow) {
 			_data.material.material = MaterialType::kEbony;
 			_data.material.materialDisplay = "$Ebony";
 			return;
 		}
 
-		if (_object == KnownForms::GlassArrow) {
+		if (_foundEquip->baseForm == KnownForms::GlassArrow) {
 			_data.material.material = MaterialType::kGlass;
 			_data.material.materialDisplay = "$Glass";
 			return;
 		}
 
-		if (_object == KnownForms::ElvenArrow ||
-			_object == KnownForms::DLC1ElvenArrowBlessed ||
-			_object == KnownForms::DLC1ElvenArrowBlood) {
+		if (_foundEquip->baseForm == KnownForms::ElvenArrow ||
+			_foundEquip->baseForm == KnownForms::DLC1ElvenArrowBlessed ||
+			_foundEquip->baseForm == KnownForms::DLC1ElvenArrowBlood) {
 			_data.material.material = MaterialType::kElven;
 			_data.material.materialDisplay = "$Elven";
 			return;
 		}
 
-		if (_object == KnownForms::DwarvenArrow ||
-			_object == KnownForms::DwarvenSphereArrow ||
-			_object == KnownForms::DwarvenSphereBolt01 ||
-			_object == KnownForms::DwarvenSphereBolt02 ||
-			_object == KnownForms::DLC2DwarvenBallistaBolt) {
+		if (_foundEquip->baseForm == KnownForms::DwarvenArrow ||
+			_foundEquip->baseForm == KnownForms::DwarvenSphereArrow ||
+			_foundEquip->baseForm == KnownForms::DwarvenSphereBolt01 ||
+			_foundEquip->baseForm == KnownForms::DwarvenSphereBolt02 ||
+			_foundEquip->baseForm == KnownForms::DLC2DwarvenBallistaBolt) {
 			_data.material.material = MaterialType::kDwarven;
 			_data.material.materialDisplay = "$Dwarven";
 			return;
 		}
 
-		if (_object == KnownForms::OrcishArrow) {
+		if (_foundEquip->baseForm == KnownForms::OrcishArrow) {
 			_data.material.material = MaterialType::kOrcish;
 			_data.material.materialDisplay = "$Orcish";
 			return;
 		}
 
-		if (_object == KnownForms::NordHeroArrow) {
+		if (_foundEquip->baseForm == KnownForms::NordHeroArrow) {
 			_data.material.material = MaterialType::kNordic;
 			_data.material.materialDisplay = "$Nordic";
 			return;
 		}
 
-		if (_object == KnownForms::DraugrArrow) {
+		if (_foundEquip->baseForm == KnownForms::DraugrArrow) {
 			_data.material.material = MaterialType::kDraugr;
 			_data.material.materialDisplay = "$Draugr";
 			return;
 		}
 
-		if (_object == KnownForms::FalmerArrow) {
+		if (_foundEquip->baseForm == KnownForms::FalmerArrow) {
 			_data.material.material = MaterialType::kFalmer;
 			_data.material.materialDisplay = "$Falmer";
 			return;
 		}
 
-		if (_object == KnownForms::SteelArrow ||
-			_object == KnownForms::MQ101SteelArrow) {
+		if (_foundEquip->baseForm == KnownForms::SteelArrow ||
+			_foundEquip->baseForm == KnownForms::MQ101SteelArrow) {
 			_data.material.material = MaterialType::kSteel;
 			_data.material.materialDisplay = "$Steel";
 			return;
 		}
 
-		if (_object == KnownForms::IronArrow ||
-			_object == KnownForms::CWArrow ||
-			_object == KnownForms::CWArrowShort ||
-			_object == KnownForms::TrapDart ||
-			_object == KnownForms::dunArcherPracticeArrow ||
-			_object == KnownForms::dunGeirmundSigdisArrowsIllusion ||
-			_object == KnownForms::FollowerIronArrow ||
-			_object == KnownForms::TestDLC1Bolt) {
+		if (_foundEquip->baseForm == KnownForms::IronArrow ||
+			_foundEquip->baseForm == KnownForms::CWArrow ||
+			_foundEquip->baseForm == KnownForms::CWArrowShort ||
+			_foundEquip->baseForm == KnownForms::TrapDart ||
+			_foundEquip->baseForm == KnownForms::dunArcherPracticeArrow ||
+			_foundEquip->baseForm == KnownForms::dunGeirmundSigdisArrowsIllusion ||
+			_foundEquip->baseForm == KnownForms::FollowerIronArrow ||
+			_foundEquip->baseForm == KnownForms::TestDLC1Bolt) {
 			_data.material.material = MaterialType::kIron;
 			_data.material.materialDisplay = "$Iron";
 			return;
 		}
 
-		if (_object == KnownForms::ForswornArrow) {
+		if (_foundEquip->baseForm == KnownForms::ForswornArrow) {
 			_data.material.material = MaterialType::kHide;
 			_data.material.materialDisplay = "$Forsworn";
 			return;
 		}
 
-		if (_object == KnownForms::DLC2RieklingSpearThrown) {
+		if (_foundEquip->baseForm == KnownForms::DLC2RieklingSpearThrown) {
 			_data.material.material = MaterialType::kWood;
 			_data.material.materialDisplay = "$Wood";
 			_data.subTypeDisplay = "$Spear";
@@ -570,11 +527,8 @@ namespace QuickLoot::Items
 		}
 	}
 
-	void ItemStack::SkyUiProcessKeyType() const
-	{
+	void ItemStack::SkyUiProcessKeyType() const {
 		PROFILE_SCOPE;
-
-		// https://github.com/schlangster/skyui/blob/835428728e2305865e220fdfc99d791434955eb1/src/ItemMenus/InventoryDataSetter.as#L659
 
 		_data.subTypeDisplay = "$Key";
 
@@ -587,13 +541,10 @@ namespace QuickLoot::Items
 		}
 	}
 
-	void ItemStack::SkyUiProcessPotionType() const
-	{
+	void ItemStack::SkyUiProcessPotionType() const {
 		PROFILE_SCOPE;
 
-		// https://github.com/schlangster/skyui/blob/835428728e2305865e220fdfc99d791434955eb1/src/ItemMenus/InventoryDataSetter.as#L670
-
-		if (const auto alchemyItem = skyrim_cast<RE::AlchemyItem*>(_object)) {
+		if (const auto alchemyItem = skyrim_cast<RE::AlchemyItem*>(_foundEquip->baseForm)) {
 			if (alchemyItem->data.flags.all(AlchemyFlags::kFoodItem)) {
 				if (alchemyItem->data.consumptionSound == KnownForms::ITMPotionUse) {
 					_data.potion.subType = PotionType::kDrink;
@@ -626,15 +577,12 @@ namespace QuickLoot::Items
 		}
 	}
 
-	void ItemStack::SkyUiProcessSoulGemType() const
-	{
+	void ItemStack::SkyUiProcessSoulGemType() const {
 		PROFILE_SCOPE;
-
-		// https://github.com/schlangster/skyui/blob/835428728e2305865e220fdfc99d791434955eb1/src/ItemMenus/InventoryDataSetter.as#L744
 
 		_data.subTypeDisplay = "$Soul Gem";
 
-		if (const auto soulGem = skyrim_cast<RE::TESSoulGem*>(_object)) {
+		if (const auto soulGem = skyrim_cast<RE::TESSoulGem*>(_foundEquip->baseForm)) {
 			if (soulGem->soulCapacity) {
 				_data.soulGem.subType = static_cast<SoulLevel>(soulGem->soulCapacity.get());
 			} else {
@@ -643,13 +591,10 @@ namespace QuickLoot::Items
 		}
 	}
 
-	void ItemStack::SkyUiProcessSoulGemStatus() const
-	{
+	void ItemStack::SkyUiProcessSoulGemStatus() const {
 		PROFILE_SCOPE;
 
-		// https://github.com/schlangster/skyui/blob/835428728e2305865e220fdfc99d791434955eb1/src/ItemMenus/InventoryDataSetter.as#L754
-
-		if (const auto soulGem = skyrim_cast<RE::TESSoulGem*>(_object)) {
+		if (const auto soulGem = skyrim_cast<RE::TESSoulGem*>(_foundEquip->baseForm)) {
 			const auto gemLevel = soulGem->soulCapacity;
 			const auto soulLevel = soulGem->currentSoul;
 
@@ -667,14 +612,11 @@ namespace QuickLoot::Items
 		}
 	}
 
-	void ItemStack::SkyUiProcessSoulGemKnownForms() const
-	{
+	void ItemStack::SkyUiProcessSoulGemKnownForms() const {
 		PROFILE_SCOPE;
 
-		// https://github.com/schlangster/skyui/blob/835428728e2305865e220fdfc99d791434955eb1/src/ItemMenus/InventoryDataSetter.as#L764
-
-		if (_object == KnownForms::DA01SoulGemAzurasStar ||
-			_object == KnownForms::DA01SoulGemBlackStar) {
+		if (_foundEquip->baseForm == KnownForms::DA01SoulGemAzurasStar ||
+			_foundEquip->baseForm == KnownForms::DA01SoulGemBlackStar) {
 			_data.soulGem.subType = SoulLevel::kAzura;
 		}
 	}

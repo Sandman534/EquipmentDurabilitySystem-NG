@@ -87,4 +87,18 @@ public:
         if (messageBox) RE::DebugMessageBox(msg.c_str());
         else RE::DebugNotification(msg.c_str(), a_soundToPlay);
     }
+
+    bool MenuShouldHide(RE::UI* ui) {
+        // Game is paused (menu/game paused)
+        if (!ui) return true;
+        if (ui->GameIsPaused()) return true;
+        if (!ui->IsCursorHiddenWhenTopmost()) return true;
+        if (!ui->IsShowingMenus()) return true;
+        if (!ui->GetMenu<RE::HUDMenu>()) return true;
+        if (ui->IsMenuOpen(RE::LoadingMenu::MENU_NAME))  return true;
+        //if (ui->IsMenuOpen("Console") || ui->IsMenuOpen("MessageBoxMenu") || ui->IsMenuOpen("RaceSexMenu")) return true;
+
+        // Everything else is fine
+        return false;
+    }
 };

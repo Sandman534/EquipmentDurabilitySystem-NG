@@ -128,10 +128,6 @@ public:
 	double GetDegradationRate(RE::TESForm* form);
 	double GetBreakChance(RE::TESForm* form);
 
-	// Track processed items for dynamic throttling
-	std::unordered_set<RE::TESObjectREFR*> processedContainers;
-	std::unordered_set<RE::TESObjectREFR*> processedNPCs;
-
 	static Settings* GetSingleton();
 private:
     // cannot use auto for class member declaration

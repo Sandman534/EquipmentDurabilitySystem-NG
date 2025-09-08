@@ -287,6 +287,12 @@ private:
 // =============================================================
 // Dynamic Tempering and Enchanting
 // =============================================================
+struct ExtraProcessedFlag : RE::BSExtraData
+{
+    inline static constexpr auto TYPE = RE::ExtraDataType::kNone; // or any unused type
+    ExtraProcessedFlag() = default;
+};
+
 struct NearbyObjects {
     std::vector<RE::TESObjectREFR*> containers;
     std::vector<RE::Actor*> npcs;
@@ -315,20 +321,22 @@ inline static bool IsPlayerOwned(RE::Actor* player) {
 }
 
 inline static void ProcessReference(RE::TESObjectREFR* ref, NearbyObjects& result) {
-	if (!ref) RE::BSContainer::ForEachResult::kContinue;
-	auto* setting = Settings::GetSingleton();
+	if (!ref) return;
 
-	// Containers, Actors and Equipment
-	if (ref->GetBaseObject()->formType == RE::FormType::Container) {
-		if (!setting->processedContainers.contains(ref)) {
-			result.containers.push_back(ref);
-			setting->processedContainers.insert(ref);
-		}
-	} else if (auto actor = ref->As<RE::Actor>()) {
-		if (setting->processedNPCs.contains(ref)) {
-			result.npcs.push_back(actor);
-			setting->processedNPCs.insert(ref);
-		}
+    auto* base = ref->GetBaseObject();
+    if (!base) return;
+
+    auto* setting = Settings::GetSingleton();
+    const RE::FormID id = ref->GetFormID();
+    if (!id) return;
+
+	// Containers
+	if (ref->GetBaseObject() && ref->GetBaseObject()->formType == RE::FormType::Container) {
+		result.containers.push_back(ref);
+	} 
+	
+	if (auto actor = ref->As<RE::Actor>()) {
+		result.npcs.push_back(actor);
 	}
 }
 
@@ -340,53 +348,55 @@ NearbyObjects GetNearbyObjects(RE::Actor* player) {
     float radius = IsPlayerIndoors(player) ? 2000.0f : 7000.0f; // 20m indoors, 70m outdoors
     float radiusSq = radius * radius;
     RE::NiPoint3 origin = player->GetPosition();
-	auto* tesSingleton = RE::TES::GetSingleton();
-	auto* interiorCell = tesSingleton->interiorCell;
+	auto* tes = RE::TES::GetSingleton();
 
-	if (interiorCell) {
-		interiorCell->ForEachReferenceInRange(origin, radiusSq, [&](RE::TESObjectREFR* a_ref) { 
-			ProcessReference(a_ref, result); 
-			return RE::BSContainer::ForEachResult::kContinue;
-		});
-	} else {
-		if (const auto gridLength = tesSingleton->gridCells ? tesSingleton->gridCells->length : 0; gridLength > 0) {
-			const float searchMaxY = origin.y + radiusSq;
-			const float searchMinY = origin.y - radiusSq;
-			const float searchMaxX = origin.x + radiusSq;
-			const float searchMinX = origin.x - radiusSq;
+    // Prefer the player's actual parent cell (more correct & safer for interiors)
+    if (auto* playerCell = player->GetParentCell(); playerCell && playerCell->IsAttached()) {
+        playerCell->ForEachReferenceInRange(origin, radius, [&](RE::TESObjectREFR* a_ref) {
+            ProcessReference(a_ref, result);
+            return RE::BSContainer::ForEachResult::kContinue;
+        });
+        return result;
+    }
+	if (const auto gridLength = tes->gridCells ? tes->gridCells->length : 0; gridLength > 0) {
+		const float searchMaxY = origin.y + radiusSq;
+		const float searchMinY = origin.y - radiusSq;
+		const float searchMaxX = origin.x + radiusSq;
+		const float searchMinX = origin.x - radiusSq;
 
-			for (std::uint32_t x = 0; x < gridLength; ++x) {
-				for (std::uint32_t y = 0; y < gridLength; ++y) {
-					if (const auto cell = tesSingleton->gridCells->GetCell(x, y); cell && cell->IsAttached()) {
-						if (const auto cellCoords = cell->GetCoordinates(); cellCoords) {
-							const RE::NiPoint2 worldPos{ cellCoords->worldX, cellCoords->worldY };
-							if (worldPos.x < searchMaxX && (worldPos.x + 4096.0f) > searchMinX &&
-								worldPos.y < searchMaxY && (worldPos.y + 4096.0f) > searchMinY) {
-								cell->ForEachReferenceInRange(origin, radiusSq, [&](RE::TESObjectREFR* a_ref) {
-									ProcessReference(a_ref, result);
-									return RE::BSContainer::ForEachResult::kContinue;
-								});
-							}
+		for (std::uint32_t x = 0; x < gridLength; ++x) {
+			for (std::uint32_t y = 0; y < gridLength; ++y) {
+				if (const auto cell = tes->gridCells->GetCell(x, y); cell && cell->IsAttached()) {
+					if (const auto cellCoords = cell->GetCoordinates(); cellCoords) {
+						const RE::NiPoint2 worldPos{ cellCoords->worldX, cellCoords->worldY };
+						if (worldPos.x < searchMaxX && (worldPos.x + 4096.0f) > searchMinX &&
+							worldPos.y < searchMaxY && (worldPos.y + 4096.0f) > searchMinY) {
+							cell->ForEachReferenceInRange(origin, radiusSq, [&](RE::TESObjectREFR* a_ref) {
+								ProcessReference(a_ref, result);
+								return RE::BSContainer::ForEachResult::kContinue;
+							});
 						}
 					}
 				}
 			}
-		} else {
-			tesSingleton->ForEachReference([&](RE::TESObjectREFR* a_ref) {
-				ProcessReference(a_ref, result);
-				return RE::BSContainer::ForEachResult::kContinue;
-			});
 		}
-	}
-    return result;
+		return result;
+	} 
+
+	tes->ForEachReference([&](RE::TESObjectREFR* a_ref) {
+		ProcessReference(a_ref, result);
+		return RE::BSContainer::ForEachResult::kContinue;
+	});
+
+	return result;
 }
 
 static void ProcessItem(FoundEquipData* equipData, int actorLevel, bool isVendor = false, bool isBoss = false) {
 	auto* setting = Settings::GetSingleton(); 
 
 	// Temper Process
-	if (actorLevel != 0 && equipData->CanBreak() && !equipData->IsTempered()) {
-		if (setting->ED_Temper_Enabled) {
+	if (actorLevel != 0) {
+		if (setting->ED_Temper_Enabled && !equipData->IsTempered()) {
 			// Set the temper chance based on if we are in a boss location or if this is a vendor container
 			int chanceTemper = setting->ED_Temper_Chance;
 			if (isVendor)
@@ -399,7 +409,7 @@ static void ProcessItem(FoundEquipData* equipData, int actorLevel, bool isVendor
 		}
 
 		// Enchant Process
-		if (setting->ED_Enchant_Enabled) {
+		if (setting->ED_Enchant_Enabled && !equipData->IsEnchanted()) {
 			int chanceEnchant = setting->ED_Enchant_Chance;
 			if (isVendor)
 				chanceEnchant = setting->ED_Enchant_VendorChance;
@@ -408,63 +418,69 @@ static void ProcessItem(FoundEquipData* equipData, int actorLevel, bool isVendor
 
 			if (Probability(chanceEnchant))
 				equipData->SetItemEnchantment(actorLevel);
-		}
 	}
+	} 
+
+	if (!equipData->HasBeenProcessed())
+		equipData->ProcessItem();
 }
 
 static void ProcessInventory(RE::TESObjectREFR* ref) {
 	if (!ref || ref->IsPlayerRef() || ref->IsPlayer()) return;
 
-	auto utility = Utility::GetSingleton();
+    // Only process attached refs
+    auto* cell = ref->GetParentCell();
+    if (!cell || !cell->IsAttached()) return;
+
+	// Guard: don't touch if the ref is currently linked to an active container menu (best-effort)
+    auto* ui = RE::UI::GetSingleton();
+    if (ui && ui->IsMenuOpen(RE::BarterMenu::MENU_NAME)) return;
 
 	// Get the inventory changes, return if there are none
 	RE::InventoryChanges* invChanges = ref->GetInventoryChanges();
 	if (!invChanges || !invChanges->entryList) return;
 
-	// Check if this is a vendor container or if we are in a boss location
-	RE::ExtraLocationRefType* xRefType = static_cast<RE::ExtraLocationRefType*>(ref->extraList.GetByType(RE::ExtraDataType::kLocationRefType));
-	bool isVendor = (ref->GetBaseObject()->formType == RE::FormType::Container && Settings::GetSingleton()->IsVendorContainer(ref));
-	bool isBoss = (xRefType && (xRefType->locRefType == utility->locationBoss || xRefType->locRefType == utility->locationBossContainer));
+	// Vendor/boss check
+	RE::ExtraLocationRefType* xRefType = nullptr;
+    if (ref->extraList.HasType(RE::ExtraDataType::kLocationRefType))
+        xRefType = static_cast<RE::ExtraLocationRefType*>(ref->extraList.GetByType(RE::ExtraDataType::kLocationRefType));
+
+    const bool isVendor = (ref->GetBaseObject() && ref->GetBaseObject()->formType == RE::FormType::Container && Settings::GetSingleton()->IsVendorContainer(ref));
+    const bool isBoss = (xRefType && (xRefType->locRefType == Utility::GetSingleton()->locationBoss || xRefType->locRefType == Utility::GetSingleton()->locationBossContainer));
 
 	// Get the level of the Actor or the Player
 	int level = 0;
-	if (RE::Actor* actor = ref->As<RE::Actor>())
-		if (!actor->IsPlayer() && !actor->IsPlayerTeammate()) level = actor->GetLevel();
-	else
-		level = utility->GetPlayer()->GetLevel();
+	if (RE::Actor* actor = ref->As<RE::Actor>()) {
+		if (!actor->IsPlayer() && !actor->IsPlayerTeammate())
+			level = actor->GetLevel();
+	} else {
+		level = Utility::GetSingleton()->GetPlayer()->GetLevel();
+	}
 
 	// Loop through all items in list
 	for (const auto& entry : *invChanges->entryList) {
 		if (!entry || !entry->object) continue;
 
 		// We need to check the initial object
-		if (FoundEquipData eqD(entry->GetObject()); !eqD.CanTemper()) continue;
-
-		// Get the count of obejcts
-        std::int32_t totalCount = entry->countDelta;
-		std::size_t extraCount = 0;
+		FoundEquipData equipData(entry->GetObject());
+		if (!equipData.CanTemper()) continue;
 
 		// Process Items with Extra Data
 		if (entry->extraLists) {
 			for (auto& entryData : *entry->extraLists) {
-				++extraCount;
-				if (!entryData) continue;
-
-				// Get the entry, process it and return the new extra data
-				FoundEquipData equipData(entry->GetObject(), entryData);
-				ProcessItem(&equipData, level, isVendor, isBoss);
-				entryData = equipData.objectData;
+				if (entryData) {
+					// Get the entry, process it and return the new extra data
+					equipData.objectData = entryData;
+					if (!equipData.HasBeenProcessed()) {
+						ProcessItem(&equipData, level, isVendor, isBoss);
+						entryData = equipData.objectData;
+					}
+				} else {
+					// Create a new list if there is not one already
+					ProcessItem(&equipData, level, isVendor, isBoss);
+					entry->AddExtraList(equipData.objectData);
+				}
 			}
-		}
-
-		// Loop through the left over entries, process them and add the new extra data to the list
-		for (std::size_t i = extraCount; i < static_cast<std::size_t>(totalCount); ++i) {
-			FoundEquipData equipData(entry->GetObject());
-			ProcessItem(&equipData, level, isVendor, isBoss);
-
-			// Create a new list if there is not one already
-			if (!entry->extraLists) entry->extraLists = new RE::BSSimpleList<RE::ExtraDataList*>();
-			entry->extraLists->push_front(equipData.objectData);
 		}
 	}
 }
@@ -472,15 +488,13 @@ static void ProcessInventory(RE::TESObjectREFR* ref) {
 static void DynamicTemperEnchant() {
 	// Prune Cache
 	auto* setting = Settings::GetSingleton();
-	if (setting->processedContainers.size() > kMaxProcessedContainers) setting->processedContainers.clear();
-	if (setting->processedNPCs.size() > kMaxProcessedNPCs) setting->processedNPCs.clear();
 
 	// Do not process player owned locations
 	auto* player = Utility::GetSingleton()->GetPlayer();
 	if (player && IsPlayerOwned(player)) return;
 
 	// Get nearby NPCs and Containers
-	NearbyObjects nearby = GetNearbyObjects(Utility::GetSingleton()->GetPlayer());
+	NearbyObjects nearby = GetNearbyObjects(player);
 
 	// Process Containers, Actors and Equipment
 	for (RE::TESObjectREFR* container : nearby.containers) ProcessInventory(container);
@@ -565,8 +579,9 @@ static std::int32_t OnUpdate() {
 		if (g_deltaTime > 0) {
 			lastTime += g_deltaTime;
 			if (lastTime >= 1.0f) {
-				if (Settings::GetSingleton()->ED_Temper_Enabled || Settings::GetSingleton()->ED_Enchant_Enabled)
+				if (Settings::GetSingleton()->ED_Temper_Enabled || Settings::GetSingleton()->ED_Enchant_Enabled) {
 					DynamicTemperEnchant();
+				}
 				lastTime -= 1.0f;
 			}
 		}
