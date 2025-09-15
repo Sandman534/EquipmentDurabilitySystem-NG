@@ -1,8 +1,12 @@
 #undef GetObject
 #include "FoundEquipData.h"
-#include "Settings.h"
 #include "Utility.h"
+#include "Settings.h"
 
+// ===========================
+// Main Functions
+// ===========================
+#pragma region Item Name Functions
 void FoundEquipData::CreateName() {
     // Specificall create unarmed
 	if (IsUnarmed()) {
@@ -77,7 +81,9 @@ void FoundEquipData::SetFixedName() {
 	textData->SetName(name.c_str());
 
 }
+#pragma endregion
 
+#pragma region Item Health Functions
 float FoundEquipData::GetItemHealthForWidget() {
 	if (IsUnarmed()) return 0.0f;
 	if (!objectData) return Utility::GetSingleton()->DefaultWidgetHealth() + 0.001f;
@@ -109,63 +115,95 @@ void FoundEquipData::SetItemHealthPercent(float value) {
     }
     extraHealth->health = RoundTo5Decimals(value);
 }
+#pragma endregion
 
-void FoundEquipData::SetItemEnchantment(int level) {
-	if (!objectData) return;
+#pragma region Item Enchantment Functions
+void FoundEquipData::SetItemEnchantment(int playerLevel, RE::TESObjectREFR* ref)
+{
+	if (!baseForm)
+		return;
 
-    // Round a random value between 100 and 500 to the nearest 100
-    auto roundTo100 = [](int value) {
-        int remainder = value % 100;
-        if (remainder >= 50) return value + 100 - remainder;
-        if (remainder != 0) return value - remainder;
-        return value;
-    };
-    int newValue = roundTo100(GetRandom(100, 500));
+	// --- Step 1: Determine player’s max tier access ---
+	int playerTier = 0;
+	for (const auto& tier : GameData::TierTable) {
+		if (playerLevel >= tier.minLevel) {
+			playerTier = (std::max)(playerTier, tier.tier);
+		}
+	}
+	if (playerTier == 0)
+		return;
 
-	// Determine magnitude threshold based on level
-    float magMax = 70.0f;
-    if (level <= 8) magMax = 12.5f;
-    else if (level <= 16) magMax = 15.0f;
-    else if (level <= 24) magMax = 20.0f;
-    else if (level <= 32) magMax = 30.0f;
-    else if (level <= 40) magMax = 45.0f;
+	// --- Step 2: Get material limits ---
+	GameData::Material itemMaterial = getStrongestMaterial();
+	auto it = GameData::MaterialTable.find(itemMaterial);
+	if (it == GameData::MaterialTable.end())
+		return;  // unknown material
+	int materialMin = it->second.minTier;
+	int materialMax = it->second.maxTier;
 
-    // Filter enchantments by magnitude
-    auto* tempEnch = Settings::GetSingleton()->GetEnchantmentList(GetType());
-    std::vector<Enchantments> validEnch;
-    std::copy_if(tempEnch->begin(), tempEnch->end(), std::back_inserter(validEnch), [magMax](const Enchantments& e) { return e.enchantment->effects[0]->GetMagnitude() <= magMax; });
+	// Player not high enough level for the enchantment
+	if (playerTier < materialMin)
+		return;
 
-    if (validEnch.empty()) return;
+	// --- Step 3: Get Enchantment Vector based on Body Part ---
+	std::vector<GameData::Enchantment>* allEnchantments = Settings::GetSingleton()->GetEnchantmentList(GetEquipmentType());
+	std::vector<GameData::Enchantment> validEnchantments;
 
-	// Pick a random enchantment
-    Enchantments selectEnch = validEnch.at(GetRandom(0, validEnch.size() - 1));
-	
-	// Apply or create ExtraEnchantment
-    auto* xEnch = static_cast<RE::ExtraEnchantment*>(objectData->GetByType(RE::ExtraDataType::kEnchantment));
-    if (!xEnch) {
-        xEnch = static_cast<RE::ExtraEnchantment*>(RE::ExtraEnchantment::Create(sizeof(RE::ExtraEnchantment), RE::VTABLE_ExtraEnchantment[0].address()));
-        objectData->Add(xEnch);
-    }
-    xEnch->enchantment = selectEnch.enchantment;
-    xEnch->charge = newValue;
-	
-    // Set item name with enchantment
-    objectName = std::string(baseForm->GetName()) + " " + selectEnch.name;
+	// --- Step 4: Get Enchantment Vector based on Body Part ---
+	int effectiveMinTier = materialMin;
+	int effectiveMaxTier = (std::min)(playerTier, materialMax);
+	std::copy_if(allEnchantments->begin(), allEnchantments->end(),
+		std::back_inserter(validEnchantments), [effectiveMinTier, effectiveMaxTier](const GameData::Enchantment& e) {
+			return e.tier >= effectiveMinTier && e.tier <= effectiveMaxTier;
+		});
 
-    auto* xTextData = static_cast<RE::ExtraTextDisplayData*>(objectData->GetByType(RE::ExtraDataType::kTextDisplayData));
-    if (!xTextData) {
-        xTextData = static_cast<RE::ExtraTextDisplayData*>(RE::ExtraTextDisplayData::Create(sizeof(RE::ExtraTextDisplayData), RE::VTABLE_ExtraTextDisplayData[0].address()));
-        objectData->Add(xTextData);
-    }
-    xTextData->SetName(objectName.c_str());
+	// --- Step 4: Random pick ---
+	std::random_device rd;
+	std::mt19937 gen(rd());
+	std::uniform_int_distribution<> dist(0, static_cast<int>(validEnchantments.size()) - 1);
+	GameData::Enchantment& chosen = validEnchantments[dist(gen)];
+
+	// --- Step 5: Get charges from TierTable ---
+	int chargeValue = 1;
+	if (baseForm->IsWeapon()) {
+		for (const auto& tier : GameData::TierTable) {
+			if (tier.tier == chosen.tier) {
+				chargeValue = tier.charge;
+				break;
+			}
+		}
+	}
+
+	// --- Step 6: Apply the enchantment to the object ---
+	if (!objectData->GetByType(RE::ExtraDataType::kEnchantment)) {
+        // Set the objects enchantment
+        auto* objectEnchantment = static_cast<RE::ExtraEnchantment*>(RE::ExtraEnchantment::Create(sizeof(RE::ExtraEnchantment), RE::VTABLE_ExtraEnchantment[0].address()));
+		objectEnchantment->enchantment = chosen.enchantment;
+		objectEnchantment->charge = chargeValue;
+		objectData->Add(objectEnchantment);
+
+        // If the weapon is being held by an actor, set a charge value
+		if (RE::Actor* a_actor = ref->As<RE::Actor>(); a_actor && baseForm->IsWeapon()) {
+			int RandomEnchant = GetRandom(0,chargeValue);
+			if (objectData->HasType<RE::ExtraWornLeft>())
+				a_actor->AsActorValueOwner()->ModActorValue(RE::ActorValue::kLeftItemCharge, RandomEnchant);
+			else if (objectData->HasType<RE::ExtraWorn>())
+                a_actor->AsActorValueOwner()->ModActorValue(RE::ActorValue::kRightItemCharge, RandomEnchant);
+		}
+
+        // --- Step 7: Rename the object ---
+        objectName = std::string(baseForm->GetName()) + " " + chosen.suffix;
+        auto* xTextData = static_cast<RE::ExtraTextDisplayData*>(objectData->GetByType(RE::ExtraDataType::kTextDisplayData));
+        if (!xTextData) {
+			xTextData = static_cast<RE::ExtraTextDisplayData*>(RE::ExtraTextDisplayData::Create(sizeof(RE::ExtraTextDisplayData), RE::VTABLE_ExtraTextDisplayData[0].address()));
+            objectData->Add(xTextData);
+        }
+        xTextData->SetName(objectName.c_str());
+	}
 }
+#pragma endregion
 
-bool FoundEquipData::IsTempered() {
-	return objectData 
-        && objectData->GetByType<RE::ExtraHealth>() != nullptr 
-        && objectData->GetByType<RE::ExtraHealth>()->health > Utility::GetSingleton()->DefaultHealth();
-}
-
+#pragma region Item Process Functions
 bool FoundEquipData::HasBeenProcessed() {
 	return objectData && objectData->GetByType<RE::ExtraHealth>() != nullptr;
 }
@@ -181,6 +219,14 @@ void FoundEquipData::ProcessItem() {
         objectData->Add(extraHealth);
     }
     extraHealth->health = RoundTo5Decimals(Utility::GetSingleton()->DefaultHealth());
+}
+#pragma endregion
+
+#pragma region Item Test Functions
+bool FoundEquipData::IsTempered() {
+	return objectData 
+        && objectData->GetByType<RE::ExtraHealth>() != nullptr 
+        && objectData->GetByType<RE::ExtraHealth>()->health > Utility::GetSingleton()->DefaultHealth();
 }
 
 bool FoundEquipData::IsEnchanted() {
@@ -255,18 +301,83 @@ bool FoundEquipData::CanTemper() {
 
 	return false;
 }
+#pragma endregion
 
+// ===========================
 // Private Functions
-int FoundEquipData::GetEnchantmentListSize() {
-    if (!baseForm) return 0;
+// ===========================
+std::optional<GameData::TierInfo> FoundEquipData::GetTierForLevel(GameData::Material mat, int playerLevel) {
+    // Find material limits
+    auto itMat = GameData::MaterialTable.find(mat);
+    if (itMat == GameData::MaterialTable.end())
+        return std::nullopt; // material not found
 
-    std::string type = GetType();
-    if (type == "none") return 0;
+    const auto& limits = itMat->second;
 
-    return Settings::GetSingleton()->GetEnchantmentSize(type);
+    // Search tiers from highest to lowest
+    for (int i = GameData::TierTable.size() - 1; i >= 0; --i) {
+        const GameData::TierInfo& tier = GameData::TierTable[i];
+
+        // Tier must be within material bounds
+        if (tier.tier < limits.minTier || tier.tier > limits.maxTier)
+            continue;
+
+        // Player level must meet tier's minimum
+        if (playerLevel >= tier.minLevel)
+            return tier;
+    }
+
+    // Player too low for this material
+    return std::nullopt;
 }
 
-std::string FoundEquipData::GetType() {
+GameData::Material FoundEquipData::getStrongestMaterial() {
+    GameData::Material bestMaterial = GameData::Material::Fur; // placeholder
+
+    // Material Lists
+    std::vector<GameData::Material> itemMaterials;
+    std::unordered_set<GameData::Material> seenMaterials; // avoid duplicates
+
+    // Go through all keywords and find the matching materials
+    RE::BGSKeywordForm* keywordList = baseForm->As<RE::BGSKeywordForm>();
+    if (!keywordList) return bestMaterial; // safety check
+    for (auto* keyword : keywordList->GetKeywords()) {
+        if (!keyword) continue;
+
+        auto it = Settings::GetSingleton()->materialMap.find(keyword->formID);
+        if (it != Settings::GetSingleton()->materialMap.end()) {
+            GameData::Material mat = it->second;
+
+            // Avoid duplicates
+            if (seenMaterials.find(mat) == seenMaterials.end()) {
+                itemMaterials.push_back(mat);
+                seenMaterials.insert(mat);
+            }
+        }
+    }
+
+    // Get the Tier of the best material on the object
+    int bestMinTier = 0;
+    int bestMaxTier = 0;
+
+    for (GameData::Material mat : itemMaterials) {
+        auto it = GameData::MaterialTable.find(mat);
+        if (it != GameData::MaterialTable.end()) {
+            const GameData::MaterialLimits& limits = it->second;
+
+            // Choose the material with highest minTier first, then highest maxTier
+            if (limits.minTier > bestMinTier || (limits.minTier == bestMinTier && limits.maxTier > bestMaxTier)) {
+                bestMaterial = mat;
+                bestMinTier = limits.minTier;
+                bestMaxTier = limits.maxTier;
+            }
+        }
+    }
+
+    return bestMaterial;
+}
+
+std::string FoundEquipData::GetEquipmentType() {
 	if (baseForm->IsWeapon()) return "weapon";
 
 	else if (auto* armor = baseForm->As<RE::TESObjectARMO>()) {
@@ -309,7 +420,9 @@ float FoundEquipData::RoundTo5Decimals(float value) {
     return std::round(value * 100000.0f) / 100000.0f;
 }
 
-// Static Functions
+// ===========================
+// Static FoundEquipData
+// ===========================
 FoundEquipData FindEquippedWeapon(RE::InventoryChanges* a_Changes, RE::TESForm* a_Form, bool a_LeftHand) {
 	FoundEquipData equipData(Utility::GetSingleton()->Unarmed);
 

@@ -258,7 +258,7 @@ void __stdcall EDUI::RenderHUD() {
 					if (!durabilityMenu) return;
 
 					// Call your function
-					durabilityMenu->ShowHideMenu();
+					durabilityMenu->MenuState();
 				}
 			}
 			ImGui::EndCombo();

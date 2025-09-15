@@ -358,3 +358,104 @@ namespace HelperFunctions
 		}
 	}
 }
+
+// ===========================
+// Material Enumerator
+// ===========================
+namespace GameData {
+
+    enum class Material : uint8_t {
+        Fur,
+        Leather,
+        Silver,
+        Iron, 
+        Steel,
+        Dwarven,
+        Orcish,
+        Bonemold,
+        Falmer,
+        Elven,
+        Glass,
+        Nordic,
+        Chitin, 
+        Ebony,
+        Stalhrim,
+        Daedric,
+        Dragon
+    };
+
+    struct TierInfo {
+        int tier;
+        int minLevel;
+        int charge;
+    };
+
+    struct MaterialLimits {
+        int minTier;
+        int maxTier;
+    };
+
+    struct Enchantment {
+        RE::EnchantmentItem* enchantment;   // Enchanmtment form
+        int tier;                           // Tier level (e.g., 1, 2, 3...)
+        std::string suffix;                 // Suffix name (e.g., "of Luck")
+    };
+
+    static const std::vector<TierInfo> TierTable = {
+        {1,  1,  500},
+        {2,  9,  1000},
+        {3, 17,  1500},
+        {4, 25,  2000},
+        {5, 37,  2500},
+        {6, 46,  3000}
+    };
+
+    static const std::unordered_map<Material, MaterialLimits> MaterialTable = {
+        {Material::Fur,        {1, 2}}, // Very early-game, weakest armor
+        {Material::Leather,    {1, 3}}, // Early light armor
+        {Material::Silver,     {1, 3}}, // Early-game / specialty
+        {Material::Iron,       {1, 3}}, // Early-medium armor
+        {Material::Steel,      {1, 3}}, // Early-medium armor
+        {Material::Orcish,     {2, 4}}, // Mid-tier heavy/light
+        {Material::Dwarven,    {2, 4}}, // Mid-tier heavy
+        {Material::Bonemold,   {3, 4}}, // Mid-tier, light-to-medium
+        {Material::Falmer,     {3, 5}}, // Mid-to-high, usually found in caves/dungeons
+        {Material::Elven,      {3, 5}}, // Mid-tier light
+        {Material::Glass,      {3, 5}}, // Mid-tier light
+        {Material::Nordic,     {3, 5}}, // Mid-tier heavy
+        {Material::Chitin,     {3, 5}}, // Mid-tier exotic (Dragonborn DLC)
+        {Material::Ebony,      {4, 6}}, // High-end heavy/light
+        {Material::Daedric,    {4, 6}}, // End-game heavy
+        {Material::Stalhrim,   {4, 6}}, // End-game light/mid
+        {Material::Dragon,     {4, 6}}  // End-game heavy
+    };
+
+    // String -> Material mapping
+	static const std::unordered_map<std::string, Material> StringToMaterial = {
+		{"Fur", Material::Fur},
+		{"Leather", Material::Leather},
+		{"Silver", Material::Silver},
+		{"Iron", Material::Iron},
+		{"Steel", Material::Steel},
+		{"Orcish", Material::Orcish},
+		{"Dwarven", Material::Dwarven},
+		{"Bonemold", Material::Bonemold},
+		{"Falmer", Material::Falmer},
+		{"Elven", Material::Elven},
+		{"Glass", Material::Glass},
+		{"Nordic", Material::Nordic},
+		{"Chitin", Material::Chitin}, 
+		{"Ebony", Material::Ebony},
+		{"Daedric", Material::Daedric},
+		{"Stalhrim", Material::Stalhrim},
+		{"Dragon", Material::Dragon}
+	};
+
+    // Helper to convert string -> Material enum safely
+    std::optional<Material> MaterialFromString(const std::string& name) {
+        auto it = StringToMaterial.find(name);
+        if (it != StringToMaterial.end())
+            return it->second;
+        return std::nullopt;
+    }
+}

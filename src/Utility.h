@@ -15,6 +15,11 @@ public:
     RE::BGSKeyword* keywordJewelry;
     RE::BGSKeyword* keywordMagicDisallow;
 
+    // Determine the players race
+    RE::TESRace* raceVampireLord;
+    RE::TESRace* raceWerewolf;
+    RE::BGSPerk* Undeath_LichPerk;
+
     // Boss Location References
     RE::BGSLocationRefType* locationBoss;
     RE::BGSLocationRefType* locationBossContainer;
@@ -55,13 +60,52 @@ public:
         // Unarmed Form
         Unarmed = dataHandler->LookupForm(RE::FormID(0x0001F4), pluginSkyrim)->As<RE::TESForm>();
 
+        // Transformation Races
+        raceWerewolf = dataHandler->LookupForm(RE::FormID(0x0CDD84), pluginSkyrim)->As<RE::TESRace>();
+        raceVampireLord = dataHandler->LookupForm(RE::FormID(0x00283A), pluginDawnguard)->As<RE::TESRace>();
+
+        // Undeath
+        if (dataHandler->LookupLoadedModByName("Undeath.esp")) {
+            if (auto lichPerk = dataHandler->LookupForm(RE::FormID(0x3326D5), "Undeath.esp"))
+                Undeath_LichPerk = lichPerk->As<RE::BGSPerk>();
+        }
+
         logger::info("Loaded: All Required Forms");
     }
 
-
-    // Public Functions
+    #pragma region Player Functions
     RE::PlayerCharacter* GetPlayer() { return RE::PlayerCharacter::GetSingleton(); }
 
+    bool PlayerIsBeast() {
+        bool isLich = false;
+        if (Undeath_LichPerk) isLich = GetPlayer()->HasPerk(Undeath_LichPerk);
+
+		return GetPlayer()->GetRace() == raceWerewolf || GetPlayer()->GetRace() == raceVampireLord || isLich;
+    }
+    #pragma endregion
+
+    #pragma region Interface Functions
+    void ShowNotification(std::string msg, bool messageBox = false, const char* a_soundToPlay = 0) {
+        if (messageBox) RE::DebugMessageBox(msg.c_str());
+        else RE::DebugNotification(msg.c_str(), a_soundToPlay);
+    }
+
+    bool MenuShouldHide(RE::UI* ui) {
+        // Game is paused (menu/game paused)
+        if (!ui) return true;
+        if (ui->GameIsPaused()) return true;
+        if (!ui->IsCursorHiddenWhenTopmost()) return true;
+        if (!ui->IsShowingMenus()) return true;
+        if (!ui->GetMenu<RE::HUDMenu>()) return true;
+        if (ui->IsMenuOpen(RE::LoadingMenu::MENU_NAME))  return true;
+        //if (ui->IsMenuOpen("Console") || ui->IsMenuOpen("MessageBoxMenu") || ui->IsMenuOpen("RaceSexMenu")) return true;
+
+        // Everything else is fine
+        return false;
+    }
+    #pragma endregion
+
+    #pragma region Equipment Health Values
     void ModifyHealth(float a_min, float a_step) { 
         MinHealth = a_min; 
         StepToMin = a_step;
@@ -82,23 +126,5 @@ public:
     float NormalizedHealth(float a_Health) {
 		return (a_Health + StepToMin) - 0.999f;
     }
-
-    void ShowNotification(std::string msg, bool messageBox = false, const char* a_soundToPlay = 0) {
-        if (messageBox) RE::DebugMessageBox(msg.c_str());
-        else RE::DebugNotification(msg.c_str(), a_soundToPlay);
-    }
-
-    bool MenuShouldHide(RE::UI* ui) {
-        // Game is paused (menu/game paused)
-        if (!ui) return true;
-        if (ui->GameIsPaused()) return true;
-        if (!ui->IsCursorHiddenWhenTopmost()) return true;
-        if (!ui->IsShowingMenus()) return true;
-        if (!ui->GetMenu<RE::HUDMenu>()) return true;
-        if (ui->IsMenuOpen(RE::LoadingMenu::MENU_NAME))  return true;
-        //if (ui->IsMenuOpen("Console") || ui->IsMenuOpen("MessageBoxMenu") || ui->IsMenuOpen("RaceSexMenu")) return true;
-
-        // Everything else is fine
-        return false;
-    }
+    #pragma endregion
 };

@@ -9,7 +9,7 @@
 // Durability HUD
 //===============================================
 DurabilityMenu::DurabilityMenu() {
-	 // Base flags
+	// Base flags
 	menuFlags.set(RE::UI_MENU_FLAGS::kRequiresUpdate);
 	menuFlags.set(RE::UI_MENU_FLAGS::kAllowSaving);
 	menuFlags.set(RE::UI_MENU_FLAGS::kAlwaysOpen);
@@ -39,6 +39,10 @@ void DurabilityMenu::AdvanceMovie(float a_interval, std::uint32_t a_currentTime)
 	else
 		return;
 
+	// Beast Check
+	if (Utility::GetSingleton()->PlayerIsBeast())
+		return;
+
 	// Hotkey Timer
 	auto settings = Settings::GetSingleton();
 	if (settings->ED_Widget_Display == 3 && uiMovie->GetVisible() && hotkeyActivated && settings->ED_Widget_ToggleDuration > 0.0) {
@@ -53,7 +57,7 @@ void DurabilityMenu::AdvanceMovie(float a_interval, std::uint32_t a_currentTime)
 	UpdateItemData();
 }
 
-void DurabilityMenu::ShowHideMenu() {
+void DurabilityMenu::MenuState() {
 	auto settings = Settings::GetSingleton();
 	bool shouldShow = false;
 	switch (settings->ED_Widget_Display) {
@@ -72,7 +76,6 @@ void DurabilityMenu::ShowHideMenu() {
 		ShowMenu();
 	else if (!shouldShow)
 		HideMenu();
-
 	if (hotkeyActivated)
 		startTime = std::chrono::steady_clock::now();
 }
@@ -91,7 +94,7 @@ void DurabilityMenu::ShowMenu() {
 }
 
 void DurabilityMenu::HideMenu() {
-	auto hud = RE::UI::GetSingleton()->GetMenu("DurabilityMenu");
+	auto hud = RE::UI::GetSingleton()->GetMenu(MENU_NAME);
 	if (hud) {
 		// Fully hide it for the engine
 		RE::UIMessage msg(MENU_NAME,RE::UI_MESSAGE_TYPE::kHide);
@@ -212,7 +215,7 @@ void DurabilityMenu::UpdateItemData() {
 				iconText = eqD.baseForm->GetName();
 
 			// Create the stack data
-			stackData = stack.BuildDataObject(uiMovie.get());
+			if (eqD.baseForm) stackData = stack.BuildDataObject(uiMovie.get());
 		}
 
 		// Add our values to the argument list
@@ -226,7 +229,7 @@ void DurabilityMenu::UpdateItemData() {
 	}
 
 	// Send the new data to the menu for processing
-	uiMovie->Invoke("_root.widget.UpdateMenu", nullptr, args, 35);
+	if (uiMovie) uiMovie->Invoke("_root.widget.UpdateMenu", nullptr, args, 35);
 }
 
 //===============================================
@@ -239,25 +242,21 @@ public:
 		return &singleton;
 	}
 
-	RE::BSEventNotifyControl ProcessEvent(const RE::MenuOpenCloseEvent* ev, RE::BSTEventSource<RE::MenuOpenCloseEvent>*) override {
+	RE::BSEventNotifyControl ProcessEvent(const RE::MenuOpenCloseEvent* a_event, RE::BSTEventSource<RE::MenuOpenCloseEvent>*) override {
 		// If the menu is the Durability HUD or Quick Loot, move on
-		if (!ev || ev->menuName == "DurabilityMenu" || (ev->menuName == "LootMenu" && !RE::UI::GetSingleton()->IsMenuOpen(RE::Console::MENU_NAME))) 
-			return RE::BSEventNotifyControl::kContinue;
-
+		if (!a_event) return RE::BSEventNotifyControl::kContinue;
+		if (a_event->menuName == DurabilityMenu::MENU_NAME || a_event->menuName == "LootMenu") return RE::BSEventNotifyControl::kContinue;
+			
 		auto durability = DurabilityMenu::GetSingleton();
 		if (!durability) return RE::BSEventNotifyControl::kContinue;
 
 		// Depending on whats going on we will display or hide the menu
-		if (Utility::GetSingleton()->MenuShouldHide(RE::UI::GetSingleton()) && ev->opening) {
+		if (a_event->menuName == RE::LoadingMenu::MENU_NAME && !a_event->opening)
+			RE::UIMessageQueue::GetSingleton()->AddMessage(DurabilityMenu::MENU_NAME,RE::UI_MESSAGE_TYPE::kShow,nullptr);
+		else if (Utility::GetSingleton()->MenuShouldHide(RE::UI::GetSingleton()) && a_event->opening)
 			durability->HideMenu();
-		} else if (ev->menuName == "LootMenu" && !ev->opening) {
-			SKSE::GetTaskInterface()->AddTask([] {
-				auto hud = DurabilityMenu::GetSingleton();
-				hud->HideMenu();
-			});
-		} else {
-			durability->ShowMenu();
-		}
+		else if (!Utility::GetSingleton()->MenuShouldHide(RE::UI::GetSingleton()) && !a_event->opening)
+			durability->MenuState();
 
 		// Continue
         return RE::BSEventNotifyControl::kContinue;
@@ -305,7 +304,7 @@ class MenuInputHandler : public RE::BSTEventSink<RE::InputEvent*> {
 								durability->hotkeyActivated = true;
 							else
 								durability->hotkeyActivated = false;
-							durability->ShowHideMenu();	
+							durability->MenuState();	
 						}
 					}
 				}
@@ -327,7 +326,7 @@ RE::BSEventNotifyControl PlayerGraphEventHook::ProcessEvent(RE::BSTEventSink<RE:
 		if (auto durability = DurabilityMenu::GetSingleton()) {
 			if (a_event->tag == "weaponDraw") durability->sheathActivated = true;
 			else if (a_event->tag == "weaponSheathe") durability->sheathActivated = false;
-			durability->ShowHideMenu();
+			durability->MenuState();
 		}
 	}
     return _ProcessEvent(a_sink, a_event, a_eventSource);
@@ -342,8 +341,8 @@ namespace Menu {
 	void MenuInit(void) {
 		auto ui = RE::UI::GetSingleton();
 		if (!ui) return;
-		RE::UI::GetSingleton()->Register("DurabilityMenu", &DurabilityMenu::Create);
-		RE::UIMessageQueue::GetSingleton()->AddMessage("DurabilityMenu", RE::UI_MESSAGE_TYPE::kShow, nullptr);
+		RE::UI::GetSingleton()->Register(DurabilityMenu::MENU_NAME, &DurabilityMenu::Create);
+		RE::UIMessageQueue::GetSingleton()->AddMessage(DurabilityMenu::MENU_NAME, RE::UI_MESSAGE_TYPE::kShow, nullptr);
 		logger::info("Loaded: HUD");
 	}
 }

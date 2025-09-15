@@ -25,7 +25,7 @@ public:
 
 	// Item Setters
 	void SetItemHealthPercent(float value);
-	void SetItemEnchantment(int level);
+	void SetItemEnchantment(int level, RE::TESObjectREFR* ref);
 	
 	// Process State
 	bool HasBeenProcessed();
@@ -41,8 +41,9 @@ public:
 
 private:
 	int GetRandom(int a, int b);
-	int GetEnchantmentListSize();
-	std::string GetType();
+	std::optional<GameData::TierInfo> GetTierForLevel(GameData::Material mat, int playerLevel);
+	GameData::Material getStrongestMaterial();
+	std::string GetEquipmentType();
 	float RoundTo5Decimals(float value);
 	float TruncateToDecimals(float value, int decimals);
 };

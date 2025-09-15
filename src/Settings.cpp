@@ -111,23 +111,23 @@ void Settings::LoadINI() {
 	iniSettings.SaveFile(setting_path);
 
 	// Set the material map
-	materialData = {
-		{"Daedric",  ED_Daedric},
-		{"Dragon",   ED_Dragon},
-		{"Ebony",    ED_Ebony},
-		{"Stalhrim", ED_Stalhrim},
-		{"Orcish",   ED_Orcish},
-		{"Glass",    ED_Glass},
-		{"Dwarven",  ED_Dwarven},
-		{"Chitin",   ED_Chitin},
-		{"Falmer",   ED_Falmer},
-		{"Bonemold", ED_Bonemold},
-		{"Elven",    ED_Elven},
-		{"Silver",   ED_Silver},
-		{"Steel",    ED_Steel},
-		{"Iron",     ED_Iron},
-		{"Leather",  ED_Leather},
-		{"Fur",      ED_Fur}
+	MaterialRates = {
+		{GameData::Material::Daedric,  ED_Daedric},
+		{GameData::Material::Dragon,   ED_Dragon},
+		{GameData::Material::Ebony,    ED_Ebony},
+		{GameData::Material::Stalhrim, ED_Stalhrim},
+		{GameData::Material::Orcish,   ED_Orcish},
+		{GameData::Material::Glass,    ED_Glass},
+		{GameData::Material::Dwarven,  ED_Dwarven},
+		{GameData::Material::Chitin,   ED_Chitin},
+		{GameData::Material::Falmer,   ED_Falmer},
+		{GameData::Material::Bonemold, ED_Bonemold},
+		{GameData::Material::Elven,    ED_Elven},
+		{GameData::Material::Silver,   ED_Silver},
+		{GameData::Material::Steel,    ED_Steel},
+		{GameData::Material::Iron,     ED_Iron},
+		{GameData::Material::Leather,  ED_Leather},
+		{GameData::Material::Fur,      ED_Fur}
 	};
 
 	// Process the rest of the lists
@@ -276,27 +276,36 @@ void Settings::ProcessEnchantingForms() {
 
 	// Send the enchantments to their respective lists
 	for (auto& kv : keys) {
-		// 0 - ESP Name, 1 - FormID, 2 - Body Part, 3 - Enchant Suffix
+		// 0 - ESP Name, 1 - FormID, 2 - Body Part, 3 - Tier, 4 - Enchant Suffix
 		std::vector<std::string> parts = SplitString(kv.pItem, '|');
 		if (auto* newItem = RE::TESDataHandler::GetSingleton()->LookupForm(RE::FormID(std::stoull(parts[1], nullptr, 0)), parts[0])) {
-			// Set our enchantment values
-			Enchantments newEnch;
-			newEnch.enchantment = newItem->As<RE::EnchantmentItem>();
-			newEnch.name =  parts[3];
+			if (!newItem) continue;
 
-			// Add the enchantment to the correct lists
-			if (parts[2].rfind("weapon") != std::string::npos)
-				enchantWeapon.push_back(newEnch);
-			if (parts[2].rfind("head") != std::string::npos)
-				enchantHead.push_back(newEnch);
-			if (parts[2].rfind("body") != std::string::npos)
-				enchantBody.push_back(newEnch);
-			if (parts[2].rfind("hand") != std::string::npos)
-				enchantHand.push_back(newEnch);
-			if (parts[2].rfind("foot") != std::string::npos)
-				enchantFoot.push_back(newEnch);
-			if (parts[2].rfind("shield") != std::string::npos)
-				enchantShield.push_back(newEnch);
+			// Is the enchantment valid
+			auto* enchantItem = newItem->As<RE::EnchantmentItem>();
+			if (!enchantItem) continue; // not an enchantment
+
+			// Setup the enchantment
+			GameData::Enchantment newEnchantment ;
+			newEnchantment.enchantment = enchantItem;
+			newEnchantment.tier = std::stoi(parts[3]);
+			newEnchantment.suffix = parts[4];
+
+			// Split body parts by comma in case of multiple entries
+			std::vector<std::string> bodyParts = SplitString(parts[2], ',');
+
+			// Add the enchantment to the correct array based on the given body parts
+			for (auto& bp : bodyParts) {
+				std::string lowerBP = bp;
+				std::transform(lowerBP.begin(), lowerBP.end(), lowerBP.begin(), ::tolower);
+
+				if (lowerBP == "weapon") enchantWeapon.push_back(newEnchantment);
+				else if (lowerBP == "head") enchantHead.push_back(newEnchantment);
+				else if (lowerBP == "body") enchantBody.push_back(newEnchantment);
+				else if (lowerBP == "hand") enchantHand.push_back(newEnchantment);
+				else if (lowerBP == "foot") enchantFoot.push_back(newEnchantment);
+				else if (lowerBP == "shield") enchantShield.push_back(newEnchantment);
+			}
 		}
 	}
 
@@ -323,16 +332,12 @@ void Settings::ProcessMaterialForms() {
 		// 0 - ESP Name, 1 - FormID, 2 - Material
 		std::vector<std::string> parts = SplitString(kv.pItem, '|');
 
-		if (auto* newItem = RE::TESDataHandler::GetSingleton()->LookupForm(RE::FormID(std::stoull(parts[1], nullptr, 0)), parts[0])) {
-			std::string editorID = newItem->GetFormEditorID();
-
-			// No Editor ID
-			if (editorID == "_None") continue;
-
-			// If Editor ID does not exist, add it to the map
-			auto it = materialMap.find(editorID);
-			if (it == materialMap.end()) {
-				materialMap.emplace(editorID, parts[2]);
+		// Get the associated material
+		auto it = GameData::StringToMaterial.find(parts[2]);
+		if (it != GameData::StringToMaterial.end()) {
+			// Get the form ID and add it to our list of materials
+			if (auto* newItem = RE::TESDataHandler::GetSingleton()->LookupForm(RE::FormID(std::stoull(parts[1], nullptr, 0)), parts[0])) {
+				materialMap.emplace(newItem->formID, it->second);
 			}
 		}
 	}
@@ -346,10 +351,10 @@ double Settings::MaterialRate(std::span<RE::BGSKeyword*> keywords) {
 	// If Material Multiplier is on
 	if (ED_Material_Multiplier) {
 		for (RE::BGSKeyword* keyword : keywords) {
-			std::string tmp = keyword->GetFormEditorID();
+			RE::FormID tmp = keyword->GetFormID();
 
 			if (materialMap.count(tmp) >= 1) {
-				dRates += materialData.at(materialMap.at(tmp));
+				dRates += MaterialRates.at(materialMap.at(tmp));
 				iKeywordCount++;
 			}
 		}
@@ -444,79 +449,22 @@ double Settings::GetBreakChance(RE::TESForm* form) {
 }
 
 // Enchant List Functions
-std::vector<Enchantments>* Settings::GetEnchantmentList(std::string part) {
+std::vector<GameData::Enchantment>* Settings::GetEnchantmentList(std::string part) {
 	// Select correct vector based on part
-	if (stricmp(part.c_str(),"weapon"))
+	if (stricmp(part.c_str(),"weapon") == 0)
 		return &enchantWeapon;
-	else if (stricmp(part.c_str(),"head"))
+	else if (stricmp(part.c_str(),"head") == 0)
 		return &enchantHead;
-	else if (stricmp(part.c_str(),"body"))
+	else if (stricmp(part.c_str(),"body") == 0)
 		return &enchantBody;
-	else if (stricmp(part.c_str(),"hand"))
+	else if (stricmp(part.c_str(),"hand") == 0)
 		return &enchantHand;
-	else if (stricmp(part.c_str(),"foot"))
+	else if (stricmp(part.c_str(),"foot") == 0)
 		return &enchantFoot;
-	else if (stricmp(part.c_str(),"shield"))
+	else if (stricmp(part.c_str(),"shield") == 0)
 		return &enchantShield;
 
 	return nullptr;
-}
-
-RE::EnchantmentItem* Settings::GetEnchantmentForm(std::string part, int index) {
-	Enchantments foundEnchant;
-
-	// Add the enchantment to the correct lists
-	if (stricmp(part.c_str(),"weapon"))
-		foundEnchant = enchantWeapon.at(index);
-	else if (stricmp(part.c_str(),"head"))
-		foundEnchant = enchantHead.at(index);
-	else if (stricmp(part.c_str(),"body"))
-		foundEnchant = enchantBody.at(index);
-	else if (stricmp(part.c_str(),"hand"))
-		foundEnchant = enchantHand.at(index);
-	else if (stricmp(part.c_str(),"foot"))
-		foundEnchant = enchantFoot.at(index);
-	else if (stricmp(part.c_str(),"shield"))
-		foundEnchant = enchantShield.at(index);
-
-	return foundEnchant.enchantment;
-}
-
-int Settings::GetEnchantmentSize(std::string part) {
-	if (stricmp(part.c_str(),"weapon"))
-		return enchantWeapon.size();
-	else if (stricmp(part.c_str(),"head"))
-		return enchantHead.size();
-	else if (stricmp(part.c_str(),"body"))
-		return enchantBody.size();
-	else if (stricmp(part.c_str(),"hand"))
-		return enchantHand.size();
-	else if (stricmp(part.c_str(),"foot"))
-		return enchantFoot.size();
-	else if (stricmp(part.c_str(),"shield"))
-		return enchantShield.size();
-
-	return 0;
-}
-
-std::string Settings::GetEnchantmentName(std::string part, int index) {
-	Enchantments foundEnchant;
-
-	// Add the enchantment to the correct lists
-	if (stricmp(part.c_str(),"weapon"))
-		foundEnchant = enchantWeapon.at(index);
-	else if (stricmp(part.c_str(),"head"))
-		foundEnchant = enchantHead.at(index);
-	else if (stricmp(part.c_str(),"body"))
-		foundEnchant = enchantBody.at(index);
-	else if (stricmp(part.c_str(),"hand"))
-		foundEnchant = enchantHand.at(index);
-	else if (stricmp(part.c_str(),"foot"))
-		foundEnchant = enchantFoot.at(index);
-	else if (stricmp(part.c_str(),"shield"))
-		foundEnchant = enchantShield.at(index);
-
-	return foundEnchant.name;
 }
 
 // Break Form Functions

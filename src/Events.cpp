@@ -164,7 +164,7 @@ public:
 		// Defender
 		if (a_event->target && a_event->target->formType == RE::FormType::ActorCharacter) {
 			RE::Actor* actor = a_event->target->As<RE::Actor>();
-			if (actor == utility->GetPlayer() || settings->ED_OnlyPlayer) {
+			if ((actor == utility->GetPlayer() && !utility->PlayerIsBeast()) || (actor != utility->GetPlayer() && !settings->ED_OnlyPlayer)) {
 				RE::InventoryChanges *exChanges = actor->GetInventoryChanges();
 				if (exChanges) {
 					RE::TESForm* form = RE::TESForm::LookupByID(a_event->source);
@@ -215,7 +215,7 @@ public:
 		// Attacker
 		if (a_event->cause && a_event->cause->formType == RE::FormType::ActorCharacter) {
 			RE::Actor* actor = a_event->cause->As<RE::Actor>();
-			if (actor == utility->GetPlayer() || settings->ED_OnlyPlayer) {
+			if ((actor == utility->GetPlayer() && !utility->PlayerIsBeast()) || (actor != utility->GetPlayer() && !settings->ED_OnlyPlayer)) {
 				RE::InventoryChanges *exChanges = actor->GetInventoryChanges();
 				if (exChanges) {
 					
@@ -391,7 +391,7 @@ NearbyObjects GetNearbyObjects(RE::Actor* player) {
 	return result;
 }
 
-static void ProcessItem(FoundEquipData* equipData, int actorLevel, bool isVendor = false, bool isBoss = false) {
+static void ProcessItem(FoundEquipData* equipData, RE::TESObjectREFR* ref, int actorLevel, bool isVendor = false, bool isBoss = false) {
 	auto* setting = Settings::GetSingleton(); 
 
 	// Temper Process
@@ -417,8 +417,8 @@ static void ProcessItem(FoundEquipData* equipData, int actorLevel, bool isVendor
 				chanceEnchant = setting->ED_Enchant_BossChance;
 
 			if (Probability(chanceEnchant))
-				equipData->SetItemEnchantment(actorLevel);
-	}
+				equipData->SetItemEnchantment(actorLevel, ref);
+		}
 	} 
 
 	if (!equipData->HasBeenProcessed())
@@ -472,12 +472,12 @@ static void ProcessInventory(RE::TESObjectREFR* ref) {
 					// Get the entry, process it and return the new extra data
 					equipData.objectData = entryData;
 					if (!equipData.HasBeenProcessed()) {
-						ProcessItem(&equipData, level, isVendor, isBoss);
+						ProcessItem(&equipData, ref, level, isVendor, isBoss);
 						entryData = equipData.objectData;
 					}
 				} else {
 					// Create a new list if there is not one already
-					ProcessItem(&equipData, level, isVendor, isBoss);
+					ProcessItem(&equipData, ref, level, isVendor, isBoss);
 					entry->AddExtraList(equipData.objectData);
 				}
 			}

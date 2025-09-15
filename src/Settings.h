@@ -3,12 +3,11 @@
 #include <unordered_map>
 #include <unordered_set>
 #include "SimpleIni.h"
+#include "FoundEquipData.h"
 
-struct Enchantments {
-	RE::EnchantmentItem* enchantment;
-	std::string name;
-};
-
+// ===========================
+// Settings
+// ===========================
 class Settings {
 public:
 	// System Settings
@@ -115,10 +114,10 @@ public:
 	void ProcessMaterialForms();
 
 	// Enchantment Lists
-	std::vector<Enchantments>* GetEnchantmentList(std::string part);
-	int GetEnchantmentSize(std::string part);
-	RE::EnchantmentItem* GetEnchantmentForm(std::string part, int index);
-	std::string GetEnchantmentName(std::string part, int index);
+	std::vector<GameData::Enchantment>* GetEnchantmentList(std::string part);
+
+	// Material Data
+	std::unordered_map<RE::FormID, GameData::Material> materialMap;
 
 	// Checks
 	bool IsVendorContainer(RE::TESObjectREFR* form);
@@ -138,16 +137,15 @@ private:
 	std::unordered_set<int> noBreakForms;
 
 	// Enchantment Lists
-	std::vector<Enchantments> enchantWeapon;
-	std::vector<Enchantments> enchantBody;
-	std::vector<Enchantments> enchantHead;
-	std::vector<Enchantments> enchantHand;
-	std::vector<Enchantments> enchantFoot;
-	std::vector<Enchantments> enchantShield;
+	std::vector<GameData::Enchantment> enchantWeapon;
+	std::vector<GameData::Enchantment> enchantBody;
+	std::vector<GameData::Enchantment> enchantHead;
+	std::vector<GameData::Enchantment> enchantHand;
+	std::vector<GameData::Enchantment> enchantFoot;
+	std::vector<GameData::Enchantment> enchantShield;
 
 	// Material Multipliers
-	std::unordered_map<std::string, std::string> materialMap;
-	std::unordered_map<std::string, double> materialData;
+	std::unordered_map<GameData::Material, double> MaterialRates;
 	double MaterialRate(std::span<RE::BGSKeyword*> keywords);
 
 	// Vendor Chests
