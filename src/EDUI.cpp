@@ -1,4 +1,4 @@
-#include "EDUI.h"
+﻿#include "EDUI.h"
 #include "DurabilityMenu.h"
 
 void EDUI::Register() {
@@ -13,6 +13,7 @@ void EDUI::Register() {
 	SKSEMenuFramework::AddSectionItem("Material Multiplier", RenderMaterial);
     SKSEMenuFramework::AddSectionItem("Dynamic Systems", RenderDynamic);
 	SKSEMenuFramework::AddSectionItem("Durability HUD", RenderHUD);
+	SKSEMenuFramework::AddSectionItem("Temper Naming", RenderTemper);
 }
 
 void __stdcall EDUI::RenderRates() {
@@ -375,8 +376,140 @@ void __stdcall EDUI::RenderHUD() {
 	}
 }
 
+void __stdcall EDUI::RenderTemper() {
+	Settings* Settings = Settings::GetSingleton();
+
+	std::string prefixText = Settings->ED_Names_Prefix;
+	std::string postfixText = Settings->ED_Names_Postfix;
+	std::string brokenText = Settings->ED_Names_Broken;
+
+	// General Name Settings
+	ImGui::Columns(2);
+	if (ImGui::CollapsingHeader("Name Settings", ImGuiTreeNodeFlags_DefaultOpen)) {
+		// Display option for the Menu
+		ImGui::Text("Naming Style");
+		if (ImGui::BeginCombo("##Naming_Style", styleOptions[GetStyleIndex(Settings->ED_Names_Style)].c_str())) {
+			for (int i = 0; i < styleOptions.size(); i++) {
+				bool is_selected = (GetStyleIndex(Settings->ED_Names_Style) == i);
+				if (ImGui::Selectable(styleOptions[i].c_str(), is_selected)) {
+					Settings->ED_Names_Style = styleOptions[i];
+				}
+			}
+			ImGui::EndCombo();
+		}
+
+		// Pre and Post Entries
+		if (ImGui::BeginTable("##Pre_Post", 2, ImGuiTableFlags_NoBordersInBody)) {
+			ImGui::TableSetupColumn("Prefix");
+			ImGui::TableSetupColumn("Postfix");
+			ImGui::TableHeadersRow();
+
+			ImGui::TableNextRow();
+			ImGui::TableSetColumnIndex(0);
+
+			if (CreateInputText("##Prefix_Text", prefixText)) {
+				Settings->ED_Names_Prefix = prefixText;
+			}
+			ImGui::TableSetColumnIndex(1);
+			if (CreateInputText("##Postfix_Text", postfixText)) {
+				Settings->ED_Names_Postfix = postfixText;
+			}
+
+			ImGui::EndTable();
+		}
+
+		ImGui::Text("Broken Text");
+		if (CreateInputText("##Broken_Text", brokenText)) {
+			Settings->ED_Names_Broken = brokenText;
+		}
+	}
+
+	// Custom Name List
+	ImGui::NextColumn();
+	if (ImGui::CollapsingHeader("Custom Names", ImGuiTreeNodeFlags_DefaultOpen)) {
+		for (int i = 0; i < Settings->CustomNames.size(); i++) {
+			ImGui::PushID(i);
+
+			// Level Text
+			ImGui::Text("Level %02d:", i + 1);
+
+			// Editable text field for each entry
+			ImGui::SameLine();
+			ImGui::SetNextItemWidth(250.0f); // width in pixels
+			CreateInputText("##Entry", Settings->CustomNames[i]);
+
+			// Up and Down Arrows
+			ImGui::SameLine();
+			if (ImGui::ArrowButton("##up", ImGuiDir_Up) && i > 0) {
+				std::swap(Settings->CustomNames[i], Settings->CustomNames[i - 1]);
+			}
+			ImGui::SameLine();
+			if (ImGui::ArrowButton("##down", ImGuiDir_Down) && i < Settings->CustomNames.size() - 1) {
+				std::swap(Settings->CustomNames[i], Settings->CustomNames[i + 1]);
+			}
+
+			// Entry Removeal
+			ImGui::SameLine();
+			if (ImGui::Button("X")) {
+				Settings->CustomNames.erase(Settings->CustomNames.begin() + i);
+				ImGui::PopID();
+				break;  // break because we modified the vector
+			}
+
+			ImGui::PopID();
+		}
+
+		// Add new entry button at the bottom
+		if (ImGui::Button("Add Entry")) {
+			Settings->CustomNames.push_back("New Entry");
+			ImGui::SetKeyboardFocusHere();
+		}
+	}
+
+}
+
+int EDUI::GetStyleIndex(const std::string& value) {
+    auto it = std::find(styleOptions.begin(), styleOptions.end(), value);
+    if (it != styleOptions.end()) {
+        return static_cast<int>(std::distance(styleOptions.begin(), it));
+    }
+    return -1; // not found
+}
+
 void EDUI::SliderEntryMaterial(float& value, const char* id) {
 	int tempValue = value * 100;
 	if (ImGui::SliderInt(id, &tempValue, 0, 200, "%d%%"))
 		value = tempValue / 100.0f;
+}
+
+bool EDUI::CreateInputText(const char* label, std::string& str, ImGuiInputTextFlags flags) {
+    bool changed = false;
+
+    struct UserData { std::string* str; bool* changed; };
+    UserData user_data = { &str, &changed };
+
+    auto callback = [](ImGuiInputTextCallbackData* data) -> int {
+        UserData* ud = (UserData*)data->UserData;
+        std::string* s = ud->str;
+
+        if (data->EventFlag == ImGuiInputTextFlags_CallbackResize) {
+            s->resize(data->BufTextLen);
+            data->Buf = (char*)s->c_str();
+        }
+        return 0;
+    };
+
+    // Only reserve some space if empty
+    if (str.empty()) str.reserve(64); // optional initial buffer
+
+    changed = ImGui::InputText(
+        label,
+        str.data(),
+        str.capacity() + 1,
+        flags | ImGuiInputTextFlags_CallbackResize,
+        callback,
+        &user_data
+    );
+
+    return changed;
 }

@@ -76,9 +76,8 @@ static void RemoveEquipment(FoundEquipData* eqD, RE::Actor* actor) {
 	if (auto equipMgr = RE::ActorEquipManager::GetSingleton())
 		equipMgr->UnequipObject(actor, eqD->refForm, eqD->objectData, 1, nullptr, true, false, true, false, nullptr);
 
-	// Update the name and reset the temper status
-	eqD->SetBrokenName();
-	eqD->SetItemHealthPercent(utility->MinHealth);
+	// Update the name and set the health value to something lower than minimum
+	eqD->SetItemHealthPercent(0.0);
 }
 
 static void TemperDecay(FoundEquipData* eqD, RE::Actor* actor, bool powerAttack) {
@@ -92,15 +91,15 @@ static void TemperDecay(FoundEquipData* eqD, RE::Actor* actor, bool powerAttack)
 	float itemHealthPercent = eqD->GetItemHealthPercent();
 
 	// --- Breack Chance ---
-	if (utility->NormalizedHealth(itemHealthPercent) <= (setting->ED_BreakThreshold / 1000.0f)) {
+	if ((itemHealthPercent - 0.999f) <= (setting->ED_BreakThreshold / 1000.0f)) {
 		float chance = setting->GetBreakChance(eqD->baseForm);
 
 		// Apply modifiers
 		if (chance != 0.0 && eqD->CanBreak()) {
 
 			// Increased Durability
-			if (setting->ED_IncreasedDurability && itemHealthPercent > utility->MinimumHealth())
-				chance *= 1.0 - (utility->NormalizedHealth(itemHealthPercent) / (setting->ED_BreakThreshold / 1000.0f));
+			if (setting->ED_IncreasedDurability && itemHealthPercent > 0.999f)
+				chance *= 1.0 - ((itemHealthPercent - 0.999f) / (setting->ED_BreakThreshold / 1000.0f));
 
 			// Power Attack
 			if (powerAttack) 
@@ -119,7 +118,7 @@ static void TemperDecay(FoundEquipData* eqD, RE::Actor* actor, bool powerAttack)
 	}
 
 	// --- Degradation ---
-	if (itemHealthPercent <= utility->MinimumHealth()) return;
+	if (itemHealthPercent <= 0.999f) return;
 
 	double rate = setting->GetDegradationRate(eqD->baseForm);
 	if (rate == 0.0) return;
@@ -137,7 +136,7 @@ static void TemperDecay(FoundEquipData* eqD, RE::Actor* actor, bool powerAttack)
 	itemHealthPercent = std::round(itemHealthPercent * 100000.0f) / 100000.0f;
 
 	// The default health of an item is always one, so it cant go lower
-	if (itemHealthPercent < utility->MinimumHealth()) itemHealthPercent = utility->MinimumHealth();
+	if (itemHealthPercent < 0.999f) itemHealthPercent = 0.999f;
 
 	// Set the new health of the item
 	eqD->SetItemHealthPercent(itemHealthPercent);
@@ -533,10 +532,7 @@ public:
 						int tenths = static_cast<int>(std::round(health * 10.0f));
 
 						if (tenths >= 11 && tenths <= 30 && std::fabs(health * 10.0f - tenths) < 1e-6f)
-							eqD.SetItemHealthPercent(health + 0.099f - utility->StepToMin);
-
-						if (eqD.IsBroken())
-							eqD.SetFixedName();
+							eqD.SetItemHealthPercent(health + 0.099f);
 					}		
 				}
 			}
@@ -604,6 +600,5 @@ namespace Events {
 		logger::info("Hook Installed: On Update");
 		_EquipObject = trampoline.write_call<5>(EquipObject_Hook.address(), EquipObject);
 		logger::info("Hook Installed: On Equip");
-
 	}
 }

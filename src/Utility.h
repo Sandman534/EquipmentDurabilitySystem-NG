@@ -30,10 +30,6 @@ public:
     // Unarmed Form
 	RE::TESForm* Unarmed;
 
-    // Weapon Health Star
-	float MinHealth = 0.099f;
-    float StepToMin = 0.0;
-
     // Singleton
     uintptr_t PlayerSingletonAddress;
     static Utility* GetSingleton() {
@@ -102,29 +98,6 @@ public:
 
         // Everything else is fine
         return false;
-    }
-    #pragma endregion
-
-    #pragma region Equipment Health Values
-    void ModifyHealth(float a_min, float a_step) { 
-        MinHealth = a_min; 
-        StepToMin = a_step;
-    }
-
-    float DefaultWidgetHealth() {
-		return 1.0f + MinHealth + StepToMin;
-    }
-
-    float DefaultHealth() {
-		return 1.0f + MinHealth;
-    }
-
-    float MinimumHealth() {
-		return 0.999f - StepToMin;
-    }
-
-    float NormalizedHealth(float a_Health) {
-		return (a_Health + StepToMin) - 0.999f;
     }
     #pragma endregion
 };

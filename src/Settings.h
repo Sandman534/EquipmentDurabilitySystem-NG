@@ -106,6 +106,16 @@ public:
 	bool ED_Widget_ShowHealth{ true };
 	bool ED_Widget_ShowUnarmed{ true };
 
+	// Temper Names
+	std::string ED_Names_Broken{ "Broken" };
+	std::string ED_Names_Style{ "Vanilla" };
+	std::string ED_Names_Prefix{ " (" };
+	std::string ED_Names_Postfix{ ")" };
+	std::string ED_Names_CustomNames{ "Okay,Decent,Good,Great,Awesome,Brilliant,Masterful,Wonderful,Astonishing,Amazing,Incredible,Unbelievable,Unimaginable,Mind-Boggling,Impossible,Infinite" };
+
+	// Custome Names
+	std::vector<std::string> CustomNames;
+
 	// Processing
 	void LoadINI();
 	void SaveINI();
@@ -154,6 +164,7 @@ private:
 
 	// String Functions
 	std::vector<std::string> SplitString(const std::string& s, char delimiter);
+	std::string JoinStrings(const std::vector<std::string>& parts, char delimiter);
 
 	// Get Values
 	static void get_value(CSimpleIniA& a_ini, bool& a_value, const char* a_section, const char* a_key);

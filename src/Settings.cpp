@@ -108,7 +108,23 @@ void Settings::LoadINI() {
 	get_value(iniSettings, ED_Widget_ShowHealth, "Widget", "ShowHealth");
 	get_value(iniSettings, ED_Widget_ShowUnarmed, "Widget", "ShowUnarmed");
 
+	// Temper Name Settings
+	get_value(iniSettings, ED_Names_Broken, "Temper Names", "Broken");
+	get_value(iniSettings, ED_Names_Style, "Temper Names", "Style");
+	get_value(iniSettings, ED_Names_Prefix, "Temper Names", "Prefix");
+	get_value(iniSettings, ED_Names_Postfix, "Temper Names", "Postfix");
+	get_value(iniSettings, ED_Names_CustomNames, "Temper Names", "CustomNames");
+
 	iniSettings.SaveFile(setting_path);
+
+	// Replace underscores with a white space in all entries
+	std::replace(ED_Names_Broken.begin(), ED_Names_Broken.end(), '_', ' ');
+	std::replace(ED_Names_Prefix.begin(), ED_Names_Prefix.end(), '_', ' '); 
+	std::replace(ED_Names_Postfix.begin(), ED_Names_Postfix.end(), '_', ' '); 
+	std::replace(ED_Names_CustomNames.begin(), ED_Names_CustomNames.end(), '_', ' '); 
+
+	// Get the list of custome names
+	CustomNames = SplitString(ED_Names_CustomNames, ',');
 
 	// Set the material map
 	MaterialRates = {
@@ -237,6 +253,21 @@ void Settings::SaveINI() {
 	set_value(iniSettings, ED_Widget_ShowArmorName, "Widget", "ShowArmorName");
 	set_value(iniSettings, ED_Widget_ShowHealth, "Widget", "ShowHealth");
 	set_value(iniSettings, ED_Widget_ShowUnarmed, "Widget", "ShowUnarmed");
+
+	// Replace whitespaces with underscores before saving
+	std::string Names_Broken = [] (std::string s) { std::replace(s.begin(), s.end(), ' ', '_'); return s; }(ED_Names_Broken);
+	std::string Names_Prefix = [] (std::string s) { std::replace(s.begin(), s.end(), ' ', '_'); return s; }(ED_Names_Prefix);
+	std::string Names_Postfix = [] (std::string s) { std::replace(s.begin(), s.end(), ' ', '_'); return s; }(ED_Names_Postfix);
+
+	// Temper Name Settings
+	set_value(iniSettings, Names_Broken, "Temper Names", "Broken");
+	set_value(iniSettings, ED_Names_Style, "Temper Names", "Style");
+	set_value(iniSettings, Names_Prefix, "Temper Names", "Prefix");
+	set_value(iniSettings, Names_Postfix, "Temper Names", "Postfix");
+
+	// Special case, join strings before saving
+	ED_Names_CustomNames = JoinStrings(CustomNames, ',');
+	set_value(iniSettings, ED_Names_CustomNames, "Temper Names", "CustomNames");
 
 	iniSettings.SaveFile(setting_path);
 }
@@ -511,6 +542,16 @@ std::vector<std::string> Settings::SplitString(const std::string& s, char delimi
     while (std::getline(ss, item, delimiter))
         tokens.push_back(item);
     return tokens;
+}
+
+std::string Settings::JoinStrings(const std::vector<std::string>& parts, char delimiter = '|') {
+    std::ostringstream oss;
+    for (size_t i = 0; i < parts.size(); ++i) {
+        if (i > 0)
+            oss << delimiter;
+        oss << parts[i];
+    }
+    return oss.str();
 }
 
 // INI Functions

@@ -15,8 +15,6 @@ public:
 
 	// Naming
 	void CreateName();
-	void SetBrokenName();
-	void SetFixedName();
 
 	// Item Getters
 	float GetItemHealthPercent();

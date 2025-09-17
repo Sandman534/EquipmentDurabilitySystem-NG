@@ -5,6 +5,7 @@
 #include "Serialization.h"
 #include "Utility.h"
 #include "EDUI.h"
+#include "Temper.h"
 
 using namespace RE::BSScript;
 using namespace SKSE;
@@ -32,9 +33,8 @@ void InitListener(SKSE::MessagingInterface::Message* a_msg) {
 		Settings::GetSingleton()->LoadINI();
 		Events::Init();
 		Menu::Init();
+		TemperManager::Init();
 		PlayerGraphEventHook::Install();
-		if (::GetModuleHandle(L"ImprovementNamesCustomizedSSE.dll"))
-			Utility::GetSingleton()->ModifyHealth(0.049f, 0.05f);
 		break;
 	case SKSE::MessagingInterface::kPostLoadGame:
 		SKSE::GetTaskInterface()->AddTask([]() { Menu::MenuInit(); });
@@ -49,7 +49,7 @@ SKSEPluginLoad(const LoadInterface* skse) {
 	SetupLog();
 	logger::info("{} {} is loading...", Plugin::NAME, HelperFunctions::VersionToString(Plugin::Version));
 	Init(skse);
-	SKSE::AllocTrampoline(42);
+	SKSE::AllocTrampoline(128);
 
 	// Message Listener
 	auto messaging = SKSE::GetMessagingInterface();

@@ -31,76 +31,26 @@ void FoundEquipData::CreateName() {
         }
     }
 }
-
-void FoundEquipData::SetBrokenName() {
-	if (!objectData) return;
-
-    // Get the text data
-    RE::ExtraTextDisplayData* textData = objectData->GetExtraTextDisplayData();
-	if (!textData) return;
-
-    // Get the current name and remove any 
-    std::string oldName = textData->displayName.c_str();
-
-    // Remove any tempering name from the object
-	if (GetItemHealthPercent() >= 1.1f) {
-		std::size_t pos = oldName.rfind('(');
-		if (pos != std::string::npos) {
-			oldName = oldName.substr(0, pos);
-			if (!oldName.empty() && oldName.back() == ' ')
-				oldName.pop_back();
-		}
-	}
-
-    // Set the name and prefix it with the broken attribute
-	std::string newName = "[B]";
-	newName += oldName;
-
-    // Assign back to displayName (BSFixedString)
-	textData->SetName(newName.c_str());
-
-}
-
-void FoundEquipData::SetFixedName() {
-	if (!baseForm || !objectData) return;
-
-    // Get the text data
-    RE::ExtraTextDisplayData* textData = objectData->GetExtraTextDisplayData();
-	if (!textData) return;
-
-    // Create a new string with the prefix
-    std::string name = textData->displayName.c_str();
-
-    // Find and remove "[B]"
-    const std::string brokenTag = "[B]";
-    size_t pos = name.find(brokenTag);
-    if (pos != std::string::npos)
-        name.erase(pos, brokenTag.length());
-
-    // Assign back to displayName (BSFixedString)
-	textData->SetName(name.c_str());
-
-}
 #pragma endregion
 
 #pragma region Item Health Functions
 float FoundEquipData::GetItemHealthForWidget() {
 	if (IsUnarmed()) return 0.0f;
-	if (!objectData) return Utility::GetSingleton()->DefaultWidgetHealth() + 0.001f;
-	if (auto* xHealth = objectData->GetByType<RE::ExtraHealth>()) return TruncateToDecimals(xHealth->health,3) + Utility::GetSingleton()->StepToMin + 0.001f;
-	return Utility::GetSingleton()->DefaultWidgetHealth() + 0.001f;
+	if (!objectData) return 1.1f;
+	if (auto* xHealth = objectData->GetByType<RE::ExtraHealth>()) return TruncateToDecimals(xHealth->health,3) + 0.001f;
+	return 1.1f;
 }
 
 float FoundEquipData::GetItemHealthPercent() {
-	if (!objectData) return Utility::GetSingleton()->DefaultHealth();
+	if (!objectData) return 1.099f;
     if (auto* xHealth = objectData->GetByType<RE::ExtraHealth>()) return xHealth->health;
-	return Utility::GetSingleton()->DefaultHealth();
+	return 1.099f;
 }
 
 float FoundEquipData::GetItemHealthRounded() {
-    if (!objectData) return Utility::GetSingleton()->DefaultHealth();
+    if (!objectData) return 1.099f;
 	if (auto* xHealth = objectData->GetByType<RE::ExtraHealth>()) return RoundTo5Decimals(xHealth->health);
-	return Utility::GetSingleton()->DefaultHealth();
+	return 1.099f;
 }
 
 void FoundEquipData::SetItemHealthPercent(float value) {
@@ -218,7 +168,7 @@ void FoundEquipData::ProcessItem() {
         );
         objectData->Add(extraHealth);
     }
-    extraHealth->health = RoundTo5Decimals(Utility::GetSingleton()->DefaultHealth());
+    extraHealth->health = RoundTo5Decimals(1.099f);
 }
 #pragma endregion
 
@@ -226,7 +176,7 @@ void FoundEquipData::ProcessItem() {
 bool FoundEquipData::IsTempered() {
 	return objectData 
         && objectData->GetByType<RE::ExtraHealth>() != nullptr 
-        && objectData->GetByType<RE::ExtraHealth>()->health > Utility::GetSingleton()->DefaultHealth();
+        && objectData->GetByType<RE::ExtraHealth>()->health > 1.099f;
 }
 
 bool FoundEquipData::IsEnchanted() {
@@ -239,18 +189,8 @@ bool FoundEquipData::IsEnchanted() {
 
 bool FoundEquipData::IsBroken() {
     if (!baseForm || !objectData) return false;
-
-    // Get the text data
-    RE::ExtraTextDisplayData* textData = objectData->GetExtraTextDisplayData();
-	if (!textData) return false;
-
-    std::string name = textData->displayName.c_str();
-    const std::string brokenTag = "[B]";
-    size_t pos = name.find(brokenTag);
-	if (pos != std::string::npos)
-		return true;
-	else
-		return false;
+	if (GetItemHealthPercent() < 0.5f) return true;
+    return false;
 }
 
 bool FoundEquipData::IsUnarmed() {
