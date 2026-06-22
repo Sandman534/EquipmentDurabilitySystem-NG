@@ -1,8 +1,6 @@
 ﻿#include "EDUI.h"
-#include "DurabilityMenu.h"
 
 void EDUI::Register() {
-
     if (!SKSEMenuFramework::IsInstalled()) {
         return;
     }
@@ -18,236 +16,193 @@ void EDUI::Register() {
 
 void __stdcall EDUI::RenderRates() {
 	Settings* Settings = Settings::GetSingleton();
+	bool changeRateOption = false;
 
-	if (ImGui::CollapsingHeader("General Options", ImGuiTreeNodeFlags_DefaultOpen)) {
-		ImGui::Checkbox("Disable Equipment Degradation", &Settings->ED_DegradationDisabled);
-		ImGui::Checkbox("Disable Equipment Breaking", &Settings->ED_BreakDisabled);
-		ImGui::Checkbox("Player Equipment Only", &Settings->ED_OnlyPlayer);
-		ImGui::Checkbox("Do Not Break 'Disallowed Enchanted' Items", &Settings->ED_NoBreakNoEnchant);
-		ImGui::Checkbox("Higher Durability Reduces Break Chance", &Settings->ED_IncreasedDurability);
+	if (CollapsingHeader("General Options", ImGuiTreeNodeFlags_DefaultOpen)) {
+		if (Checkbox("Disable Equipment Degradation", &Settings->ED_DegradationDisabled))
+			changeRateOption = true;
+		if (Checkbox("Disable Equipment Breaking", &Settings->ED_BreakDisabled))
+			changeRateOption = true;
+		if (Checkbox("Player Equipment Only", &Settings->ED_OnlyPlayer))
+			changeRateOption = true;
+		if (Checkbox("Do Not Break 'Disallowed Enchanted' Items", &Settings->ED_NoBreakNoEnchant))
+			changeRateOption = true;
+		if (Checkbox("Higher Durability Reduces Break Chance", &Settings->ED_IncreasedDurability))
+			changeRateOption = true;
 
-		ImGui::Text("Break Chance Start");
-		ImGui::SliderInt("##HleathThreshold", &Settings->ED_BreakThreshold, 0, 700);
+		Text("Break Chance Start");
+		if (SliderInt("##HleathThreshold", &Settings->ED_BreakThreshold, 0, 700))
+			changeRateOption = true;
 	}
 
-	if (ImGui::CollapsingHeader("Durability Rates", ImGuiTreeNodeFlags_DefaultOpen)) {
-		if (ImGui::BeginTable("##SystemRates", 3, ImGuiTableFlags_BordersV )) {
-			ImGui::TableSetupColumn("Category");
-			ImGui::TableSetupColumn("Degradation Rate");
-			ImGui::TableSetupColumn("Break Chance");
-			ImGui::TableHeadersRow();
+	if (CollapsingHeader("Durability Rates", ImGuiTreeNodeFlags_DefaultOpen)) {
+		if (BeginTable("##SystemRates", 3, ImGuiTableFlags_BordersV )) {
+			TableSetupColumn("Category");
+			TableSetupColumn("Degradation Rate");
+			TableSetupColumn("Break Chance");
+			TableHeadersRow();
 
 			// Degradation Rates
-			ImGui::TableNextRow();
-			ImGui::TableSetColumnIndex(0); ImGui::Text("Swords");
-			ImGui::TableSetColumnIndex(1); ImGui::SliderFloat("##Degrade_Sword", &Settings->ED_Degrade_Sword, 0.0, 10.0, "%.01f");
-			ImGui::TableSetColumnIndex(2); ImGui::SliderInt("##Break_Sword", &Settings->ED_Break_Sword, 0, 100, "%d%%");
+			if (DegradeEntry("Swords", Settings->ED_Degrade_Sword, Settings->ED_Break_Sword))
+				changeRateOption = true;
+			if (DegradeEntry("Dagger", Settings->ED_Degrade_Dagger, Settings->ED_Break_Dagger))
+				changeRateOption = true;
+			if (DegradeEntry("War Axes", Settings->ED_Degrade_WarAxe, Settings->ED_Break_WarAxe))
+				changeRateOption = true;
+			if (DegradeEntry("Maces", Settings->ED_Degrade_Mace, Settings->ED_Break_Mace))
+				changeRateOption = true;
+			if (DegradeEntry("Great Swords", Settings->ED_Degrade_GreatSword, Settings->ED_Break_GreatSword))
+				changeRateOption = true;
+			if (DegradeEntry("Hammers", Settings->ED_Degrade_Warhammer, Settings->ED_Break_Warhammer))
+				changeRateOption = true;
+			if (DegradeEntry("Battle Axe", Settings->ED_Degrade_BattleAxe, Settings->ED_Break_BattleAxe))
+				changeRateOption = true;
+			if (DegradeEntry("Bows", Settings->ED_Degrade_Bow, Settings->ED_Break_Bow))
+				changeRateOption = true;
+			if (DegradeEntry("Crossbows", Settings->ED_Degrade_CrossBow, Settings->ED_Break_CrossBow))
+				changeRateOption = true;
 
-			ImGui::TableNextRow();
-			ImGui::TableSetColumnIndex(0); ImGui::Text("Dagger");
-			ImGui::TableSetColumnIndex(1); ImGui::SliderFloat("##Degrade_Dagger", &Settings->ED_Degrade_Dagger, 0.0, 10.0, "%.01f");
-			ImGui::TableSetColumnIndex(2); ImGui::SliderInt("##Break_Dagger", &Settings->ED_Break_Dagger, 0, 100, "%d%%");
+			TableNextRow();
+			TableSetColumnIndex(0); Text("");
+			TableSetColumnIndex(1); Text("");
+			TableSetColumnIndex(2); Text("");
 
-			ImGui::TableNextRow();
-			ImGui::TableSetColumnIndex(0); ImGui::Text("War Axes");
-			ImGui::TableSetColumnIndex(1); ImGui::SliderFloat("##Degrade_WarAxe", &Settings->ED_Degrade_WarAxe, 0.0, 10.0, "%.01f");
-			ImGui::TableSetColumnIndex(2); ImGui::SliderInt("##Break_WarAxe", &Settings->ED_Break_WarAxe, 0, 100, "%d%%");
+			if (DegradeEntry("Light Armor", Settings->ED_Degrade_LightArmor, Settings->ED_Break_LightArmor))
+				changeRateOption = true;
+			if (DegradeEntry("Heavy Armor", Settings->ED_Degrade_HeavyArmor, Settings->ED_Break_HeavyArmor))
+				changeRateOption = true;
+			if (DegradeEntry("Clothing", Settings->ED_Degrade_Clothing, Settings->ED_Break_Clothing))
+				changeRateOption = true;
+			if (DegradeEntry("Other Armor", Settings->ED_Degrade_Armor, Settings->ED_Break_Armor))
+				changeRateOption = true;
 
-			ImGui::TableNextRow();
-			ImGui::TableSetColumnIndex(0); ImGui::Text("Maces");
-			ImGui::TableSetColumnIndex(1); ImGui::SliderFloat("##Degrade_Mace", &Settings->ED_Degrade_Mace, 0.0, 10.0, "%.01f");
-			ImGui::TableSetColumnIndex(2); ImGui::SliderInt("##Break_Mace", &Settings->ED_Break_Mace, 0, 100, "%d%%");
+			TableNextRow();
+			TableSetColumnIndex(0); Text("");
+			TableSetColumnIndex(1); Text("");
+			TableSetColumnIndex(2); Text("");
 
-			ImGui::TableNextRow();
-			ImGui::TableSetColumnIndex(0); ImGui::Text("Great Swords");
-			ImGui::TableSetColumnIndex(1); ImGui::SliderFloat("##Degrade_GreatSword", &Settings->ED_Degrade_GreatSword, 0.0, 10.0, "%.01f");
-			ImGui::TableSetColumnIndex(2); ImGui::SliderInt("##Break_GreatSword", &Settings->ED_Break_GreatSword, 0, 100, "%d%%");
+			if (MultiplierEntry("Power Attack Multipler", Settings->ED_Degrade_PowerAttack, Settings->ED_Break_PowerAttack))
+				changeRateOption = true;
+			if (MultiplierEntry("Follower Multipler", Settings->ED_Degrade_FollowerMulti, Settings->ED_Break_FollowerMulti))
+				changeRateOption = true;
+			if (MultiplierEntry("NPC Multipler", Settings->ED_Degrade_NPCMulti, Settings->ED_Break_NPCMulti))
+				changeRateOption = true;
 
-			ImGui::TableNextRow();
-			ImGui::TableSetColumnIndex(0); ImGui::Text("Hammers");
-			ImGui::TableSetColumnIndex(1); ImGui::SliderFloat("##Degrade_Warhammer", &Settings->ED_Degrade_Warhammer, 0.0, 10.0, "%.01f");
-			ImGui::TableSetColumnIndex(2); ImGui::SliderInt("##Break_Warhammer", &Settings->ED_Break_Warhammer, 0, 100, "%d%%");
-
-			ImGui::TableNextRow();
-			ImGui::TableSetColumnIndex(0); ImGui::Text("Battle Axe");
-			ImGui::TableSetColumnIndex(1); ImGui::SliderFloat("##Degrade_BattleAxe", &Settings->ED_Degrade_BattleAxe, 0.0, 10.0, "%.01f");
-			ImGui::TableSetColumnIndex(2); ImGui::SliderInt("##Break_BattleAxe", &Settings->ED_Break_BattleAxe, 0, 100, "%d%%");
-
-			ImGui::TableNextRow();
-			ImGui::TableSetColumnIndex(0); ImGui::Text("Bows");
-			ImGui::TableSetColumnIndex(1); ImGui::SliderFloat("##Degrade_Bow", &Settings->ED_Degrade_Bow, 0.0, 10.0, "%.01f");
-			ImGui::TableSetColumnIndex(2); ImGui::SliderInt("##Break_Bow", &Settings->ED_Break_Bow, 0, 100, "%d%%");
-
-			ImGui::TableNextRow();
-			ImGui::TableSetColumnIndex(0); ImGui::Text("Crossbows");
-			ImGui::TableSetColumnIndex(1); ImGui::SliderFloat("##Degrade_Crossbow", &Settings->ED_Degrade_CrossBow, 0.0, 10.0, "%.01f");
-			ImGui::TableSetColumnIndex(2); ImGui::SliderInt("##Break_Crossbow", &Settings->ED_Break_CrossBow, 0, 100, "%d%%");
-
-			ImGui::TableNextRow();
-			ImGui::TableSetColumnIndex(0); ImGui::Text("");
-			ImGui::TableSetColumnIndex(1); ImGui::Text("");
-			ImGui::TableSetColumnIndex(2); ImGui::Text("");
-
-			ImGui::TableNextRow();
-			ImGui::TableSetColumnIndex(0); ImGui::Text("Light Armor");
-			ImGui::TableSetColumnIndex(1); ImGui::SliderFloat("##Degrade_LightArmor", &Settings->ED_Degrade_LightArmor, 0.0, 10.0, "%.01f");
-			ImGui::TableSetColumnIndex(2); ImGui::SliderInt("##Break_LightArmor", &Settings->ED_Break_LightArmor, 0, 100, "%d%%");
-
-			ImGui::TableNextRow();
-			ImGui::TableSetColumnIndex(0); ImGui::Text("Heavy Armor");
-			ImGui::TableSetColumnIndex(1); ImGui::SliderFloat("##Degrade_HeavyArmor", &Settings->ED_Degrade_HeavyArmor, 0.0, 10.0, "%.01f");
-			ImGui::TableSetColumnIndex(2); ImGui::SliderInt("##Break_HeavyArmor", &Settings->ED_Break_HeavyArmor, 0, 100, "%d%%");
-
-			ImGui::TableNextRow();
-			ImGui::TableSetColumnIndex(0); ImGui::Text("Clothing");
-			ImGui::TableSetColumnIndex(1); ImGui::SliderFloat("##Degrade_Clothing", &Settings->ED_Degrade_Clothing, 0.0, 10.0, "%.01f");
-			ImGui::TableSetColumnIndex(2); ImGui::SliderInt("##Break_Clothing", &Settings->ED_Break_Clothing, 0, 100, "%d%%");
-
-			ImGui::TableNextRow();
-			ImGui::TableSetColumnIndex(0); ImGui::Text("Other Armor");
-			ImGui::TableSetColumnIndex(1); ImGui::SliderFloat("##Degrade_OtherArmor", &Settings->ED_Degrade_Armor, 0.0, 10.0, "%.01f");
-			ImGui::TableSetColumnIndex(2); ImGui::SliderInt("##Break_OtherArmor", &Settings->ED_Break_Armor, 0, 100, "%d%%");
-
-			ImGui::TableNextRow();
-			ImGui::TableSetColumnIndex(0); ImGui::Text("");
-			ImGui::TableSetColumnIndex(1); ImGui::Text("");
-			ImGui::TableSetColumnIndex(2); ImGui::Text("");
-
-			ImGui::TableNextRow();
-			ImGui::TableSetColumnIndex(0); ImGui::Text("Power Attack Multipler");
-			ImGui::TableSetColumnIndex(1); ImGui::SliderFloat("##Degrade_PowerAttackMultipler", &Settings->ED_Degrade_PowerAttack, 0.0, 6.0, "%.01f");
-			ImGui::TableSetColumnIndex(2); ImGui::SliderFloat("##Break_PowerAttackMultipler", &Settings->ED_Break_PowerAttack, 0.0, 6.0, "%.01f");
-
-			ImGui::TableNextRow();
-			ImGui::TableSetColumnIndex(0); ImGui::Text("Follower Multipler");
-			ImGui::TableSetColumnIndex(1); ImGui::SliderFloat("##Degrade_FollowerMultipler", &Settings->ED_Degrade_FollowerMulti, 0.0, 6.0, "%.01f");
-			ImGui::TableSetColumnIndex(2); ImGui::SliderFloat("##Break_FollowerMultipler", &Settings->ED_Break_FollowerMulti, 0.0, 6.0, "%.01f");
-
-			ImGui::TableNextRow();
-			ImGui::TableSetColumnIndex(0); ImGui::Text("NPC Multipler");
-			ImGui::TableSetColumnIndex(1); ImGui::SliderFloat("##Degrade_FollowerMultipler", &Settings->ED_Degrade_NPCMulti, 0.0, 6.0, "%.01f");
-			ImGui::TableSetColumnIndex(2); ImGui::SliderFloat("##Break_FollowerMultipler", &Settings->ED_Break_NPCMulti, 0.0, 6.0, "%.01f");
-
-			ImGui::EndTable();
+			EndTable();
 		}
 	}
+
+	if (changeRateOption)
+		Settings->SaveINI();
 }
 
 void __stdcall EDUI::RenderMaterial() {
 	Settings* Settings = Settings::GetSingleton();
+	bool changeMaterialOption = false;
 
-	if (ImGui::CollapsingHeader("General Options", ImGuiTreeNodeFlags_DefaultOpen)) {
-		ImGui::Checkbox("Enable Material Multiplier", &Settings->ED_Material_Multiplier);
+	if (CollapsingHeader("General Options", ImGuiTreeNodeFlags_DefaultOpen)) {
+		if (Checkbox("Enable Material Multiplier", &Settings->ED_Material_Multiplier))
+			changeMaterialOption = true;
 	}
 
-	if (ImGui::CollapsingHeader("Material Rates", ImGuiTreeNodeFlags_DefaultOpen)) {
-		if (ImGui::BeginTable("##MaterialRates", 2)) {
-			ImGui::TableSetupColumn("Material Name", ImGuiTableColumnFlags_WidthFixed, 150.0f);
-			ImGui::TableSetupColumn("Durability Loss");
-			ImGui::TableHeadersRow();
+	if (CollapsingHeader("Material Rates", ImGuiTreeNodeFlags_DefaultOpen)) {
+		if (BeginTable("##MaterialRates", 2)) {
+			TableSetupColumn("Material Name", ImGuiTableColumnFlags_WidthFixed, 150.0f);
+			TableSetupColumn("Durability Loss");
+			TableHeadersRow();
 
-			ImGui::TableNextRow();
-			ImGui::TableSetColumnIndex(0); ImGui::Text("Fur");
-			ImGui::TableSetColumnIndex(1); EDUI::SliderEntryMaterial(Settings->ED_Fur, "##Material_Fur");
-			
-			ImGui::TableNextRow();
-			ImGui::TableSetColumnIndex(0); ImGui::Text("Leather");
-			ImGui::TableSetColumnIndex(1); EDUI::SliderEntryMaterial(Settings->ED_Leather, "##Material_Leather");
-
-			ImGui::TableNextRow();
-			ImGui::TableSetColumnIndex(0); ImGui::Text("Iron");
-			ImGui::TableSetColumnIndex(1); EDUI::SliderEntryMaterial(Settings->ED_Iron, "##Material_Iron");
-
-			ImGui::TableNextRow();
-			ImGui::TableSetColumnIndex(0); ImGui::Text("Steel");
-			ImGui::TableSetColumnIndex(1); EDUI::SliderEntryMaterial(Settings->ED_Steel, "##Material_Steel");
-
-			ImGui::TableNextRow();
-			ImGui::TableSetColumnIndex(0); ImGui::Text("Silver");
-			ImGui::TableSetColumnIndex(1); EDUI::SliderEntryMaterial(Settings->ED_Silver, "##Material_Silver");
-
-			ImGui::TableNextRow();
-			ImGui::TableSetColumnIndex(0); ImGui::Text("Elven");
-			ImGui::TableSetColumnIndex(1); EDUI::SliderEntryMaterial(Settings->ED_Elven, "##Material_Elven");
-
-			ImGui::TableNextRow();
-			ImGui::TableSetColumnIndex(0); ImGui::Text("Bonemold");
-			ImGui::TableSetColumnIndex(1); EDUI::SliderEntryMaterial(Settings->ED_Bonemold, "##Material_Bonemold");
-
-			ImGui::TableNextRow();
-			ImGui::TableSetColumnIndex(0); ImGui::Text("Falmer");
-			ImGui::TableSetColumnIndex(1); EDUI::SliderEntryMaterial(Settings->ED_Falmer, "##Material_Falmer");
-
-			ImGui::TableNextRow();
-			ImGui::TableSetColumnIndex(0); ImGui::Text("Chitin");
-			ImGui::TableSetColumnIndex(1); EDUI::SliderEntryMaterial(Settings->ED_Chitin, "##Material_Chitin");
-
-			ImGui::TableNextRow();
-			ImGui::TableSetColumnIndex(0); ImGui::Text("Dwarven");
-			ImGui::TableSetColumnIndex(1); EDUI::SliderEntryMaterial(Settings->ED_Dwarven, "##Material_Dwarven");
-
-			ImGui::TableNextRow();
-			ImGui::TableSetColumnIndex(0); ImGui::Text("Glass");
-			ImGui::TableSetColumnIndex(1); EDUI::SliderEntryMaterial(Settings->ED_Glass, "##Material_Glass");
-
-			ImGui::TableNextRow();
-			ImGui::TableSetColumnIndex(0); ImGui::Text("Orcish");
-			ImGui::TableSetColumnIndex(1); EDUI::SliderEntryMaterial(Settings->ED_Orcish, "##Material_Orcish");
-
-			ImGui::TableNextRow();
-			ImGui::TableSetColumnIndex(0); ImGui::Text("Stalhrim");
-			ImGui::TableSetColumnIndex(1); EDUI::SliderEntryMaterial(Settings->ED_Stalhrim, "##Material_Stalhrim");
-			 
-			ImGui::TableNextRow();
-			ImGui::TableSetColumnIndex(0); ImGui::Text("Ebony");
-			ImGui::TableSetColumnIndex(1); EDUI::SliderEntryMaterial(Settings->ED_Ebony, "##Material_Ebony");
-
-			ImGui::TableNextRow();
-			ImGui::TableSetColumnIndex(0); ImGui::Text("Dragon");
-			ImGui::TableSetColumnIndex(1); EDUI::SliderEntryMaterial(Settings->ED_Dragon, "##Material_Dragon");
-
-			ImGui::TableNextRow();
-			ImGui::TableSetColumnIndex(0); ImGui::Text("Daedric");
-			ImGui::TableSetColumnIndex(1); EDUI::SliderEntryMaterial(Settings->ED_Daedric, "##Material_Daedric");
-			
-			ImGui::EndTable();
+			if (EDUI::MaterialEntry("Fur", Settings->ED_Fur))
+				changeMaterialOption = true;
+			if (EDUI::MaterialEntry("Leather", Settings->ED_Leather))
+				changeMaterialOption = true;
+			if (EDUI::MaterialEntry("Iron", Settings->ED_Iron))
+				changeMaterialOption = true;
+			if (EDUI::MaterialEntry("Steel", Settings->ED_Steel))
+				changeMaterialOption = true;
+			if (EDUI::MaterialEntry("Silver", Settings->ED_Silver))
+				changeMaterialOption = true;
+			if (EDUI::MaterialEntry("Elven", Settings->ED_Elven))
+				changeMaterialOption = true;
+			if (EDUI::MaterialEntry("Bonemold", Settings->ED_Bonemold))
+				changeMaterialOption = true;
+			if (EDUI::MaterialEntry("Falmer", Settings->ED_Falmer))
+				changeMaterialOption = true;
+			if (EDUI::MaterialEntry("Chitin", Settings->ED_Chitin))
+				changeMaterialOption = true;
+			if (EDUI::MaterialEntry("Dwarven", Settings->ED_Dwarven))
+				changeMaterialOption = true;
+			if (EDUI::MaterialEntry("Glass", Settings->ED_Glass))
+				changeMaterialOption = true;
+			if (EDUI::MaterialEntry("Orcish", Settings->ED_Orcish))
+				changeMaterialOption = true;
+			if (EDUI::MaterialEntry("Stalhrim", Settings->ED_Stalhrim))
+				changeMaterialOption = true;
+			if (EDUI::MaterialEntry("Ebony", Settings->ED_Ebony))
+				changeMaterialOption = true;
+			if (EDUI::MaterialEntry("Dragon", Settings->ED_Dragon))
+				changeMaterialOption = true;
+			if (EDUI::MaterialEntry("Daedric", Settings->ED_Daedric))
+				changeMaterialOption = true;
+			EndTable();
 		}
 	}
+
+	if (changeMaterialOption)
+		Settings->SaveINI();
 }
 
 void __stdcall EDUI::RenderDynamic() {
 	Settings* Settings = Settings::GetSingleton();
+	bool dynamicChanged = false;
 
-	if (ImGui::CollapsingHeader("Dynamic Tempering", ImGuiTreeNodeFlags_DefaultOpen)) {
-		ImGui::Checkbox("Tempering Enabled", &Settings->ED_Temper_Enabled);
-		ImGui::Text("Base Chance");
-		ImGui::SliderInt("##Temper_BaseChance", &Settings->ED_Temper_Chance, 0, 100, "%d%%");
-		ImGui::Text("Vendor Inventory Chance");
-		ImGui::SliderInt("##Temper_VendorInventoryChance", &Settings->ED_Temper_VendorChance, 0, 100, "%d%%");
-		ImGui::Text("Boss Inventory Chance");
-		ImGui::SliderInt("##Temper_BossInventoryChance", &Settings->ED_Temper_BossChance, 0, 100, "%d%%");
+	if (CollapsingHeader("Dynamic Tempering", ImGuiTreeNodeFlags_DefaultOpen)) {
+		if (Checkbox("Tempering Enabled", &Settings->ED_Temper_Enabled))
+			dynamicChanged = true;
+
+		Text("Base Chance");
+		if (SliderInt("##Temper_BaseChance", &Settings->ED_Temper_Chance, 0, 100, "%d%%"))
+			dynamicChanged = true;
+			
+		Text("Vendor Inventory Chance");
+		if (SliderInt("##Temper_VendorInventoryChance", &Settings->ED_Temper_VendorChance, 0, 100, "%d%%"))
+			dynamicChanged = true;
+
+		Text("Boss Inventory Chance");
+		if (SliderInt("##Temper_BossInventoryChance", &Settings->ED_Temper_BossChance, 0, 100, "%d%%"))
+			dynamicChanged = true;
 	}
 
-	if (ImGui::CollapsingHeader("Dynamic Enchanting", ImGuiTreeNodeFlags_DefaultOpen)) {
-		ImGui::Checkbox("Enchanting Enabled", &Settings->ED_Enchant_Enabled);
-		ImGui::Text("Base Chance");
-		ImGui::SliderInt("##Enchanting_BaseChancee", &Settings->ED_Enchant_Chance, 0, 100, "%d%%");
-		ImGui::Text("Vendor Inventory Chance");
-		ImGui::SliderInt("##Enchanting_VendorInventoryChance", &Settings->ED_Enchant_VendorChance, 0, 100, "%d%%");
-		ImGui::Text("Boss Inventory Chance");
-		ImGui::SliderInt("##Enchanting_BossInventoryChance", &Settings->ED_Enchant_BossChance, 0, 100, "%d%%");
+	if (CollapsingHeader("Dynamic Enchanting", ImGuiTreeNodeFlags_DefaultOpen)) {
+		if (Checkbox("Enchanting Enabled", &Settings->ED_Enchant_Enabled))
+			dynamicChanged = true;
+
+		Text("Base Chance");
+		if (SliderInt("##Enchanting_BaseChancee", &Settings->ED_Enchant_Chance, 0, 100, "%d%%"))
+			dynamicChanged = true;
+
+		Text("Vendor Inventory Chance");
+		if (SliderInt("##Enchanting_VendorInventoryChance", &Settings->ED_Enchant_VendorChance, 0, 100, "%d%%"))
+			dynamicChanged = true;
+
+		Text("Boss Inventory Chance");
+		if (SliderInt("##Enchanting_BossInventoryChance", &Settings->ED_Enchant_BossChance, 0, 100, "%d%%"))
+			dynamicChanged = true;
 	}
+
+	if (dynamicChanged)
+		Settings->SaveINI();
 }
 
 void __stdcall EDUI::RenderHUD() {
 	Settings* Settings = Settings::GetSingleton();
+	bool hudChanged = false;
 
-	if (ImGui::CollapsingHeader("Display Settings", ImGuiTreeNodeFlags_DefaultOpen)) {
+	if (CollapsingHeader("Display Settings", ImGuiTreeNodeFlags_DefaultOpen)) {
 		// Display option for the Menu
-		if (ImGui::BeginCombo("Displayed", displayOptions[Settings->ED_Widget_Display].c_str())) {
+		if (BeginCombo("Displayed", displayOptions[Settings->ED_Widget_Display].c_str())) {
 			for (int i = 0; i < displayOptions.size(); i++) {
 				bool is_selected = (Settings->ED_Widget_Display == i);
-				if (ImGui::Selectable(displayOptions[i].c_str(), is_selected)) {
+				if (Selectable(displayOptions[i].c_str(), is_selected)) {
 					Settings->ED_Widget_Display = i;
 					auto ui = RE::UI::GetSingleton();
 					if (!ui) return; 
@@ -262,33 +217,35 @@ void __stdcall EDUI::RenderHUD() {
 					durabilityMenu->MenuState();
 				}
 			}
-			ImGui::EndCombo();
+			EndCombo();
 		}
 
 		// X/Y Position and Scale
-		if (ImGui::BeginTable("##Hud_Position", 2, ImGuiTableFlags_NoBordersInBody)) {
-			ImGui::TableSetupColumn("X Position");
-			ImGui::TableSetupColumn("Y Position");
-			ImGui::TableHeadersRow();
+		if (BeginTable("##Hud_Position", 2, ImGuiTableFlags_NoBordersInBody)) {
+			TableSetupColumn("X Position");
+			TableSetupColumn("Y Position");
+			TableHeadersRow();
 
-			ImGui::TableNextRow();
-			ImGui::TableSetColumnIndex(0); ImGui::SliderInt("##Widget_XPosition", &Settings->ED_Widget_PosX, 0, 100, "%d%%");
-			ImGui::TableSetColumnIndex(1); ImGui::SliderInt("##Widget_YPosition", &Settings->ED_Widget_PosY, 0, 100, "%d%%");
+			TableNextRow();
+			TableSetColumnIndex(0); SliderInt("##Widget_XPosition", &Settings->ED_Widget_PosX, 0, 100, "%d%%");
+			TableSetColumnIndex(1); SliderInt("##Widget_YPosition", &Settings->ED_Widget_PosY, 0, 100, "%d%%");
 			
-			ImGui::EndTable();
+			EndTable();
 		}
-		ImGui::Text("Scale");
-		ImGui::SliderInt("##Widget_Scale", &Settings->ED_Widget_Scale, 0, 200, "%d%%");
+		Text("Scale");
+		SliderInt("##Widget_Scale", &Settings->ED_Widget_Scale, 0, 200, "%d%%");
 
 		// Unbreakable and Breakable Colors
 		ImVec4 color_unbreak(
 			((Settings->ED_Color_Unbreakable >> 16) & 0xFF) / 255.0f, // R
 			((Settings->ED_Color_Unbreakable >> 8) & 0xFF) / 255.0f,  // G
 			( Settings->ED_Color_Unbreakable & 0xFF) / 255.0f,        // B
-			1.0f                                                 // A
+			1.0f                                                 	  // A
 		);
-		if (ImGui::ColorEdit4("Unbreakable Color", &color_unbreak.x, ImGuiColorEditFlags_NoAlpha))
+		if (ColorEdit4("Unbreakable Color", &color_unbreak.x, ImGuiColorEditFlags_NoAlpha)) {
 			Settings->ED_Color_Unbreakable = (static_cast<uint32_t>(color_unbreak.x*255) << 16) | (static_cast<uint32_t>(color_unbreak.y*255) << 8) | (static_cast<uint32_t>(color_unbreak.z*255));
+			hudChanged = true;
+		}
 
 		ImVec4 color_break(
 			((Settings->ED_Color_Broken >> 16) & 0xFF) / 255.0f, // R
@@ -296,36 +253,52 @@ void __stdcall EDUI::RenderHUD() {
 			( Settings->ED_Color_Broken & 0xFF) / 255.0f,        // B
 			1.0f                                                 // A
 		);
-		if (ImGui::ColorEdit4("Breakable Color", &color_break.x, ImGuiColorEditFlags_NoAlpha)) {
+		if (ColorEdit4("Breakable Color", &color_break.x, ImGuiColorEditFlags_NoAlpha)) {
 			Settings->ED_Color_Broken = (static_cast<uint32_t>(color_break.x*255) << 16) | (static_cast<uint32_t>(color_break.y*255) << 8) | (static_cast<uint32_t>(color_break.z*255));
+			hudChanged = true;
 		}
 
 		// All of the Show/Hide Options
-		if (ImGui::BeginTable("##Show_Hide", 2, ImGuiTableFlags_NoBordersInBody)) {
-			ImGui::TableSetupColumn("", ImGuiTableColumnFlags_NoHeaderLabel);
-			ImGui::TableSetupColumn("", ImGuiTableColumnFlags_NoHeaderLabel);
-			ImGui::TableHeadersRow();
+		if (BeginTable("##Show_Hide", 2, ImGuiTableFlags_NoBordersInBody)) {
+			TableSetupColumn("", ImGuiTableColumnFlags_NoHeaderLabel);
+			TableSetupColumn("", ImGuiTableColumnFlags_NoHeaderLabel);
+			TableHeadersRow();
 
-			ImGui::TableSetColumnIndex(0); ImGui::Checkbox("Reverse Order", &Settings->ED_Widget_Reverse);
-			ImGui::TableSetColumnIndex(1); ImGui::Checkbox("Show Poison Name", &Settings->ED_Widget_ShowPoisonName);
+			TableSetColumnIndex(0); 
+			if (Checkbox("Reverse Order", &Settings->ED_Widget_Reverse))
+				hudChanged = true;
+			TableSetColumnIndex(1); 
+			if (Checkbox("Show Poison Name", &Settings->ED_Widget_ShowPoisonName))
+				hudChanged = true;
 			
-			ImGui::TableNextRow();
-			ImGui::TableSetColumnIndex(0); ImGui::Checkbox("Show Health", &Settings->ED_Widget_ShowHealth);
-			ImGui::TableSetColumnIndex(1); ImGui::Checkbox("Show Armor Name", &Settings->ED_Widget_ShowArmorName);
+			TableNextRow();
+			TableSetColumnIndex(0); 
+			if (Checkbox("Show Health", &Settings->ED_Widget_ShowHealth))
+				hudChanged = true;
+			TableSetColumnIndex(1);
+			if (Checkbox("Show Armor Name", &Settings->ED_Widget_ShowArmorName))
+				hudChanged = true;
 
-			ImGui::TableNextRow();
-			ImGui::TableSetColumnIndex(0); ImGui::Checkbox("Show Shout", &Settings->ED_Widget_ShowShout);
-			ImGui::TableSetColumnIndex(1); ImGui::Checkbox("Show Weapon Name", &Settings->ED_Widget_ShowWeaponName);
+			TableNextRow();
+			TableSetColumnIndex(0);
+			if (Checkbox("Show Shout", &Settings->ED_Widget_ShowShout))
+				hudChanged = true;
+			TableSetColumnIndex(1);
+			if (Checkbox("Show Weapon Name", &Settings->ED_Widget_ShowWeaponName))
+				hudChanged = true;
 
-			ImGui::TableNextRow();
-			ImGui::TableSetColumnIndex(0); ImGui::Checkbox("Show Unarmed", &Settings->ED_Widget_ShowUnarmed);
-			ImGui::TableSetColumnIndex(1); ImGui::Text("");
+			TableNextRow();
+			TableSetColumnIndex(0);
+			if (Checkbox("Show Unarmed", &Settings->ED_Widget_ShowUnarmed))
+				hudChanged = true;
+			TableSetColumnIndex(1);
+			Text("");
 
-			ImGui::EndTable();
+			EndTable();
 		}
 
 		// Allows user to update HUD positioning
-		if (ImGui::Button("Update HUD")) {
+		if (Button("Update HUD")) {
 			auto ui = RE::UI::GetSingleton();
 			if (!ui) return; 
 
@@ -341,13 +314,13 @@ void __stdcall EDUI::RenderHUD() {
 	}
 
 	// Hotkey Options
-	if (ImGui::CollapsingHeader("Hotkey Settings", ImGuiTreeNodeFlags_DefaultOpen)) {
-		ImGui::Text("HUD Hotkey");
-		ImGui::SameLine();
+	if (CollapsingHeader("Hotkey Settings", ImGuiTreeNodeFlags_DefaultOpen)) {
+		Text("HUD Hotkey");
+		SameLine();
 		int &hotkey = Settings->ED_Widget_ToggleKeyCode;
 
 		// Show the button with current hotkey name
-		if (ImGui::Button(waitKey ? "Press a key..." : ImGui::GetKeyName((ImGuiKey)HelperFunctions::IDCodeToImGuiKey(hotkey)))) {
+		if (Button(waitKey ? "Press a key..." : GetKeyName((ImGuiKey)HelperFunctions::IDCodeToImGuiKey(hotkey)))) {
 			waitKey = true;
 			hotkey = -1;
 		}
@@ -355,9 +328,10 @@ void __stdcall EDUI::RenderHUD() {
 		// If waiting, check for input
 		if (waitKey) {
 			for (int key = ImGuiKey_NamedKey_BEGIN; key < ImGuiKey_NamedKey_END; key++) {
-				if (ImGui::IsKeyPressed((ImGuiKey)key)) {
+				if (IsKeyPressed((ImGuiKey)key)) {
 					hotkey = HelperFunctions::ImGuiKeyToIDCode((ImGuiKey)key);
 					waitKey = false;
+					hudChanged = true;
 					break;
 				}
 			}
@@ -365,107 +339,124 @@ void __stdcall EDUI::RenderHUD() {
 
 		// Show a Clear Button
 		if (hotkey >= 0) {
-			ImGui::SameLine();
-			if (ImGui::Button("Reset")) {
+			SameLine();
+			if (Button("Reset")) {
 				hotkey = -1;
+				hudChanged = true;
 			}
 		}
 
-		ImGui::Text("  Display Duration (0 is persistent)");
-		ImGui::SliderInt("##Hotkey_Duration", &Settings->ED_Widget_ToggleDuration, 0, 30);
+		Text("  Display Duration (0 is persistent)");
+		if (SliderInt("##Hotkey_Duration", &Settings->ED_Widget_ToggleDuration, 0, 30))
+			hudChanged = true;
 	}
+
+	if (hudChanged)
+		Settings->SaveINI();
 }
 
 void __stdcall EDUI::RenderTemper() {
 	Settings* Settings = Settings::GetSingleton();
+	bool temperChanged = false;
 
+	// Name Settings
 	std::string prefixText = Settings->ED_Names_Prefix;
 	std::string postfixText = Settings->ED_Names_Postfix;
 	std::string brokenText = Settings->ED_Names_Broken;
 
 	// General Name Settings
-	ImGui::Columns(2);
-	if (ImGui::CollapsingHeader("Name Settings", ImGuiTreeNodeFlags_DefaultOpen)) {
+	Columns(2);
+	if (CollapsingHeader("Name Settings", ImGuiTreeNodeFlags_DefaultOpen)) {
 		// Display option for the Menu
-		ImGui::Text("Naming Style");
-		if (ImGui::BeginCombo("##Naming_Style", styleOptions[GetStyleIndex(Settings->ED_Names_Style)].c_str())) {
+		Text("Naming Style");
+		if (BeginCombo("##Naming_Style", styleOptions[GetStyleIndex(Settings->ED_Names_Style)].c_str())) {
 			for (int i = 0; i < styleOptions.size(); i++) {
 				bool is_selected = (GetStyleIndex(Settings->ED_Names_Style) == i);
-				if (ImGui::Selectable(styleOptions[i].c_str(), is_selected)) {
+				if (Selectable(styleOptions[i].c_str(), is_selected)) {
 					Settings->ED_Names_Style = styleOptions[i];
+					temperChanged = true;
 				}
 			}
-			ImGui::EndCombo();
+			EndCombo();
 		}
 
 		// Pre and Post Entries
-		if (ImGui::BeginTable("##Pre_Post", 2, ImGuiTableFlags_NoBordersInBody)) {
-			ImGui::TableSetupColumn("Prefix");
-			ImGui::TableSetupColumn("Postfix");
-			ImGui::TableHeadersRow();
+		if (BeginTable("##Pre_Post", 2, ImGuiTableFlags_NoBordersInBody)) {
+			TableSetupColumn("Prefix");
+			TableSetupColumn("Postfix");
+			TableHeadersRow();
 
-			ImGui::TableNextRow();
-			ImGui::TableSetColumnIndex(0);
+			TableNextRow();
+			TableSetColumnIndex(0);
 
 			if (CreateInputText("##Prefix_Text", prefixText)) {
 				Settings->ED_Names_Prefix = prefixText;
+				temperChanged = true;
 			}
-			ImGui::TableSetColumnIndex(1);
+			TableSetColumnIndex(1);
 			if (CreateInputText("##Postfix_Text", postfixText)) {
 				Settings->ED_Names_Postfix = postfixText;
+				temperChanged = true;
 			}
 
-			ImGui::EndTable();
+			EndTable();
 		}
 
-		ImGui::Text("Broken Text");
+		Text("Broken Text");
 		if (CreateInputText("##Broken_Text", brokenText)) {
 			Settings->ED_Names_Broken = brokenText;
+			temperChanged = true;
 		}
 	}
 
 	// Custom Name List
-	ImGui::NextColumn();
-	if (ImGui::CollapsingHeader("Custom Names", ImGuiTreeNodeFlags_DefaultOpen)) {
+	NextColumn();
+	if (CollapsingHeader("Custom Names", ImGuiTreeNodeFlags_DefaultOpen)) {
 		for (int i = 0; i < Settings->CustomNames.size(); i++) {
-			ImGui::PushID(i);
+			PushID(i);
 
 			// Level Text
-			ImGui::Text("Level %02d:", i + 1);
+			Text("Level %02d:", i + 1);
 
 			// Editable text field for each entry
-			ImGui::SameLine();
-			ImGui::SetNextItemWidth(250.0f); // width in pixels
+			SameLine();
+			SetNextItemWidth(250.0f); // width in pixels
 			CreateInputText("##Entry", Settings->CustomNames[i]);
 
 			// Up and Down Arrows
-			ImGui::SameLine();
-			if (ImGui::ArrowButton("##up", ImGuiDir_Up) && i > 0) {
+			SameLine();
+			if (ArrowButton("##up", ImGuiDir_Up) && i > 0) {
 				std::swap(Settings->CustomNames[i], Settings->CustomNames[i - 1]);
+				temperChanged = true;
 			}
-			ImGui::SameLine();
-			if (ImGui::ArrowButton("##down", ImGuiDir_Down) && i < Settings->CustomNames.size() - 1) {
+			SameLine();
+			if (ArrowButton("##down", ImGuiDir_Down) && i < Settings->CustomNames.size() - 1) {
 				std::swap(Settings->CustomNames[i], Settings->CustomNames[i + 1]);
+				temperChanged = true;
 			}
 
 			// Entry Removeal
-			ImGui::SameLine();
-			if (ImGui::Button("X")) {
+			SameLine();
+			if (Button("X")) {
 				Settings->CustomNames.erase(Settings->CustomNames.begin() + i);
-				ImGui::PopID();
+				PopID();
+				temperChanged = true;
 				break;  // break because we modified the vector
 			}
 
-			ImGui::PopID();
+			PopID();
 		}
 
 		// Add new entry button at the bottom
-		if (ImGui::Button("Add Entry")) {
+		if (Button("Add Entry")) {
 			Settings->CustomNames.push_back("New Entry");
-			ImGui::SetKeyboardFocusHere();
+			temperChanged = true;
+			SetKeyboardFocusHere();
 		}
 	}
 
+	if (temperChanged)
+		Settings->SaveINI();
 }
 
 int EDUI::GetStyleIndex(const std::string& value) {
@@ -476,10 +467,74 @@ int EDUI::GetStyleIndex(const std::string& value) {
     return -1; // not found
 }
 
-void EDUI::SliderEntryMaterial(float& value, const char* id) {
+bool EDUI::MaterialEntry(const char* label, float& value) {
+	bool changeSlider = false;
+
+	// Set the header
+	TableNextRow();
+	TableSetColumnIndex(0);
+	Text(label);
+	TableSetColumnIndex(1); 
+
+	// Set the ID and create the slider
+	std::string id = std::format("##Material_{}", label);
 	int tempValue = value * 100;
-	if (ImGui::SliderInt(id, &tempValue, 0, 200, "%d%%"))
+	if (SliderInt(id.c_str(), &tempValue, 0, 200, "%d%%")) {
 		value = tempValue / 100.0f;
+		changeSlider = true;
+	}
+
+	return changeSlider;
+}
+
+bool EDUI::DegradeEntry(const char* label, float& degradeValue, int& breakValue) {
+	bool changeSlider = false;
+
+	// Set Slider IDs
+	std::string idd = std::format("##Degrade_{}", label);
+	std::string idb = std::format("##Break_{}", label);
+
+	// Set the header
+	TableNextRow();
+	TableSetColumnIndex(0);
+	Text(label);
+	
+	// Degrade Slider
+	TableSetColumnIndex(1); 
+	if (SliderFloat(idd.c_str(), &degradeValue, 0.0, 10.0, "%.01f"))
+		changeSlider = true;
+
+	// Break Slider
+	TableSetColumnIndex(2); 
+	if (SliderInt(idb.c_str(), &breakValue, 0, 100, "%d%%"))
+		changeSlider = true;
+
+	return changeSlider;
+}
+
+bool EDUI::MultiplierEntry(const char* label, float& degradeValue, float& breakValue) {
+	bool changeSlider = false;
+
+	// Set Slider IDs
+	std::string idd = std::format("##Degrade_{}", label);
+	std::string idb = std::format("##Break_{}", label);
+
+	// Set the header
+	TableNextRow();
+	TableSetColumnIndex(0);
+	Text(label);
+	
+	// Degrade Slider
+	TableSetColumnIndex(1); 
+	if (SliderFloat(idd.c_str(), &degradeValue, 0.0, 6.0, "%.01f"))
+		changeSlider = true;
+
+	// Break Slider
+	TableSetColumnIndex(2); 
+	if (SliderFloat(idb.c_str(), &breakValue, 0.0, 6.0, "%.01f"))
+		changeSlider = true;
+
+	return changeSlider;
 }
 
 bool EDUI::CreateInputText(const char* label, std::string& str, ImGuiInputTextFlags flags) {
@@ -502,7 +557,7 @@ bool EDUI::CreateInputText(const char* label, std::string& str, ImGuiInputTextFl
     // Only reserve some space if empty
     if (str.empty()) str.reserve(64); // optional initial buffer
 
-    changed = ImGui::InputText(
+    changed = InputText(
         label,
         str.data(),
         str.capacity() + 1,

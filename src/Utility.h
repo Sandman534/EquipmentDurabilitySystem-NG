@@ -93,8 +93,7 @@ public:
         if (!ui->IsCursorHiddenWhenTopmost()) return true;
         if (!ui->IsShowingMenus()) return true;
         if (!ui->GetMenu<RE::HUDMenu>()) return true;
-        if (ui->IsMenuOpen(RE::LoadingMenu::MENU_NAME))  return true;
-        //if (ui->IsMenuOpen("Console") || ui->IsMenuOpen("MessageBoxMenu") || ui->IsMenuOpen("RaceSexMenu")) return true;
+        if (ui->IsMenuOpen(RE::LoadingMenu::MENU_NAME)) return true;
 
         // Everything else is fine
         return false;

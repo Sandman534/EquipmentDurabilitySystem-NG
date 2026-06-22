@@ -1,13 +1,9 @@
 #pragma once
 
+using namespace ImGuiMCP;
+
 namespace HelperFunctions
 {
-	inline std::string VersionToString(const REL::Version& version) {
-        std::stringstream ss;
-        ss << Plugin::Version.major() << "." << Plugin::Version.minor() << "." << Plugin::Version.patch();
-        return ss.str();
-    }
-
 	inline std::uint32_t AdjustScanCodes(RE::INPUT_DEVICE a_device, uint32_t a_scan_code)
 	{
 		if (a_device == RE::INPUT_DEVICE::kMouse)
@@ -93,7 +89,7 @@ namespace HelperFunctions
         case ImGuiKey_Q: return RE::BSKeyboardDevice::Key::kQ;
         case ImGuiKey_R: return RE::BSKeyboardDevice::Key::kR;
         case ImGuiKey_S: return RE::BSKeyboardDevice::Key::kS;
-        case ImGuiKey_T: return RE::BSKeyboardDevice::Key::kT;
+		case ImGuiKey_T: return RE::BSKeyboardDevice::Key::kT;
         case ImGuiKey_U: return RE::BSKeyboardDevice::Key::kU;
         case ImGuiKey_V: return RE::BSKeyboardDevice::Key::kV;
         case ImGuiKey_W: return RE::BSKeyboardDevice::Key::kW;

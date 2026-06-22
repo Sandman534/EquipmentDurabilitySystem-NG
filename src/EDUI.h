@@ -1,5 +1,8 @@
 #pragma once
 #include "Settings.h"
+#include "DurabilityMenu.h"
+
+using namespace ImGuiMCP;
 
 namespace EDUI {
     void Register();
@@ -16,8 +19,13 @@ namespace EDUI {
 	void __stdcall RenderHUD();
     void __stdcall RenderTemper();
 
+    void __stdcall EventListener(SKSEMenuFramework::Model::EventType* eventType);
+
     // Additional Functions
 	int GetStyleIndex(const std::string& value);
+    bool MaterialEntry(const char* label, float& value);
+    bool DegradeEntry(const char* label, float& degradeValue, int& breakValue);
+    bool MultiplierEntry(const char* label, float& degradeValue, float& breakValue);
     void SliderEntryMaterial(float& value, const char* id);
 	bool CreateInputText(const char* label, std::string& str, ImGuiInputTextFlags flags = 0);
 };

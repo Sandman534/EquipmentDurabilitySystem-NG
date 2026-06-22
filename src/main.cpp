@@ -2,7 +2,6 @@
 #include "DurabilityMenu.h"
 #include "Events.h"
 #include "Settings.h"
-#include "Serialization.h"
 #include "Utility.h"
 #include "EDUI.h"
 #include "Temper.h"
@@ -12,22 +11,9 @@ using namespace SKSE;
 using namespace SKSE::log;
 using namespace SKSE::stl;
 
-
-void SetupLog() {
-	auto logsFolder = SKSE::log::log_directory();
-	if (!logsFolder)
-		SKSE::stl::report_and_fail("SKSE log_directory not provided, logs disabled.");
-	auto pluginName = SKSE::PluginDeclaration::GetSingleton()->GetName();
-	auto logFilePath = *logsFolder / std::format("{}.log", pluginName);
-	auto fileLoggerPtr = std::make_shared<spdlog::sinks::basic_file_sink_mt>(logFilePath.string(), true);
-	auto loggerPtr = std::make_shared<spdlog::logger>("log", std::move(fileLoggerPtr));
-	spdlog::set_default_logger(std::move(loggerPtr));
-	spdlog::set_level(spdlog::level::trace);
-	spdlog::flush_on(spdlog::level::trace);
-}
-
-void InitListener(SKSE::MessagingInterface::Message* a_msg) {
-	switch (a_msg->type) {
+static void SKSEMessageHandler(SKSE::MessagingInterface::Message* message)
+{
+	switch (message->type) {
 	case SKSE::MessagingInterface::kDataLoaded:
 		Utility::GetSingleton()->LoadForms();
 		Settings::GetSingleton()->LoadINI();
@@ -45,23 +31,24 @@ void InitListener(SKSE::MessagingInterface::Message* a_msg) {
 	}
 }
 
-SKSEPluginLoad(const LoadInterface* skse) {
-	SetupLog();
-	logger::info("{} {} is loading...", Plugin::NAME, HelperFunctions::VersionToString(Plugin::Version));
-	Init(skse);
-	SKSE::AllocTrampoline(128);
-
+extern "C" DLLEXPORT bool SKSEAPI SKSEPlugin_Load(const SKSE::LoadInterface* a_skse)
+{
+	REL::Module::reset();
+	 
 	// Message Listener
-	auto messaging = SKSE::GetMessagingInterface();
-	if (!messaging->RegisterListener(InitListener)) {
+	auto g_messaging = reinterpret_cast<SKSE::MessagingInterface*>(a_skse->QueryInterface(SKSE::LoadInterface::kMessaging));
+
+	if (!g_messaging) {
+		logger::critical("Failed to load messaging interface! This error is fatal, plugin will not load.");
 		return false;
 	}
+	 
+	logger::info("{} v{} is loading..."sv, Plugin::NAME, Plugin::VERSION.string());
+	 
+	SKSE::Init(a_skse);
+	SKSE::AllocTrampoline(128);
 
-	// Serialization to save/load information
-	if (auto serialization = SKSE::GetSerializationInterface()) {
-		serialization->SetUniqueID(Serialization::ID);
-		serialization->SetSaveCallback(&Serialization::SaveCallback);
-	}
+	g_messaging->RegisterListener("SKSE", SKSEMessageHandler);
 
 	// Register the SKSE Menu
 	EDUI::Register();

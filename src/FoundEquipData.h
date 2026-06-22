@@ -1,6 +1,5 @@
 #pragma once
 
-
 class FoundEquipData {
 public:
 	RE::TESForm* baseForm;

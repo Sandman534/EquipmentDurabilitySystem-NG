@@ -198,10 +198,12 @@ bool FoundEquipData::IsUnarmed() {
 }
 
 bool FoundEquipData::CanBreak() {
+	// Run various checks to see if the item is breakable
     if (!baseForm || !objectData) return false;
-
     if (Settings::GetSingleton()->ED_BreakDisabled) return false;
+    if (IsBroken()) return false;
 
+    // Determine if the object is breakable based on other factors
     auto utility = Utility::GetSingleton();
 	bool disallowMagic = Settings::GetSingleton()->ED_NoBreakNoEnchant &&
                          ((baseForm->IsWeapon() && baseForm->As<RE::TESObjectWEAP>()->HasKeyword(utility->keywordMagicDisallow)) ||

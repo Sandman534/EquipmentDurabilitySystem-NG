@@ -18,7 +18,7 @@ namespace I4Data::Items {
 	void ItemStack::SkseExtendCommonItemData() const {
 		PROFILE_SCOPE;
 
-		_data.formType = _foundEquip->baseForm->formType;
+		_data.formType = _foundEquip->baseForm->GetFormType();
 		_data.formId = _foundEquip->baseForm->formID;
 	}
 
@@ -32,7 +32,7 @@ namespace I4Data::Items {
 	void ItemStack::SkseExtendStandardItemData() const {
 		PROFILE_SCOPE;
 
-		switch (_foundEquip->baseForm->formType.get()) {
+		switch (_foundEquip->baseForm->GetFormType()) {
 		case RE::FormType::Armor:
 			if (const auto armor = skyrim_cast<RE::TESObjectARMO*>(_foundEquip->baseForm)) {
 				_data.armor.partMask = armor->bipedModelData.bipedObjectSlots;
@@ -42,13 +42,13 @@ namespace I4Data::Items {
 
 		case RE::FormType::Ammo:
 			if (const auto ammo = skyrim_cast<RE::TESAmmo*>(_foundEquip->baseForm)) {
-				_data.ammo.flags = ammo->GetRuntimeData().data.flags;
+				_data.ammo.flags = static_cast<AmmoFlags>(ammo->GetRuntimeData().data.flags.underlying());
 			}
 			break;
 
 		case RE::FormType::Weapon:
 			if (const auto weapon = skyrim_cast<RE::TESObjectWEAP*>(_foundEquip->baseForm)) {
-				_data.weapon.weaponType = weapon->weaponData.animationType;
+				_data.weapon.weaponType = weapon->GetWeaponType();
 				_data.weapon.speed = weapon->weaponData.speed;
 				_data.weapon.reach = weapon->weaponData.reach;
 				_data.weapon.stagger = weapon->weaponData.staggerValue;
@@ -73,14 +73,14 @@ namespace I4Data::Items {
 
 		case RE::FormType::AlchemyItem:
 			if (const auto alchemyItem = skyrim_cast<RE::AlchemyItem*>(_foundEquip->baseForm)) {
-				_data.potion.flags = alchemyItem->data.flags;
+				_data.potion.flags = static_cast<AlchemyFlags>(alchemyItem->data.flags.underlying());
 			}
 			break;
 
 		case RE::FormType::Book:
 			if (const auto book = skyrim_cast<RE::TESObjectBOOK*>(_foundEquip->baseForm)) {
-				_data.book.flags = book->data.flags;
-				_data.book.bookType = book->data.type;
+				_data.book.flags = static_cast<BookFlags>(book->data.flags.underlying());
+				_data.book.bookType = static_cast<BookType>(book->data.type.underlying());
 
 				if (book->data.flags.all(BookFlags::kTeachesSpell)) {
 					_data.book.teachesSpell = book->data.teaches.spell ? book->data.teaches.spell->formID : -1;
@@ -114,7 +114,7 @@ namespace I4Data::Items {
 
 		const auto player = RE::PlayerCharacter::GetSingleton();
 
-		switch (_foundEquip->baseForm->formType.get()) {
+		switch (_foundEquip->baseForm->GetFormType()) {
 		case RE::FormType::Armor:
 			_data.armor.armor = _foundEquip->baseForm->As<RE::TESObjectARMO>()->armorRating;
 			break;
@@ -147,7 +147,8 @@ namespace I4Data::Items {
 				const auto baseEffect = effect->baseEffect;
 				_data.magic.effectName = baseEffect->fullName.c_str();
 				_data.magic.subType = baseEffect->data.associatedSkill;
-				_data.magic.effectFlags = baseEffect->data.flags;
+				_data.magic.effectFlags = static_cast<EffectFlags>(baseEffect->data.flags.underlying());
+
 				_data.magic.school = baseEffect->data.associatedSkill;
 				_data.magic.skillLevel = baseEffect->data.minimumSkill;
 				_data.magic.archetype = baseEffect->data.archetype;

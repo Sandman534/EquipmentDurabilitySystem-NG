@@ -2,7 +2,7 @@
 #include "Settings.h"
 
 std::string TemperManager::AsVanilla(std::uint32_t a_level, bool a_isWeapon) {
-    // clamp level to 1–6
+    // clamp level to 1ï¿½6
     if (a_level < 1) a_level = 1;
     if (a_level > 6) a_level = 6;
 
@@ -150,8 +150,11 @@ void TemperManager::Init() {
 
 	// AE and SSE have different functions
 	auto& trampoline = SKSE::GetTrampoline();
+	auto* mem = trampoline.allocate(code.getSize());
+	std::memcpy(mem, code.getCode(), code.getSize());
+
 	if (REL::Module::IsAE())
-		trampoline.write_branch<6>(TemperFactor_Hook.address(), trampoline.allocate(code));
+		trampoline.write_branch<6>(TemperFactor_Hook.address(), mem);
 	else 
 		trampoline.write_call<5>(TemperFactor_Hook.address(), TemperManager::GetTemperFactor);
 
