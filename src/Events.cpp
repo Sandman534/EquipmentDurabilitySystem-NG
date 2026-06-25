@@ -13,17 +13,15 @@
 // =============================================================
 std::unordered_set<RE::Actor*> actorList;
 std::mutex actorLock;
-bool skip = false;
 
 static bool AddActor(RE::Actor* actor) {
-	std::lock_guard<std::mutex> guard(actorLock);
-	return actorList.insert(actor).second ? (skip = true, true) : false;
+    std::lock_guard<std::mutex> guard(actorLock);
+    return actorList.insert(actor).second;
 }
 
 static void ClearActor() {
-	std::lock_guard<std::mutex> guard(actorLock);
-	if (skip) skip = false;
-	else actorList.clear();
+    std::lock_guard<std::mutex> guard(actorLock);
+    actorList.clear();
 }
 
 // =============================================================
@@ -89,16 +87,16 @@ static void TemperDecay(FoundEquipData* eqD, RE::Actor* actor, bool powerAttack)
 	// Get current health percent
 	float itemHealthPercent = eqD->GetItemHealthPercent();
 
-	// --- Breack Chance ---
-	if ((itemHealthPercent - 0.999f) <= (setting->ED_BreakThreshold / 1000.0f)) {
+	// --- Break Chance ---
+	if ((itemHealthPercent - cons::kMinHealth) <= (setting->ED_BreakThreshold / 1000.0f)) {
 		float chance = setting->GetBreakChance(eqD->baseForm);
 
 		// Apply modifiers
 		if (chance != 0.0 && eqD->CanBreak()) {
 
 			// Increased Durability
-			if (setting->ED_IncreasedDurability && itemHealthPercent > 0.999f)
-				chance *= 1.0 - ((itemHealthPercent - 0.999f) / (setting->ED_BreakThreshold / 1000.0f));
+			if (setting->ED_IncreasedDurability && itemHealthPercent > cons::kMinHealth)
+				chance *= 1.0 - ((itemHealthPercent - cons::kMinHealth) / (setting->ED_BreakThreshold / 1000.0f));
 
 			// Power Attack
 			if (powerAttack) 
@@ -117,7 +115,7 @@ static void TemperDecay(FoundEquipData* eqD, RE::Actor* actor, bool powerAttack)
 	}
 
 	// --- Degradation ---
-	if (itemHealthPercent <= 0.999f) return;
+	if (itemHealthPercent <= cons::kMinHealth) return;
 
 	double rate = setting->GetDegradationRate(eqD->baseForm);
 	if (rate == 0.0) return;
@@ -135,7 +133,7 @@ static void TemperDecay(FoundEquipData* eqD, RE::Actor* actor, bool powerAttack)
 	itemHealthPercent = std::round(itemHealthPercent * 100000.0f) / 100000.0f;
 
 	// The default health of an item is always one, so it cant go lower
-	if (itemHealthPercent < 0.999f) itemHealthPercent = 0.999f;
+	if (itemHealthPercent < cons::kMinHealth) itemHealthPercent = cons::kMinHealth;
 
 	// Set the new health of the item
 	eqD->SetItemHealthPercent(itemHealthPercent);
@@ -185,7 +183,7 @@ public:
 								}
 							}
 
-						// Decay armor, amrmor slots are shuffled for decay loss
+						// Decay armor, armor slots are shuffled for decay loss
 						} else {
 							std::array<RE::BGSBipedObjectForm::BipedObjectSlot, 4> slots = { RE::BGSBipedObjectForm::BipedObjectSlot::kHead, RE::BGSBipedObjectForm::BipedObjectSlot::kBody, RE::BGSBipedObjectForm::BipedObjectSlot::kHands, RE::BGSBipedObjectForm::BipedObjectSlot::kFeet };
 							ShuffleSlots(&slots);
@@ -285,12 +283,6 @@ private:
 // =============================================================
 // Dynamic Tempering and Enchanting
 // =============================================================
-struct ExtraProcessedFlag : RE::BSExtraData
-{
-    inline static constexpr auto TYPE = RE::ExtraDataType::kNone; // or any unused type
-    ExtraProcessedFlag() = default;
-};
-
 struct NearbyObjects {
     std::vector<RE::TESObjectREFR*> containers;
     std::vector<RE::Actor*> npcs;
@@ -324,63 +316,76 @@ inline static void ProcessReference(RE::TESObjectREFR* ref, NearbyObjects& resul
     auto* base = ref->GetBaseObject();
     if (!base) return;
 
-    auto* setting = Settings::GetSingleton();
     const RE::FormID id = ref->GetFormID();
     if (!id) return;
 
 	// Containers
-	if (ref->GetBaseObject() && ref->GetBaseObject()->formType == RE::FormType::Container) {
+	if (base->formType == RE::FormType::Container)
 		result.containers.push_back(ref);
-	} 
 	
-	if (auto actor = ref->As<RE::Actor>()) {
+	// Actors
+	if (auto actor = ref->As<RE::Actor>())
 		result.npcs.push_back(actor);
-	}
 }
 
 NearbyObjects GetNearbyObjects(RE::Actor* player) {
     NearbyObjects result;
-    if (!player) return result;
-	if (IsPlayerOwned(player)) return result;
 
+	// Dont process player owned cells
+    if (!player || IsPlayerOwned(player)) return result;
+
+	// Set the radius based on if the player is inside or outside
     float radius = IsPlayerIndoors(player) ? 2000.0f : 7000.0f; // 20m indoors, 70m outdoors
-    float radiusSq = radius * radius;
     RE::NiPoint3 origin = player->GetPosition();
-	auto* tes = RE::TES::GetSingleton();
-
-    // Prefer the player's actual parent cell (more correct & safer for interiors)
-    if (auto* playerCell = player->GetParentCell(); playerCell && playerCell->IsAttached()) {
-        playerCell->ForEachReferenceInRange(origin, radius, [&](RE::TESObjectREFR* a_ref) {
-            ProcessReference(a_ref, result);
+	
+	// Processing function
+    auto processRecord = [&](RE::TESObjectREFR* a_ref) {
+        if (!a_ref || a_ref->IsDisabled() || a_ref->IsDeleted()) 
             return RE::BSContainer::ForEachResult::kContinue;
-        });
+
+        ProcessReference(a_ref, result);
+        return RE::BSContainer::ForEachResult::kContinue;
+    };
+
+    // Path 1: interior cell fast-path
+    if (auto* playerCell = player->GetParentCell(); playerCell && playerCell->IsAttached()) {
+        playerCell->ForEachReferenceInRange(origin, radius, processRecord);
         return result;
     }
-	if (const auto gridLength = tes->gridCells ? tes->gridCells->length : 0; gridLength > 0) {
-		const float searchMaxY = origin.y + radiusSq;
-		const float searchMinY = origin.y - radiusSq;
-		const float searchMaxX = origin.x + radiusSq;
-		const float searchMinX = origin.x - radiusSq;
 
+	// Path 2: exterior grid walk
+	auto* tes = RE::TES::GetSingleton();
+	if (const auto gridLength = tes->gridCells ? tes->gridCells->length : 0; gridLength > 0) {
+
+		// Build AABB
+		const float searchMaxY = origin.y + radius;
+		const float searchMinY = origin.y - radius;
+		const float searchMaxX = origin.x + radius;
+		const float searchMinX = origin.x - radius;
+
+		// Walk through the grid
 		for (std::uint32_t x = 0; x < gridLength; ++x) {
 			for (std::uint32_t y = 0; y < gridLength; ++y) {
-				if (const auto cell = tes->gridCells->GetCell(x, y); cell && cell->IsAttached()) {
-					if (const auto cellCoords = cell->GetCoordinates(); cellCoords) {
-						const RE::NiPoint2 worldPos{ cellCoords->worldX, cellCoords->worldY };
-						if (worldPos.x < searchMaxX && (worldPos.x + 4096.0f) > searchMinX &&
-							worldPos.y < searchMaxY && (worldPos.y + 4096.0f) > searchMinY) {
-							cell->ForEachReferenceInRange(origin, radiusSq, [&](RE::TESObjectREFR* a_ref) {
-								ProcessReference(a_ref, result);
-								return RE::BSContainer::ForEachResult::kContinue;
-							});
-						}
-					}
-				}
+				auto* cell = tes->gridCells->GetCell(x, y);
+            	if (!cell || !cell->IsAttached()) continue;
+
+				auto* coords = cell->GetCoordinates();
+				if (!coords) continue;
+
+				// Each exterior cell is 4096 units wide
+				const float cellX = coords->worldX;
+				const float cellY = coords->worldY;
+				if (cellX + 4096.0f < searchMinX || cellX > searchMaxX) continue;
+				if (cellY + 4096.0f < searchMinY || cellY > searchMaxY) continue;
+
+				// Process the record
+				cell->ForEachReferenceInRange(origin, radius, processRecord);
 			}
 		}
 		return result;
 	} 
 
+	// Path 3: fallback — neither path above was taken
 	tes->ForEachReference([&](RE::TESObjectREFR* a_ref) {
 		ProcessReference(a_ref, result);
 		return RE::BSContainer::ForEachResult::kContinue;
@@ -438,6 +443,17 @@ static void ProcessInventory(RE::TESObjectREFR* ref) {
 	RE::InventoryChanges* invChanges = ref->GetInventoryChanges();
 	if (!invChanges || !invChanges->entryList) return;
 
+	// Get the level of the Actor or the Player
+	int level = 0;
+	if (RE::Actor* actor = ref->As<RE::Actor>()) {
+		// Don't modify a followers inventory, set the level to the NPC
+		if (actor->IsPlayerTeammate())
+			return;
+		else
+			level = actor->GetLevel();
+	} else
+		level = Utility::GetSingleton()->GetPlayer()->GetLevel();
+
 	// Vendor/boss check
 	RE::ExtraLocationRefType* xRefType = nullptr;
     if (ref->extraList.HasType(RE::ExtraDataType::kLocationRefType))
@@ -446,37 +462,21 @@ static void ProcessInventory(RE::TESObjectREFR* ref) {
     const bool isVendor = (ref->GetBaseObject() && ref->GetBaseObject()->formType == RE::FormType::Container && Settings::GetSingleton()->IsVendorContainer(ref));
     const bool isBoss = (xRefType && (xRefType->locRefType == Utility::GetSingleton()->locationBoss || xRefType->locRefType == Utility::GetSingleton()->locationBossContainer));
 
-	// Get the level of the Actor or the Player
-	int level = 0;
-	if (RE::Actor* actor = ref->As<RE::Actor>()) {
-		if (!actor->IsPlayer() && !actor->IsPlayerTeammate())
-			level = actor->GetLevel();
-	} else {
-		level = Utility::GetSingleton()->GetPlayer()->GetLevel();
-	}
-
 	// Loop through all items in list
 	for (const auto& entry : *invChanges->entryList) {
-		if (!entry || !entry->object) continue;
+		if (!entry || !entry->object || !entry->extraLists) continue;
 
 		// We need to check the initial object
 		FoundEquipData equipData(entry->GetObject());
 		if (!equipData.CanTemper()) continue;
 
 		// Process Items with Extra Data
-		if (entry->extraLists) {
-			for (auto& entryData : *entry->extraLists) {
-				if (entryData) {
-					// Get the entry, process it and return the new extra data
-					equipData.objectData = entryData;
-					if (!equipData.HasBeenProcessed()) {
-						ProcessItem(&equipData, ref, level, isVendor, isBoss);
-						entryData = equipData.objectData;
-					}
-				} else {
-					// Create a new list if there is not one already
+		for (auto& entryData : *entry->extraLists) {
+			if (entryData) {
+				equipData.objectData = entryData;
+				if (!equipData.HasBeenProcessed()) {
 					ProcessItem(&equipData, ref, level, isVendor, isBoss);
-					entry->AddExtraList(equipData.objectData);
+					entryData = equipData.objectData;
 				}
 			}
 		}
@@ -484,9 +484,6 @@ static void ProcessInventory(RE::TESObjectREFR* ref) {
 }
 
 static void DynamicTemperEnchant() {
-	// Prune Cache
-	auto* setting = Settings::GetSingleton();
-
 	// Do not process player owned locations
 	auto* player = Utility::GetSingleton()->GetPlayer();
 	if (player && IsPlayerOwned(player)) return;
@@ -495,8 +492,10 @@ static void DynamicTemperEnchant() {
 	NearbyObjects nearby = GetNearbyObjects(player);
 
 	// Process Containers, Actors and Equipment
-	for (RE::TESObjectREFR* container : nearby.containers) ProcessInventory(container);
-	for (RE::Actor* npc : nearby.npcs) ProcessInventory(npc);
+	for (RE::TESObjectREFR* container : nearby.containers)
+		ProcessInventory(container);
+	for (RE::Actor* npc : nearby.npcs)
+		ProcessInventory(npc);
 }
 
 // =============================================================
@@ -513,11 +512,11 @@ public:
 		if (!a_event)
 			return RE::BSEventNotifyControl::kContinue;
 
+		// Get the players inventory
 		if (RE::TESForm* item = a_event->item; item) {
 			RE::PlayerCharacter* player = RE::PlayerCharacter::GetSingleton();
-			RE::TESObjectREFR::InventoryItemMap playerInventory = player->GetInventory();
-
 			RE::InventoryChanges* invChanges = player->GetInventoryChanges(item);
+			if (!invChanges) return RE::BSEventNotifyControl::kContinue;
 			for (RE::InventoryEntryData* entry : *invChanges->entryList) {
 				if (!entry || !entry->extraLists) continue;
 

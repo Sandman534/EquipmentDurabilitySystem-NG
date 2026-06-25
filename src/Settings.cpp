@@ -115,15 +115,13 @@ void Settings::LoadINI() {
 	get_value(iniSettings, ED_Names_Postfix, "Temper Names", "Postfix");
 	get_value(iniSettings, ED_Names_CustomNames, "Temper Names", "CustomNames");
 
-	iniSettings.SaveFile(setting_path);
-
 	// Replace underscores with a white space in all entries
 	std::replace(ED_Names_Broken.begin(), ED_Names_Broken.end(), '_', ' ');
 	std::replace(ED_Names_Prefix.begin(), ED_Names_Prefix.end(), '_', ' '); 
 	std::replace(ED_Names_Postfix.begin(), ED_Names_Postfix.end(), '_', ' '); 
 	std::replace(ED_Names_CustomNames.begin(), ED_Names_CustomNames.end(), '_', ' '); 
 
-	// Get the list of custome names
+	// Get the list of custom names
 	CustomNames = SplitString(ED_Names_CustomNames, ',');
 
 	// Set the material map
@@ -287,6 +285,14 @@ void Settings::ProcessNoBreakForms() {
 	for (auto& kv : keys) {
 		// 0 - ESP Name, 1 - FormID
 		std::vector<std::string> parts = SplitString(kv.pItem, '|');
+
+		// Guard against invalid entries
+		if (parts.size() != 3) {
+			logger::warn("Invalid material entry: {}", kv.pItem);
+			continue;
+		}
+
+		// Process the no break form
 		auto index = RE::TESDataHandler::GetSingleton()->GetModIndex(parts[0]);
 		if (index.value() != 0xFF) noBreakForms.insert((index.value() << 24) + std::stoull(parts[1], nullptr, 0));
 	}
@@ -309,6 +315,14 @@ void Settings::ProcessEnchantingForms() {
 	for (auto& kv : keys) {
 		// 0 - ESP Name, 1 - FormID, 2 - Body Part, 3 - Tier, 4 - Enchant Suffix
 		std::vector<std::string> parts = SplitString(kv.pItem, '|');
+
+		// Guard against invalid entries
+		if (parts.size() != 3) {
+			logger::warn("Invalid material entry: {}", kv.pItem);
+			continue;
+		}
+
+		// Process the enchantment
 		if (auto* newItem = RE::TESDataHandler::GetSingleton()->LookupForm(RE::FormID(std::stoull(parts[1], nullptr, 0)), parts[0])) {
 			if (!newItem) continue;
 
@@ -363,6 +377,12 @@ void Settings::ProcessMaterialForms() {
 		// 0 - ESP Name, 1 - FormID, 2 - Material
 		std::vector<std::string> parts = SplitString(kv.pItem, '|');
 
+		// Guard against invalid entries
+		if (parts.size() != 3) {
+			logger::warn("Invalid material entry: {}", kv.pItem);
+			continue;
+		}
+
 		// Get the associated material
 		auto it = GameData::StringToMaterial.find(parts[2]);
 		if (it != GameData::StringToMaterial.end()) {
@@ -379,22 +399,23 @@ double Settings::MaterialRate(std::span<RE::BGSKeyword*> keywords) {
 	int iKeywordCount = 0;
 	double dRates = 0;
 
-	// If Material Multiplier is on
-	if (ED_Material_Multiplier) {
-		for (RE::BGSKeyword* keyword : keywords) {
-			RE::FormID tmp = keyword->GetFormID();
-
-			if (materialMap.count(tmp) >= 1) {
-				dRates += MaterialRates.at(materialMap.at(tmp));
-				iKeywordCount++;
-			}
-		}
-
-		double finalRate = dRates / iKeywordCount;
-		return (finalRate > 0) ? finalRate : 1.0;
-
-	} else
+	// If the material system is turned off
+	if (!ED_Material_Multiplier) 
 		return 1.0;
+
+	// If Material Multiplier is on
+	for (RE::BGSKeyword* keyword : keywords) {
+		if (!keyword) continue;
+		RE::FormID tmp = keyword->GetFormID();
+		if (auto it = materialMap.find(tmp); it != materialMap.end()) {
+			dRates += MaterialRates.at(it->second);
+			++iKeywordCount;
+		}
+	}
+
+	if (iKeywordCount == 0) return 1.0;
+	return dRates / iKeywordCount;
+	
 }
 
 #pragma region "Public Functions"
@@ -480,40 +501,28 @@ double Settings::GetBreakChance(RE::TESForm* form) {
 }
 
 // Enchant List Functions
-std::vector<GameData::Enchantment>* Settings::GetEnchantmentList(std::string part) {
+std::vector<GameData::Enchantment>* Settings::GetEnchantmentList(EquipmentType type) {
 	// Select correct vector based on part
-	if (stricmp(part.c_str(),"weapon") == 0)
-		return &enchantWeapon;
-	else if (stricmp(part.c_str(),"head") == 0)
-		return &enchantHead;
-	else if (stricmp(part.c_str(),"body") == 0)
-		return &enchantBody;
-	else if (stricmp(part.c_str(),"hand") == 0)
-		return &enchantHand;
-	else if (stricmp(part.c_str(),"foot") == 0)
-		return &enchantFoot;
-	else if (stricmp(part.c_str(),"shield") == 0)
-		return &enchantShield;
+    switch (type) {
+    	case EquipmentType::Weapon: return &enchantWeapon;
+    	case EquipmentType::Head:   return &enchantHead;
+    	case EquipmentType::Body:   return &enchantBody;
+    	case EquipmentType::Hand:   return &enchantHand;
+    	case EquipmentType::Foot:   return &enchantFoot;
+    	case EquipmentType::Shield: return &enchantShield;
+    }
 
 	return nullptr;
 }
 
 // Break Form Functions
 bool Settings::HasNoBreakForms(int formid) {
-	if (noBreakForms.empty()) return false;
-
-	auto it = noBreakForms.find(formid);
-	if (it == noBreakForms.end()) return false;
-
-	return true;
+	return noBreakForms.contains(formid);
 }
 
 // Vendor Container Functions
 bool Settings::IsVendorContainer(RE::TESObjectREFR* form) {
-	if (std::find(vendorContainers.begin(), vendorContainers.end(), form) != vendorContainers.end())
-		return true;
-	else
-		return false;
+	return vendorContainers.find(form) != vendorContainers.end();
 }
 
 void Settings::SetVendorList() {
@@ -525,9 +534,7 @@ void Settings::SetVendorList() {
 		RE::TESFaction* foundFaction = faction->As<RE::TESFaction>();
 
 		if (foundFaction->IsVendor() && foundFaction->vendorData.merchantContainer)
-			if (!(std::find(vendorContainers.begin(), vendorContainers.end(), foundFaction->vendorData.merchantContainer) != vendorContainers.end())) {
-				vendorContainers.push_back(foundFaction->vendorData.merchantContainer);
-			}
+			vendorContainers.insert(foundFaction->vendorData.merchantContainer);
 	}
 
 	logger::debug("Loaded: {} Vendor Containers", vendorContainers.size());

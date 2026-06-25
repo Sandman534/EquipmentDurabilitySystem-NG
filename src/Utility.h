@@ -41,30 +41,66 @@ public:
         const auto dataHandler = RE::TESDataHandler::GetSingleton();
 
         // Keywords
-        keywordWarhammer = dataHandler->LookupForm(RE::FormID(0x06D930), pluginSkyrim)->As<RE::BGSKeyword>();
-        keywordClothing = dataHandler->LookupForm(RE::FormID(0x08F95B), pluginSkyrim)->As<RE::BGSKeyword>();
-        keywordJewelry = dataHandler->LookupForm(RE::FormID(0x08F95A), pluginSkyrim)->As<RE::BGSKeyword>();
-        keywordMagicDisallow = dataHandler->LookupForm(RE::FormID(0x0C27BD), pluginSkyrim)->As<RE::BGSKeyword>();
+        if (auto* form = dataHandler->LookupForm(RE::FormID(0x06D930), pluginSkyrim))
+            keywordWarhammer = form->As<RE::BGSKeyword>();
+        else
+            logger::critical("Failed to load Warhammer keyword");
+
+        if (auto* form = dataHandler->LookupForm(RE::FormID(0x08F95B), pluginSkyrim))
+            keywordClothing = form->As<RE::BGSKeyword>();
+        else
+            logger::critical("Failed to load Clothing keyword");
+
+        if (auto* form = dataHandler->LookupForm(RE::FormID(0x08F95A), pluginSkyrim))
+            keywordJewelry = form->As<RE::BGSKeyword>();
+        else
+            logger::critical("Failed to load Jewelry keyword");
+
+        if (auto* form = dataHandler->LookupForm(RE::FormID(0x0C27BD), pluginSkyrim))
+            keywordMagicDisallow = form->As<RE::BGSKeyword>();
+        else
+            logger::critical("Failed to load Magic Disallow keyword");
 
         // Locations
-        locationBoss = dataHandler->LookupForm(RE::FormID(0x0130F7), pluginSkyrim)->As<RE::BGSLocationRefType>();
-        locationBossContainer = dataHandler->LookupForm(RE::FormID(0x0130F8), pluginSkyrim)->As<RE::BGSLocationRefType>();
+        if (auto* form = dataHandler->LookupForm(RE::FormID(0x0130F7), pluginSkyrim))
+            locationBoss = form->As<RE::BGSLocationRefType>();
+        else
+            logger::critical("Failed to load Boss location type");
+
+        if (auto* form = dataHandler->LookupForm(RE::FormID(0x0130F8), pluginSkyrim))
+            locationBossContainer = form->As<RE::BGSLocationRefType>();
+        else
+            logger::critical("Failed to load Boss container type");
 
         // Player Faction
-        playerFaction = dataHandler->LookupForm(RE::FormID(0x000dB1), pluginSkyrim)->As<RE::TESFaction>();
+        if (auto* form = dataHandler->LookupForm(RE::FormID(0x000dB1), pluginSkyrim))
+            playerFaction = form->As<RE::TESFaction>();
+        else
+            logger::critical("Failed to load Player faction");
 
         // Unarmed Form
-        Unarmed = dataHandler->LookupForm(RE::FormID(0x0001F4), pluginSkyrim)->As<RE::TESForm>();
+        if (auto* form = dataHandler->LookupForm(RE::FormID(0x0001F4), pluginSkyrim))
+            Unarmed = form->As<RE::TESForm>();
+        else
+            logger::critical("Failed to load Unarmed form");
 
-        // Transformation Races
-        raceWerewolf = dataHandler->LookupForm(RE::FormID(0x0CDD84), pluginSkyrim)->As<RE::TESRace>();
-        raceVampireLord = dataHandler->LookupForm(RE::FormID(0x00283A), pluginDawnguard)->As<RE::TESRace>();
+        // Werewolf
+        if (auto* form = dataHandler->LookupForm(RE::FormID(0x0CDD84), pluginSkyrim))
+            raceWerewolf = form->As<RE::TESRace>();
+        else
+            logger::critical("Failed to load Werewolf race");
 
-        // Undeath
-        if (dataHandler->LookupLoadedModByName("Undeath.esp")) {
-            if (auto lichPerk = dataHandler->LookupForm(RE::FormID(0x3326D5), "Undeath.esp"))
-                Undeath_LichPerk = lichPerk->As<RE::BGSPerk>();
-        }
+        // Dawnguard - Vampire Lord
+        if (auto* form = dataHandler->LookupForm(RE::FormID(0x00283A), pluginDawnguard))
+            raceVampireLord = form->As<RE::TESRace>();
+        else
+            logger::warn("Failed to load Vampire Lord race");
+
+        // Undeath - Lich
+        if (auto* form = dataHandler->LookupForm(RE::FormID(0x3326D5), "Undeath.esp"))
+            Undeath_LichPerk = form->As<RE::BGSPerk>();
+        else
+            logger::warn("Failed to load Undeath Lich perk");
 
         logger::info("Loaded: All Required Forms");
     }

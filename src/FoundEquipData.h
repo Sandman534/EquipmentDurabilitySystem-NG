@@ -40,7 +40,7 @@ private:
 	int GetRandom(int a, int b);
 	std::optional<GameData::TierInfo> GetTierForLevel(GameData::Material mat, int playerLevel);
 	GameData::Material getStrongestMaterial();
-	std::string GetEquipmentType();
+	EquipmentType GetEquipmentType();
 	float RoundTo5Decimals(float value);
 	float TruncateToDecimals(float value, int decimals);
 };

@@ -22,12 +22,12 @@ using namespace REL::literals;
 
 namespace logger = SKSE::log;
 
-namespace stl
+namespace stl 
 {
 	using namespace SKSE::stl;
 }
 
-namespace util
+namespace util 
 {
 	using SKSE::stl::report_and_fail;
 }
@@ -37,6 +37,6 @@ namespace util
 #define RELOCATION_OFFSET(SE, AE) REL::VariantOffset(SE, AE, 0).offset()
 
 #include "plugin.h"
-
+#include "EDData.h"
 #include "SKSEMenuFramework.h"
 #include "HelperFunctions.h"

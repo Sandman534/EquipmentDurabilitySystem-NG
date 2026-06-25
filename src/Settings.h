@@ -124,7 +124,7 @@ public:
 	void ProcessMaterialForms();
 
 	// Enchantment Lists
-	std::vector<GameData::Enchantment>* GetEnchantmentList(std::string part);
+	std::vector<GameData::Enchantment>* GetEnchantmentList(EquipmentType type);
 
 	// Material Data
 	std::unordered_map<RE::FormID, GameData::Material> materialMap;
@@ -159,7 +159,7 @@ private:
 	double MaterialRate(std::span<RE::BGSKeyword*> keywords);
 
 	// Vendor Chests
-	std::vector<RE::TESObjectREFR*> vendorContainers;
+	std::unordered_set<RE::TESObjectREFR*> vendorContainers;
 	void SetVendorList();
 
 	// String Functions

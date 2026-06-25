@@ -2,7 +2,7 @@
 #include "Settings.h"
 
 std::string TemperManager::AsVanilla(std::uint32_t a_level, bool a_isWeapon) {
-    // clamp level to 1�6
+    // clamp level to 1 to 6
     if (a_level < 1) a_level = 1;
     if (a_level > 6) a_level = 6;
 
@@ -56,10 +56,10 @@ std::string TemperManager::AsRomanNumeral(std::uint32_t a_level, [[maybe_unused]
 		{ 1000, "M" }
 	};
 
-	constexpr std::size_t SIZE = std::extent<decltype(MILESTONES)>::value;
+	constexpr std::size_t SIZE = std::size(MILESTONES);
 
 	std::string result;
-	for (auto i = SIZE; a_level; --i) {
+	for (auto i = SIZE - 1; a_level; --i) {
 		auto div = a_level / MILESTONES[i].first;
 		a_level = a_level % MILESTONES[i].first;
 		while (div--) {
@@ -74,9 +74,9 @@ const char* TemperManager::GetTemperFactor(float a_factor, bool a_isWeapon) {
 	auto fLevel = std::floor((a_factor - 1.0f) * 10.0f);
 
 	// If the break system is enabled, and we are below 0, return the broken name
-	if (a_factor < 0.5f && !Settings::GetSingleton()->ED_BreakDisabled)
+	if (a_factor < cons::kBrokenHealth && !Settings::GetSingleton()->ED_BreakDisabled)
 		return Settings::GetSingleton()->ED_Names_Broken.c_str();
-	else if (a_factor < 1.1f)
+	else if (a_factor < cons::kDisplayHealth)
 		return 0;
 
 	// Return whatever temper level we should be showing
