@@ -24,8 +24,8 @@ namespace EDUI {
     // Additional Functions
 	int GetStyleIndex(const std::string& value);
     bool MaterialEntry(const char* label, float& value);
-    bool DegradeEntry(const char* label, float& degradeValue, int& breakValue);
-    bool MultiplierEntry(const char* label, float& degradeValue, float& breakValue);
+    bool DegradeEntry(const char* label, int& degradeValue, int& breakValue);
+    bool MultiplierEntry(const char* label, int& value1, int& value2);
     void SliderEntryMaterial(float& value, const char* id);
 	bool CreateInputText(const char* label, std::string& str, ImGuiInputTextFlags flags = 0);
 };

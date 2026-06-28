@@ -116,8 +116,7 @@ namespace I4Data::Items
 		constexpr KnownForm MagicDisallowEnchanting{ 0x0C27BD };
 	}
 
-	inline bool operator==(const RE::TESForm* form, const KnownForm& knownForm)
-	{
+	inline bool operator==(const RE::TESForm* form, const KnownForm& knownForm) {
 		return form && form->formID == RE::TESDataHandler::GetSingleton()->LookupFormID(knownForm.localFormId, knownForm.modName);
 	}
 
@@ -355,7 +354,6 @@ namespace I4Data::Items
 	enum class AmmoType
 	{
 		kNone = -1,
-
 		kArrow = 0,
 		kBolt = 1,
 	};
@@ -390,7 +388,6 @@ namespace I4Data::Items
 	enum class PotionType
 	{
 		kNone = -1,
-
 		kHealth = 0,
 		kHealRate = 1,
 		kHealRateMult = 2,
@@ -451,7 +448,6 @@ namespace I4Data::Items
 	enum class SoulGemStatus
 	{
 		kNone = -1,
-
 		kEmpty = 0,
 		kPartial = 1,
 		kFull = 2,

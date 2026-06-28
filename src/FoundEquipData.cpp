@@ -4,7 +4,7 @@
 #include "Settings.h"
 
 // ===========================
-// Main Functions
+// Item Name Functions
 // ===========================
 #pragma region Item Name Functions
 void FoundEquipData::CreateName() {
@@ -15,46 +15,67 @@ void FoundEquipData::CreateName() {
 	}
 
     // Process normally
-	if (!baseForm || !objectData) return;
+	if (!baseForm || !objectData)
+        return;
 
     // Resolve the extra data to an object to pull information about it
     RE::InventoryEntryData entry(baseForm->As<RE::TESBoundObject>(), objectData->GetCount());
     entry.AddExtraList(objectData);
 
 	// Get the basic name
-    objectName = (IsUnarmed()) ? "Unarmed" : std::string(entry.GetDisplayName());
+    objectName = entry.GetDisplayName();
 
-    // Append poison name if applicable
-	if (baseForm->IsWeapon() && Settings::GetSingleton()->ED_Widget_ShowPoisonName && objectData->HasType(RE::ExtraDataType::kPoison)) {
-        if (auto* xPoison = static_cast<RE::ExtraPoison*>(objectData->GetByType(RE::ExtraDataType::kPoison))) {
-            if (xPoison->poison) objectName += " " + std::string(xPoison->poison->GetFullName()) + " (" + std::to_string(xPoison->count) + ")";
-        }
-    }
+    // Show the poison attached the weapon
+    auto settings = Settings::GetSingleton();
+    const bool shouldShowPoison =
+        baseForm->IsWeapon() &&
+        settings->ED_Widget_ShowPoisonName &&
+        objectData->HasType(RE::ExtraDataType::kPoison);
+
+    if (!shouldShowPoison)
+        return;
+
+    auto* poisonData = static_cast<RE::ExtraPoison*>(objectData->GetByType(RE::ExtraDataType::kPoison));
+    if (poisonData && poisonData->poison)
+        objectName += " " + std::string(poisonData->poison->GetFullName()) + " (" + std::to_string(poisonData->count) + ")";
 }
-#pragma endregion
 
-#pragma region Item Health Functions
+// ===========================
+// Item Health Functions
+// ===========================
 float FoundEquipData::GetItemHealthForWidget() {
-	if (IsUnarmed()) return 0.0f;
-	if (!objectData) return cons::kDisplayHealth;
-	if (auto* xHealth = objectData->GetByType<RE::ExtraHealth>()) return TruncateToDecimals(xHealth->health,3) + 0.001f;
-	return cons::kDisplayHealth;
+	if (!objectData || IsUnarmed())
+        return 0.0f;
+
+	if (auto* xHealth = objectData->GetByType<RE::ExtraHealth>()) 
+        return Degredation::TruncateToDecimals(xHealth->health,3) + 0.001f;
+
+	return Degredation::kDisplayHealth;
 }
 
 float FoundEquipData::GetItemHealthPercent() {
-	if (!objectData) return cons::kMaxHealth;
-    if (auto* xHealth = objectData->GetByType<RE::ExtraHealth>()) return xHealth->health;
-	return cons::kMaxHealth;
+	if (!objectData)
+        return Degredation::kMaxHealth;
+
+    if (auto* xHealth = objectData->GetByType<RE::ExtraHealth>())
+        return xHealth->health;
+
+	return Degredation::kMaxHealth;
 }
 
 float FoundEquipData::GetItemHealthRounded() {
-    if (!objectData) return cons::kMaxHealth;
-	if (auto* xHealth = objectData->GetByType<RE::ExtraHealth>()) return RoundTo5Decimals(xHealth->health);
-	return cons::kMaxHealth;
+    if (!objectData)
+        return Degredation::kMaxHealth;
+
+	if (auto* xHealth = objectData->GetByType<RE::ExtraHealth>())
+        return Degredation::RoundToPrecision(xHealth->health);
+
+	return Degredation::kMaxHealth;
 }
 
 void FoundEquipData::SetItemHealthPercent(float value) {
-	if (!objectData || IsUnarmed()) return;
+	if (!objectData || IsUnarmed())
+        return;
 
     auto* extraHealth = objectData->GetByType<RE::ExtraHealth>();
     if (!extraHealth) {
@@ -63,11 +84,14 @@ void FoundEquipData::SetItemHealthPercent(float value) {
         );
         objectData->Add(extraHealth);
     }
-    extraHealth->health = RoundTo5Decimals(value);
-}
-#pragma endregion
 
-#pragma region Item Enchantment Functions
+    // Make sure to cap maximum health to 1.6. (Legendary)
+    extraHealth->health = Degredation::RoundToPrecision((std::min)(value, 1.6999f));
+}
+
+// ===========================
+// Enchantment Functions
+// ===========================
 void FoundEquipData::SetItemEnchantment(int playerLevel, RE::TESObjectREFR* ref)
 {
 	if (!baseForm)
@@ -95,9 +119,13 @@ void FoundEquipData::SetItemEnchantment(int playerLevel, RE::TESObjectREFR* ref)
 	if (playerTier < materialMin)
 		return;
 
-	// --- Step 3: Get Enchantment Vector based on Body Part ---
+	// --- Step 3: Get Enchantment Vector based on Body Part ---]]
 	std::vector<GameData::Enchantment>* allEnchantments = Settings::GetSingleton()->GetEnchantmentList(GetEquipmentType());
 	std::vector<GameData::Enchantment> validEnchantments;
+
+    // If we dont have enchantments
+    if (!allEnchantments)
+        return;
 
 	// --- Step 4: Get Enchantment Vector based on Body Part ---
 	int effectiveMinTier = materialMin;
@@ -138,9 +166,9 @@ void FoundEquipData::SetItemEnchantment(int playerLevel, RE::TESObjectREFR* ref)
 
         // If the weapon is being held by an actor, set a charge value
 		if (RE::Actor* a_actor = ref->As<RE::Actor>(); a_actor && baseForm->IsWeapon()) {
-			int RandomEnchant = GetRandom(0,chargeValue);
+			int RandomEnchant = Random::Int(0,chargeValue);
 			if (objectData->HasType<RE::ExtraWornLeft>())
-				a_actor->AsActorValueOwner()->ModActorValue(RE::ActorValue::kLeftItemCharge, RandomEnchant);
+                a_actor->AsActorValueOwner()->ModActorValue(RE::ActorValue::kLeftItemCharge, RandomEnchant);
 			else if (objectData->HasType<RE::ExtraWorn>())
                 a_actor->AsActorValueOwner()->ModActorValue(RE::ActorValue::kRightItemCharge, RandomEnchant);
 		}
@@ -155,9 +183,10 @@ void FoundEquipData::SetItemEnchantment(int playerLevel, RE::TESObjectREFR* ref)
         xTextData->SetName(objectName.c_str());
 	}
 }
-#pragma endregion
 
-#pragma region Item Process Functions
+// ===========================
+// Item Process Functions
+// ===========================
 bool FoundEquipData::HasBeenProcessed() {
 	return objectData && objectData->GetByType<RE::ExtraHealth>() != nullptr;
 }
@@ -172,15 +201,16 @@ void FoundEquipData::ProcessItem() {
         );
         objectData->Add(extraHealth);
     }
-    extraHealth->health = RoundTo5Decimals(cons::kMaxHealth);
+    extraHealth->health = Degredation::RoundToPrecision(Degredation::kMaxHealth);
 }
-#pragma endregion
 
-#pragma region Item Test Functions
+// ===========================
+// Item Test Functions
+// ===========================
 bool FoundEquipData::IsTempered() {
     if (!objectData) return false;
     auto* xHealth = objectData->GetByType<RE::ExtraHealth>();
-    return xHealth && xHealth->health > cons::kMaxHealth;
+    return xHealth && xHealth->health > Degredation::kMaxHealth;
 }
 
 bool FoundEquipData::IsEnchanted() {
@@ -193,7 +223,7 @@ bool FoundEquipData::IsEnchanted() {
 
 bool FoundEquipData::IsBroken() {
     if (!baseForm || !objectData) return false;
-	if (GetItemHealthPercent() < cons::kBrokenHealth) return true;
+	if (GetItemHealthPercent() < Degredation::kBrokenHealth) return true;
     return false;
 }
 
@@ -203,51 +233,58 @@ bool FoundEquipData::IsUnarmed() {
 
 bool FoundEquipData::CanBreak() {
 	// Run various checks to see if the item is breakable
-    if (!baseForm || !objectData) return false;
-    if (Settings::GetSingleton()->ED_BreakDisabled) return false;
-    if (IsBroken()) return false;
+    if (!baseForm || !objectData)
+        return false;
+
+    // Already broken or unarmed
+    auto settings = Settings::GetSingleton();
+    if (settings->ED_BreakDisabled || IsBroken() || IsUnarmed())
+        return false;
+
+    // No break form list, or is a quest item
+    if (settings->HasNoBreakForms(baseForm->formID) || objectData->HasQuestObjectAlias())
+        return false;
 
     // Determine if the object is breakable based on other factors
     auto utility = Utility::GetSingleton();
-	bool disallowMagic = Settings::GetSingleton()->ED_NoBreakNoEnchant &&
-                         ((baseForm->IsWeapon() && baseForm->As<RE::TESObjectWEAP>()->HasKeyword(utility->keywordMagicDisallow)) ||
-                          (baseForm->IsArmor()  && baseForm->As<RE::TESObjectARMO>()->HasKeyword(utility->keywordMagicDisallow)));
+    if (settings->ED_NoBreakNoEnchant) {
+        if (auto* weapon = baseForm->As<RE::TESObjectWEAP>())
+            return !weapon->HasKeyword(utility->keywordMagicDisallow);
 
-    return !disallowMagic &&
-           !IsUnarmed() &&
-           !Settings::GetSingleton()->HasNoBreakForms(baseForm->formID) &&
-           !objectData->HasQuestObjectAlias();
+        if (auto* armor = baseForm->As<RE::TESObjectARMO>())
+            return !armor->HasKeyword(utility->keywordMagicDisallow);
+    }
+
+    return true;
 }
 
 bool FoundEquipData::CanTemper() {
-	if (!baseForm) return false;
-	auto utility = Utility::GetSingleton();
-
-    // Ignore Unarmed
-    if (IsUnarmed()) return false;
+    //No form or unarmed
+	if (!baseForm || IsUnarmed()) return false;
 
 	// Weapon processing
 	if (auto* weap = baseForm->As<RE::TESObjectWEAP>())
 		return !weap->IsStaff() && !weap->IsBound();
 
 	// Armor processing
-	else if (auto* armo = baseForm->As<RE::TESObjectARMO>()) {
-		auto hasValidSlot = [&](auto... slots){ return (... || armo->HasPartOf(slots)); };
-        return hasValidSlot(
-                    RE::BGSBipedObjectForm::BipedObjectSlot::kHead,
-                    RE::BGSBipedObjectForm::BipedObjectSlot::kHair,
-                    RE::BGSBipedObjectForm::BipedObjectSlot::kBody,
-                    RE::BGSBipedObjectForm::BipedObjectSlot::kHands,
-                    RE::BGSBipedObjectForm::BipedObjectSlot::kFeet,
-                    RE::BGSBipedObjectForm::BipedObjectSlot::kShield
-               ) &&
-               !armo->HasKeyword(utility->keywordClothing) &&
-               !armo->IsClothing();
+	if (auto* armo = baseForm->As<RE::TESObjectARMO>()) {
+        const bool hasValidSlot =
+            armo->HasPartOf(RE::BGSBipedObjectForm::BipedObjectSlot::kHead) ||
+            armo->HasPartOf(RE::BGSBipedObjectForm::BipedObjectSlot::kHair) ||
+            armo->HasPartOf(RE::BGSBipedObjectForm::BipedObjectSlot::kBody) ||
+            armo->HasPartOf(RE::BGSBipedObjectForm::BipedObjectSlot::kHands) ||
+            armo->HasPartOf(RE::BGSBipedObjectForm::BipedObjectSlot::kFeet) ||
+            armo->HasPartOf(RE::BGSBipedObjectForm::BipedObjectSlot::kShield);
+
+        return hasValidSlot &&
+            armo->GetPlayable() &&
+            !armo->HasKeyword(Utility::GetSingleton()->keywordClothing) &&
+            !armo->IsClothing() &&
+            armo->GetPlayable();
 	}
 
 	return false;
 }
-#pragma endregion
 
 // ===========================
 // Private Functions
@@ -324,46 +361,34 @@ GameData::Material FoundEquipData::getStrongestMaterial() {
 }
 
 EquipmentType FoundEquipData::GetEquipmentType() {
-	if (baseForm->IsWeapon()) return EquipmentType::Weapon;
+	if (baseForm->IsWeapon())
+        return EquipmentType::Weapon;
 
 	else if (auto* armor = baseForm->As<RE::TESObjectARMO>()) {
 		auto hasSlot = [&](auto... slots){ return (... || armor->HasPartOf(slots)); };
 
         if (hasSlot(RE::BGSBipedObjectForm::BipedObjectSlot::kBody,
-                    RE::BGSBipedObjectForm::BipedObjectSlot::kTail)) return EquipmentType::Body;
+                RE::BGSBipedObjectForm::BipedObjectSlot::kTail))
+            return EquipmentType::Body;
 
         else if (hasSlot(RE::BGSBipedObjectForm::BipedObjectSlot::kHead,
-                    RE::BGSBipedObjectForm::BipedObjectSlot::kHair,
-                    RE::BGSBipedObjectForm::BipedObjectSlot::kLongHair)) return EquipmentType::Head;
+                RE::BGSBipedObjectForm::BipedObjectSlot::kHair,
+                RE::BGSBipedObjectForm::BipedObjectSlot::kLongHair)) 
+            return EquipmentType::Head;
 
         else if (hasSlot(RE::BGSBipedObjectForm::BipedObjectSlot::kHands,
-                    RE::BGSBipedObjectForm::BipedObjectSlot::kForearms)) return EquipmentType::Hand;
+                RE::BGSBipedObjectForm::BipedObjectSlot::kForearms))
+            return EquipmentType::Hand;
 
         else if (hasSlot(RE::BGSBipedObjectForm::BipedObjectSlot::kFeet,
-                    RE::BGSBipedObjectForm::BipedObjectSlot::kCalves)) return EquipmentType::Foot;
+                RE::BGSBipedObjectForm::BipedObjectSlot::kCalves))
+            return EquipmentType::Foot;
 
-        else if (hasSlot(RE::BGSBipedObjectForm::BipedObjectSlot::kShield)) return EquipmentType::Shield;
+        else if (hasSlot(RE::BGSBipedObjectForm::BipedObjectSlot::kShield)) 
+            return EquipmentType::Shield;
 	}
 
 	return EquipmentType::None;
-}
-
-int FoundEquipData::GetRandom(int a, int b) {
-    thread_local std::mt19937 mt{ std::random_device{}() };  // one RNG per thread
-    std::uniform_int_distribution<int> dist(a, b);
-    return dist(mt);
-}
-
-float FoundEquipData::TruncateToDecimals(float value, int decimals) {
-    float factor = std::pow(10.0f, decimals);
-    float scaled = value * factor;
-    float epsilon = 1e-6f;
-    float truncated = std::trunc(scaled + (scaled >= 0 ? epsilon : -epsilon));
-    return truncated / factor;
-}
-
-float FoundEquipData::RoundTo5Decimals(float value) {
-    return std::round(value * 100000.0f) / 100000.0f;
 }
 
 // ===========================

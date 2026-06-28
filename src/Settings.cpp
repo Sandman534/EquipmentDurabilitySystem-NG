@@ -287,14 +287,14 @@ void Settings::ProcessNoBreakForms() {
 		std::vector<std::string> parts = SplitString(kv.pItem, '|');
 
 		// Guard against invalid entries
-		if (parts.size() != 3) {
-			logger::warn("Invalid material entry: {}", kv.pItem);
+		if (parts.size() < 2) {
+			logger::warn("Invalid break entry: {}", kv.pItem);
 			continue;
 		}
 
 		// Process the no break form
-		auto index = RE::TESDataHandler::GetSingleton()->GetModIndex(parts[0]);
-		if (index.value() != 0xFF) noBreakForms.insert((index.value() << 24) + std::stoull(parts[1], nullptr, 0));
+		if (auto* form = RE::TESDataHandler::GetSingleton()->LookupForm(RE::FormID(std::stoull(parts[1], nullptr, 0)), parts[0]))
+			noBreakForms.insert(form->formID);
 	}
 
 	logger::info("Loaded: {} No Break Forms", noBreakForms.size());
@@ -317,7 +317,7 @@ void Settings::ProcessEnchantingForms() {
 		std::vector<std::string> parts = SplitString(kv.pItem, '|');
 
 		// Guard against invalid entries
-		if (parts.size() != 3) {
+		if (parts.size() < 5) {
 			logger::warn("Invalid material entry: {}", kv.pItem);
 			continue;
 		}
@@ -378,7 +378,7 @@ void Settings::ProcessMaterialForms() {
 		std::vector<std::string> parts = SplitString(kv.pItem, '|');
 
 		// Guard against invalid entries
-		if (parts.size() != 3) {
+		if (parts.size() < 3) {
 			logger::warn("Invalid material entry: {}", kv.pItem);
 			continue;
 		}

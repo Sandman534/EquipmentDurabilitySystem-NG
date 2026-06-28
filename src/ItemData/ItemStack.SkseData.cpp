@@ -194,9 +194,16 @@ namespace I4Data::Items {
 
 			for (int i = 0; i < 3; ++i) {
 				const auto& shoutWord = shout->variations[i];
-				_data.shout.words[i].word = shoutWord.word->fullName.c_str();
-				_data.shout.words[i].fullName = shoutWord.word->translation.c_str();
-				_data.shout.words[i].recoveryTime = shoutWord.recoveryTime;
+
+				if (shoutWord.word) {
+					_data.shout.words[i].word = shoutWord.word->fullName.c_str();
+					_data.shout.words[i].fullName = shoutWord.word->translation.c_str();
+					_data.shout.words[i].recoveryTime = shoutWord.recoveryTime;
+				} else {
+					_data.shout.words[i].word = "";
+					_data.shout.words[i].fullName = "";
+					_data.shout.words[i].recoveryTime = 0.0f;
+				}
 			}
 		}
 	}

@@ -71,16 +71,16 @@ std::string TemperManager::AsRomanNumeral(std::uint32_t a_level, [[maybe_unused]
 }
 
 const char* TemperManager::GetTemperFactor(float a_factor, bool a_isWeapon) {
-	auto fLevel = std::floor((a_factor - 1.0f) * 10.0f);
+	auto objectLevel = std::floor((a_factor - 1.0f) * 10.0f);
 
 	// If the break system is enabled, and we are below 0, return the broken name
-	if (a_factor < cons::kBrokenHealth && !Settings::GetSingleton()->ED_BreakDisabled)
+	if (a_factor <= Degredation::kBrokenHealth && !Settings::GetSingleton()->ED_BreakDisabled)
 		return Settings::GetSingleton()->ED_Names_Broken.c_str();
-	else if (a_factor < cons::kDisplayHealth)
+	if (a_factor < Degredation::kDisplayHealth)
 		return 0;
 
 	// Return whatever temper level we should be showing
-	auto level = static_cast<std::uint32_t>(fLevel);
+	auto level = static_cast<std::uint32_t>(objectLevel);
 	auto it = _stringCache.insert(_formatterMap(level, a_isWeapon));
 	return it.first != _stringCache.end() ? it.first->c_str() : 0;
 }
@@ -100,7 +100,7 @@ void TemperManager::VFormat(RE::BSString* a_dst, const char* a_fmt, ...) {
 	std::vsnprintf(buf.data(), buf.size(), fmt.c_str(), args2);
 	va_end(args2);
 
-	std::string_view view(buf.data(), buf.size());
+	std::string_view view(buf.data(), buf.size()-1); // buf.size() on its own can cause a trailing NUL
 	*a_dst = view;
 }
 
@@ -161,7 +161,7 @@ void TemperManager::Init() {
 	// These however are all the same
 	trampoline.write_call<5>(TemporFormat01_Hook.address(), TemperManager::VFormat);
 	trampoline.write_call<5>(TemporFormat02_Hook.address(), TemperManager::VFormat);
-	trampoline.write_call<5>(TemporString_Hook.address(), TemperManager::sprintf_s);
+	// trampoline.write_call<5>(TemporString_Hook.address(), TemperManager::sprintf_s);
 
 	logger::info("Hook Installed: Temper Names");
 

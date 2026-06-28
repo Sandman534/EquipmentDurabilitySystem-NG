@@ -1,49 +1,47 @@
 #pragma once
 
 class FoundEquipData {
-public:
-	RE::TESForm* baseForm;
-	RE::ExtraDataList* objectData;
-	RE::TESBoundObject* refForm;
-	std::string objectName;
-	
-	// Regular Generators
-	FoundEquipData() : baseForm(nullptr), objectData(nullptr), refForm(nullptr) {}
-	explicit FoundEquipData(RE::TESForm* a_Form) : baseForm(a_Form), objectData(nullptr), refForm(nullptr) {}
-	explicit FoundEquipData(RE::TESForm* a_Form, RE::ExtraDataList* a_ExtraData) : baseForm(a_Form), objectData(a_ExtraData), refForm(nullptr) {}
+	public:
+		RE::TESForm* baseForm;
+		RE::ExtraDataList* objectData;
+		RE::TESBoundObject* refForm;
+		std::string objectName;
+		
+		// Regular Generators
+		FoundEquipData() : baseForm(nullptr), objectData(nullptr), refForm(nullptr) {}
+		explicit FoundEquipData(RE::TESForm* a_Form) : baseForm(a_Form), objectData(nullptr), refForm(nullptr) {}
+		explicit FoundEquipData(RE::TESForm* a_Form, RE::ExtraDataList* a_ExtraData) : baseForm(a_Form), objectData(a_ExtraData), refForm(nullptr) {}
 
-	// Naming
-	void CreateName();
+		// Naming
+		void CreateName();
 
-	// Item Getters
-	float GetItemHealthPercent();
-	float GetItemHealthForWidget();
-	float GetItemHealthRounded();
+		// Item Getters
+		float GetItemHealthPercent();
+		float GetItemHealthForWidget();
+		float GetItemHealthRounded();
 
-	// Item Setters
-	void SetItemHealthPercent(float value);
-	void SetItemEnchantment(int level, RE::TESObjectREFR* ref);
-	
-	// Process State
-	bool HasBeenProcessed();
-	void ProcessItem();
+		// Item Setters
+		void SetItemHealthPercent(float value);
+		void SetItemEnchantment(int level, RE::TESObjectREFR* ref);
+		
+		// Process State
+		bool HasBeenProcessed();
+		void ProcessItem();
 
-	// Status Checks
-	bool IsTempered();
-	bool IsEnchanted();
-	bool IsBroken();
-	bool IsUnarmed();
-	bool CanBreak();
-	bool CanTemper();
+		// Status Checks
+		bool IsTempered();
+		bool IsEnchanted();
+		bool IsBroken();
+		bool IsUnarmed();
+		bool CanBreak();
+		bool CanTemper();
 
-private:
-	int GetRandom(int a, int b);
-	std::optional<GameData::TierInfo> GetTierForLevel(GameData::Material mat, int playerLevel);
-	GameData::Material getStrongestMaterial();
-	EquipmentType GetEquipmentType();
-	float RoundTo5Decimals(float value);
-	float TruncateToDecimals(float value, int decimals);
+	private:
+		std::optional<GameData::TierInfo> GetTierForLevel(GameData::Material mat, int playerLevel);
+		GameData::Material getStrongestMaterial();
+		EquipmentType GetEquipmentType();
 };
 
+// Additional Equipment functions
 FoundEquipData FindEquippedWeapon(RE::InventoryChanges* a_Changes, RE::TESForm* a_Form, bool a_LeftHand);
 FoundEquipData FindEquippedArmor(RE::InventoryChanges* a_Changes, RE::BGSBipedObjectForm::BipedObjectSlot a_SlotMask);

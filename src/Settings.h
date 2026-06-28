@@ -20,22 +20,22 @@ public:
 	int ED_BreakThreshold{ 50 };
 
 	// Degredaton Rates
-	float ED_Degrade_Sword{ 3.0 };
-	float ED_Degrade_Dagger{ 3.0 };
-	float ED_Degrade_WarAxe{ 3.0 };
-	float ED_Degrade_Mace{ 3.0 };
-	float ED_Degrade_GreatSword{ 3.0 };
-	float ED_Degrade_Warhammer{ 3.0 };
-	float ED_Degrade_BattleAxe{ 3.0 };
-	float ED_Degrade_Bow{ 3.0 };
-	float ED_Degrade_CrossBow{ 3.0 };
-	float ED_Degrade_LightArmor{ 3.0 };
-	float ED_Degrade_HeavyArmor{ 3.0 };
-	float ED_Degrade_Clothing{ 3.0 };
-	float ED_Degrade_Armor{ 3.0 };
-	float ED_Degrade_PowerAttack{ 2.0 };
-	float ED_Degrade_FollowerMulti{ 1.0 };
-	float ED_Degrade_NPCMulti{ 1.0 };
+	int ED_Degrade_Sword{ 25 };
+	int ED_Degrade_Dagger{ 25 };
+	int ED_Degrade_WarAxe{ 25 };
+	int ED_Degrade_Mace{ 25 };
+	int ED_Degrade_GreatSword{ 25 };
+	int ED_Degrade_Warhammer{ 25 };
+	int ED_Degrade_BattleAxe{ 25 };
+	int ED_Degrade_Bow{ 25 };
+	int ED_Degrade_CrossBow{ 25 };
+	int ED_Degrade_LightArmor{ 25 };
+	int ED_Degrade_HeavyArmor{ 25 };
+	int ED_Degrade_Clothing{ 25 };
+	int ED_Degrade_Armor{ 25 };
+	int ED_Degrade_PowerAttack{ 50 };
+	int ED_Degrade_FollowerMulti{ 50 };
+	int ED_Degrade_NPCMulti{ 50 };
 
 	// Break Rates
 	int ED_Break_Sword{ 10 };
@@ -51,9 +51,9 @@ public:
 	int ED_Break_HeavyArmor{ 10 };
 	int ED_Break_Clothing{ 10 };
 	int ED_Break_Armor{ 10 };
-	float ED_Break_PowerAttack{ 2.0 };
-	float ED_Break_FollowerMulti{ 1.0 };
-	float ED_Break_NPCMulti{ 1.0 };
+	int ED_Break_PowerAttack{ 50 };
+	int ED_Break_FollowerMulti{ 50 };
+	int ED_Break_NPCMulti{ 50 };
 
 	// Material Multiplier
 	float ED_Daedric{ 0.40 };

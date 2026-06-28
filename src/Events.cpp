@@ -6,7 +6,6 @@
 #include <unordered_set>
 #include <set>
 #include <array>
-#include <random>
 
 // =============================================================
 // Actor Hit Throttle
@@ -25,38 +24,7 @@ static void ClearActor() {
 }
 
 // =============================================================
-// Random Functions
-// =============================================================
-static bool Probability(int percentChance) {
-    if (percentChance <= 0) return false;
-    if (percentChance >= 100) return true;
-
-	thread_local std::mt19937 mt{ std::random_device{}() }; 
-	std::uniform_int_distribution<int> dist(0, 99);
-    int roll = dist(mt);
-
-    return roll < percentChance;
-}
-
-static bool Probability(double percentChance) {
-    if (percentChance <= 0.0) return false;
-    if (percentChance >= 100.0) return true;
-
-	thread_local std::mt19937 mt{ std::random_device{}() }; 
-	std::uniform_real_distribution<double> dist(0.0, 100.0);
-    double roll = dist(mt);
-
-    return roll < percentChance;
-}
-
-static double GetRandom(double a, double b) {
-	thread_local std::mt19937 mt{ std::random_device{}() }; 
-	std::uniform_real_distribution<> score(a, b);
-	return score(mt) * 0.0001;
-}
-
-// =============================================================
-// Temper Decay Functions
+// Temper / Decay Functions
 // =============================================================
 static void RemoveEquipment(FoundEquipData* eqD, RE::Actor* actor) {
 	if (!actor || !eqD->baseForm) return;
@@ -81,33 +49,44 @@ static void TemperDecay(FoundEquipData* eqD, RE::Actor* actor, bool powerAttack)
 	auto utility = Utility::GetSingleton();
 	auto setting = Settings::GetSingleton();
 
+	if (setting->ED_DegradationDisabled) return;
 	if (!eqD->baseForm || !AddActor(actor)) return;
 	if (eqD->baseForm == utility->Unarmed) return;
 
 	// Get current health percent
-	float itemHealthPercent = eqD->GetItemHealthPercent();
-
+	float CurrentHealth = eqD->GetItemHealthPercent();
+	float BreakThreshold = (setting->ED_BreakThreshold / 1000.0f);
+	
 	// --- Break Chance ---
-	if ((itemHealthPercent - cons::kMinHealth) <= (setting->ED_BreakThreshold / 1000.0f)) {
+	if ((CurrentHealth - Degredation::kMinHealth) <= BreakThreshold) {
 		float chance = setting->GetBreakChance(eqD->baseForm);
 
 		// Apply modifiers
 		if (chance != 0.0 && eqD->CanBreak()) {
 
 			// Increased Durability
-			if (setting->ED_IncreasedDurability && itemHealthPercent > cons::kMinHealth)
-				chance *= 1.0 - ((itemHealthPercent - cons::kMinHealth) / (setting->ED_BreakThreshold / 1000.0f));
+			if (setting->ED_IncreasedDurability && CurrentHealth > Degredation::kMinHealth) {
+				double durabilityChance = 1.0 - ((CurrentHealth - Degredation::kMinHealth) / BreakThreshold);
+				
+				// A negative durability chance means it wont break at all, lets adjust that 
+				if (durabilityChance <= 0)
+					chance *= 0.01;
+				else
+					chance *= durabilityChance;
+			}
 
-			// Power Attack
+			// Power Attack Multiplier
 			if (powerAttack) 
-				chance *= setting->ED_Break_PowerAttack;
+				chance *= 1.0 + (setting->ED_Break_PowerAttack / 100.0);
 
 			// Follower/NPC Multiplier
 			if (actor != utility->GetPlayer())
-				chance *= actor->IsPlayerTeammate() ? setting->ED_Break_FollowerMulti : setting->ED_Break_NPCMulti;
+				chance *= actor->IsPlayerTeammate()
+					? 1.0 + (setting->ED_Break_FollowerMulti / 100.0)
+					: 1.0 + (setting->ED_Break_NPCMulti / 100.0);
 
 			// Check to see if we break
-			if (Probability(chance)) {
+			if (Probability::Double(chance)) {
 				RemoveEquipment(eqD, actor);
 				return;
 			}
@@ -115,37 +94,262 @@ static void TemperDecay(FoundEquipData* eqD, RE::Actor* actor, bool powerAttack)
 	}
 
 	// --- Degradation ---
-	if (itemHealthPercent <= cons::kMinHealth) return;
+	if (CurrentHealth <= Degredation::kMinHealth) return;
 
-	double rate = setting->GetDegradationRate(eqD->baseForm);
-	if (rate == 0.0) return;
+	double degrade_rate = setting->GetDegradationRate(eqD->baseForm);
+	if (degrade_rate == 0) return;
 
-	// Power Attack
+	// Determine the health rate based on the defined curve
+	double rate = std::clamp(degrade_rate, 0.0, 200.0);
+	double scale = std::pow(rate / 100.0, Degredation::kCurve);
+	double loss = Random::Double(Degredation::kMinLossAt100, Degredation::kMaxLossAt100) * scale;
+
+	// Power Attack Multiplier
 	if (powerAttack)
-		rate *= setting->ED_Degrade_PowerAttack;
+		loss *= 1.0 + (setting->ED_Degrade_PowerAttack / 100.0);
 
 	// Follower/NPC Multiplier
 	if (actor != utility->GetPlayer())
-		rate *= actor->IsPlayerTeammate() ? setting->ED_Degrade_FollowerMulti : setting->ED_Degrade_NPCMulti;
+		loss *= actor->IsPlayerTeammate() 
+			? 1.0 + (setting->ED_Degrade_FollowerMulti / 100.0)
+			: 1.0 + (setting->ED_Degrade_NPCMulti / 100.0);
 
-	// Subtract the health and round to 5 decimal places
-	itemHealthPercent -= GetRandom(rate, std::pow(rate + 1.0, 2.0));
-	itemHealthPercent = std::round(itemHealthPercent * 100000.0f) / 100000.0f;
+	// Apply the lost health
+	CurrentHealth -= loss;
+	CurrentHealth = std::round(CurrentHealth * Degredation::kPrecision) / Degredation::kPrecision;
 
 	// The default health of an item is always one, so it cant go lower
-	if (itemHealthPercent < cons::kMinHealth) itemHealthPercent = cons::kMinHealth;
+	if (CurrentHealth < Degredation::kMinHealth)
+		CurrentHealth = Degredation::kMinHealth;
 
 	// Set the new health of the item
-	eqD->SetItemHealthPercent(itemHealthPercent);
+	eqD->SetItemHealthPercent(CurrentHealth);
 }
+
+class SmithingMenuHook
+{
+public:
+    static void Install()
+    {
+        REL::Relocation<std::uintptr_t> vtbl{ RE::VTABLE_CraftingSubMenus__SmithingMenu[0] };
+        _UpdateSmithingList = vtbl.write_vfunc(0x2,UpdateSmithingList);
+    }
+
+private:
+	struct CachedHealth
+	{
+		RE::ExtraDataList* extraData;
+		float health;
+	};
+
+	static std::vector<CachedHealth> PrepareSmithingInventory()
+	{
+		std::vector<CachedHealth> cache;
+
+		auto* player = RE::PlayerCharacter::GetSingleton();
+		if (!player) {
+			return cache;
+		}
+
+		auto* invChanges = player->GetInventoryChanges();
+		if (!invChanges || !invChanges->entryList) {
+			return cache;
+		}
+
+		for (auto* entry : *invChanges->entryList) {
+			if (!entry || !entry->extraLists) continue;
+
+			for (auto* extraList : *entry->extraLists) {
+				if (!extraList) continue;
+
+				FoundEquipData eqD(entry->GetObject(), extraList);
+				float health = eqD.GetItemHealthPercent();
+
+				// Your criteria here
+				if (health > 1.0000f) {
+					cache.push_back({
+						extraList,
+						health
+					});
+
+					// Temporarily restore to Fine
+					eqD.SetItemHealthPercent(Degredation::TruncateToDecimals(health,1));
+				}
+			}
+		}
+
+		return cache;
+	}
+
+	static void RestoreSmithingInventory(const std::vector<CachedHealth>& cache)
+	{
+		for (const auto& item : cache) {
+			FoundEquipData eqD(nullptr, item.extraData);
+			eqD.SetItemHealthPercent(item.health);
+		}
+	}
+
+	static void UpdateSmithingList(RE::CraftingSubMenus::SmithingMenu* a_this)
+    {
+		// Normalize health values for tempering, then update the menu
+		auto cache = PrepareSmithingInventory();
+        _UpdateSmithingList(a_this);
+
+		// Reset any modified health values
+		RestoreSmithingInventory(cache);
+    }
+
+    static inline REL::Relocation<decltype(UpdateSmithingList)> _UpdateSmithingList;
+};
 
 // =============================================================
 // On Hit: Decay Equipment
 // =============================================================
+static bool ShouldProcessActor(RE::Actor* actor) {
+    if (!actor) return false;
+
+    auto* settings = Settings::GetSingleton();
+    auto* utility = Utility::GetSingleton();
+    auto* player = utility->GetPlayer();
+
+    if (actor == player)
+        return !utility->PlayerIsBeast();
+
+    return !settings->ED_OnlyPlayer;
+}
+
+static bool IsValidHitSource(RE::TESForm* form) {
+    if (!form) return false;
+
+    if (auto* weapon = form->As<RE::TESObjectWEAP>())
+        return !weapon->IsStaff();
+
+    if (auto* armor = form->As<RE::TESObjectARMO>())
+        return armor->IsShield();
+
+    return false;
+}
+
+static void ShuffleSlots(std::array<RE::BGSBipedObjectForm::BipedObjectSlot, 4>& slots) {
+	thread_local std::mt19937 mt{ std::random_device{}() };
+	std::shuffle(slots.begin(), slots.end(), mt);
+}
+
+static void DecayBlockingEquipment(RE::Actor* actor, RE::InventoryChanges* changes, bool powerAttack) {
+	FoundEquipData shield = FindEquippedArmor(changes, RE::BGSBipedObjectForm::BipedObjectSlot::kShield);
+	if (shield.baseForm) {
+		TemperDecay(&shield, actor, powerAttack);
+		return;
+	}
+
+	RE::TESForm* rightHand = actor->GetEquippedObject(false);
+	if (!rightHand) return;
+
+	auto* weapon = rightHand->As<RE::TESObjectWEAP>();
+	if (!weapon || weapon->IsBound()) return;
+
+	FoundEquipData weaponData = FindEquippedWeapon(changes, rightHand, false);
+	TemperDecay(&weaponData, actor, powerAttack);
+}
+
+static void DecayRandomArmorPiece(RE::Actor* actor, RE::InventoryChanges* changes, bool powerAttack) {
+	std::array<RE::BGSBipedObjectForm::BipedObjectSlot, 4> slots = {
+		RE::BGSBipedObjectForm::BipedObjectSlot::kHead,
+		RE::BGSBipedObjectForm::BipedObjectSlot::kBody,
+		RE::BGSBipedObjectForm::BipedObjectSlot::kHands,
+		RE::BGSBipedObjectForm::BipedObjectSlot::kFeet
+	};
+
+	ShuffleSlots(slots);
+
+	for (auto slot : slots) {
+		FoundEquipData armor = FindEquippedArmor(changes, slot);
+		if (armor.baseForm) {
+			TemperDecay(&armor, actor, powerAttack);
+			return;
+		}
+
+		if (slot != RE::BGSBipedObjectForm::BipedObjectSlot::kHead) continue;
+
+		armor = FindEquippedArmor(changes, RE::BGSBipedObjectForm::BipedObjectSlot::kHair);
+		if (armor.baseForm) {
+			TemperDecay(&armor, actor, powerAttack);
+			return;
+		}
+	}
+}
+
+static bool IsLeftHandAttack(RE::Actor* actor) {
+	bool leftHandAttack = false;
+	return actor->GetGraphVariableBool("bLeftHandAttack", leftHandAttack) && leftHandAttack;
+}
+
+static void DecayAttackingWeapon(RE::Actor* actor, RE::InventoryChanges* changes, RE::TESForm* form, bool powerAttack) {
+	auto* weapon = form->As<RE::TESObjectWEAP>();
+	if (!weapon || weapon->IsStaff() || weapon->IsBound()) return;
+
+	const bool equippedRight = form == actor->GetEquippedObject(false);
+	const bool equippedLeft = form == actor->GetEquippedObject(true);
+
+	if (!equippedRight && !equippedLeft) return;
+
+	const bool useLeftHand = equippedLeft && (!equippedRight || IsLeftHandAttack(actor));
+	FoundEquipData weaponData = FindEquippedWeapon(changes, form, useLeftHand);
+	TemperDecay(&weaponData, actor, powerAttack);
+}
+
+static void DecayAttackingShield(RE::Actor* actor, RE::InventoryChanges* changes, RE::TESForm* form, bool powerAttack) {
+	auto* armor = form->As<RE::TESObjectARMO>();
+	if (!armor || !armor->HasPartOf(RE::BGSBipedObjectForm::BipedObjectSlot::kShield)) return;
+
+	FoundEquipData shield = FindEquippedArmor(changes, RE::BGSBipedObjectForm::BipedObjectSlot::kShield);
+	TemperDecay(&shield, actor, powerAttack);
+}
+
+static void ProcessDefenderHit(const RE::TESHitEvent* event, bool powerAttack) {
+	if (!event->target || event->target->formType != RE::FormType::ActorCharacter) return;
+
+	RE::Actor* actor = event->target->As<RE::Actor>();
+	if (!ShouldProcessActor(actor)) return;
+
+	RE::InventoryChanges* changes = actor->GetInventoryChanges();
+	if (!changes) return;
+
+	RE::TESForm* form = RE::TESForm::LookupByID(event->source);
+	if (!IsValidHitSource(form)) return;
+
+	if (event->flags.any(RE::TESHitEvent::Flag::kHitBlocked)) {
+		DecayBlockingEquipment(actor, changes, powerAttack);
+		return;
+	}
+
+	DecayRandomArmorPiece(actor, changes, powerAttack);
+}
+
+static void ProcessAttackerHit(const RE::TESHitEvent* event, bool powerAttack) {
+	if (!event->cause || event->cause->formType != RE::FormType::ActorCharacter) return;
+
+	RE::Actor* actor = event->cause->As<RE::Actor>();
+	if (!ShouldProcessActor(actor)) return;
+
+	RE::InventoryChanges* changes = actor->GetInventoryChanges();
+	if (!changes) return;
+
+	RE::TESForm* form = RE::TESForm::LookupByID(event->source);
+	if (!form) return;
+
+	if (form->IsWeapon()) {
+		DecayAttackingWeapon(actor, changes, form, powerAttack);
+		return;
+	}
+
+	if (form->IsArmor()) {
+		DecayAttackingShield(actor, changes, form, powerAttack);
+	}
+}
+
 class HitEventHandler : public RE::BSTEventSink<RE::TESHitEvent> {
 public:
-	std::mutex container_mutex;
-
     static HitEventHandler* GetSingleton() {
         static HitEventHandler singleton;
         return &singleton;
@@ -153,118 +357,19 @@ public:
 
     RE::BSEventNotifyControl ProcessEvent(const RE::TESHitEvent* a_event, RE::BSTEventSource<RE::TESHitEvent>* a_eventSource) override {
 		if (!a_event) return RE::BSEventNotifyControl::kContinue;
+		if (Settings::GetSingleton()->ED_DegradationDisabled) return RE::BSEventNotifyControl::kContinue;
 
-		auto* settings = Settings::GetSingleton();
-        auto* utility = Utility::GetSingleton();
+		// Determine power attack
+		const bool powerAttack =
+			a_event->flags.any(RE::TESHitEvent::Flag::kPowerAttack) ||
+			(a_event->cause &&
+				a_event->cause->formType == RE::FormType::ActorCharacter &&
+				a_event->cause->As<RE::Actor>()->IsPowerAttacking());
 
-		// Defender
-		if (a_event->target && a_event->target->formType == RE::FormType::ActorCharacter) {
-			RE::Actor* actor = a_event->target->As<RE::Actor>();
-			if ((actor == utility->GetPlayer() && !utility->PlayerIsBeast()) || (actor != utility->GetPlayer() && !settings->ED_OnlyPlayer)) {
-				RE::InventoryChanges *exChanges = actor->GetInventoryChanges();
-				if (exChanges) {
-					RE::TESForm* form = RE::TESForm::LookupByID(a_event->source);
+		ProcessDefenderHit(a_event, powerAttack);
+		ProcessAttackerHit(a_event, powerAttack);
 
-					// If the attack did not come from a staff
-					if (form && ((form->formType == RE::FormType::Weapon && !form->As<RE::TESObjectWEAP>()->IsStaff()) || (form->formType == RE::FormType::Armor && form->As<RE::TESObjectARMO>()->IsShield()))) {
-						bool powerattack = a_event->flags.any(RE::TESHitEvent::Flag::kPowerAttack);
-
-						// Decay weapon/shield if it blocked the attack
-						if (a_event->flags.any(RE::TESHitEvent::Flag::kHitBlocked)) {
-							FoundEquipData eqD_armor = FindEquippedArmor(exChanges, RE::BGSBipedObjectForm::BipedObjectSlot::kShield);
-							if (eqD_armor.baseForm) {
-								TemperDecay(&eqD_armor, actor, powerattack);
-							} else {
-								if (RE::TESForm* weap = actor->GetEquippedObject(false)) {
-									if (weap->IsWeapon() && !weap->As<RE::TESObjectWEAP>()->IsBound()) {
-										FoundEquipData eqD_armor = FindEquippedWeapon(exChanges, weap, false);
-										TemperDecay(&eqD_armor, actor, powerattack);
-									}
-								}
-							}
-
-						// Decay armor, armor slots are shuffled for decay loss
-						} else {
-							std::array<RE::BGSBipedObjectForm::BipedObjectSlot, 4> slots = { RE::BGSBipedObjectForm::BipedObjectSlot::kHead, RE::BGSBipedObjectForm::BipedObjectSlot::kBody, RE::BGSBipedObjectForm::BipedObjectSlot::kHands, RE::BGSBipedObjectForm::BipedObjectSlot::kFeet };
-							ShuffleSlots(&slots);
-							for (RE::BGSBipedObjectForm::BipedObjectSlot slot : slots) {
-
-								// Find the first piece of armor, break after it gets decayed
-								FoundEquipData eqD_armor = FindEquippedArmor(exChanges, slot);
-								if (eqD_armor.baseForm) {
-									TemperDecay(&eqD_armor, actor, powerattack);
-									break;
-								} else if (slot == RE::BGSBipedObjectForm::BipedObjectSlot::kHead) {
-									eqD_armor = FindEquippedArmor(exChanges, RE::BGSBipedObjectForm::BipedObjectSlot::kHair);
-									if (eqD_armor.baseForm) {
-										TemperDecay(&eqD_armor, actor, powerattack);
-										break;
-									}
-								}
-							}
-						}
-					}
-				}
-			}
-		}
-
-		// Attacker
-		if (a_event->cause && a_event->cause->formType == RE::FormType::ActorCharacter) {
-			RE::Actor* actor = a_event->cause->As<RE::Actor>();
-			if ((actor == utility->GetPlayer() && !utility->PlayerIsBeast()) || (actor != utility->GetPlayer() && !settings->ED_OnlyPlayer)) {
-				RE::InventoryChanges *exChanges = actor->GetInventoryChanges();
-				if (exChanges) {
-					
-					// Get the source object of the attack
-					if (RE::TESForm* form = RE::TESForm::LookupByID(a_event->source)) {
-						bool powerattack = (a_event->flags.any(RE::TESHitEvent::Flag::kPowerAttack));
-
-						// Was the source of the attack a weapon
-						if (form->IsWeapon()) {
-							RE::TESObjectWEAP* weap = form->As<RE::TESObjectWEAP>();
-
-							// We do not decay staffs or bound weapons
-							if (!weap->IsStaff() && !weap->IsBound()) {
-
-								// Weapon in Right Hand
-								if (form == actor->GetEquippedObject(false)) {
-
-									// Verify that we are not using a left handed weapon with a left handed attack
-									if (form == actor->GetEquippedObject(true)) {
-										bool bLeftHandAttack;
-										if (actor->GetGraphVariableBool("bLeftHandAttack", bLeftHandAttack) && bLeftHandAttack) {
-											FoundEquipData eqD_weapon = FindEquippedWeapon(exChanges, form, true);
-											TemperDecay(&eqD_weapon, actor, powerattack);
-										} else {
-											FoundEquipData eqD_weapon = FindEquippedWeapon(exChanges, form, false);
-											TemperDecay(&eqD_weapon, actor, powerattack);
-										}
-									// Use the right hand
-									} else {
-										FoundEquipData eqD_weapon = FindEquippedWeapon(exChanges, form, false);
-										TemperDecay(&eqD_weapon, actor, powerattack);
-									}
-								// Weapon in Left Hand (Can't be in the left hand without something in the right) 
-								} else if (form == actor->GetEquippedObject(true)) {
-									FoundEquipData eqD_weapon = FindEquippedWeapon(exChanges, form, true);
-									TemperDecay(&eqD_weapon, actor, powerattack);
-								}
-									
-							}
-
-						// Was the source of the attack a shield
-						} else if (form->IsArmor()) {
-							if (form->As<RE::TESObjectARMO>()->HasPartOf(RE::BGSBipedObjectForm::BipedObjectSlot::kShield)) {
-								FoundEquipData eqD_weapon = FindEquippedArmor(exChanges, RE::BGSBipedObjectForm::BipedObjectSlot::kShield);
-								TemperDecay(&eqD_weapon, actor, powerattack);
-							}
-						}
-					}
-				}
-			}
-		}
-
-        return RE::BSEventNotifyControl::kContinue;
+		return RE::BSEventNotifyControl::kContinue;
     }
 
     static void Register() {
@@ -272,12 +377,6 @@ public:
         eventHolder->AddEventSink(HitEventHandler::GetSingleton());
 		logger::info("Handler Installed: On Hit");
     }
-
-private:
-	static void ShuffleSlots(std::array<RE::BGSBipedObjectForm::BipedObjectSlot, 4> *slots) {
-		thread_local std::mt19937 mt{ std::random_device{}() }; 
-		std::shuffle(slots->begin(), slots->end(), mt);
-	}
 };
 
 // =============================================================
@@ -396,33 +495,32 @@ NearbyObjects GetNearbyObjects(RE::Actor* player) {
 
 static void ProcessItem(FoundEquipData* equipData, RE::TESObjectREFR* ref, int actorLevel, bool isVendor = false, bool isBoss = false) {
 	auto* setting = Settings::GetSingleton(); 
+	if (actorLevel == 0) return;
 
 	// Temper Process
-	if (actorLevel != 0) {
-		if (setting->ED_Temper_Enabled && !equipData->IsTempered()) {
-			// Set the temper chance based on if we are in a boss location or if this is a vendor container
-			int chanceTemper = setting->ED_Temper_Chance;
-			if (isVendor)
-				chanceTemper = setting->ED_Temper_VendorChance;
-			else if (isBoss)
-				chanceTemper = setting->ED_Temper_BossChance;
+	if (setting->ED_Temper_Enabled && !equipData->IsTempered()) {
+		// Set the temper chance based on if we are in a boss location or if this is a vendor container
+		int chanceTemper = setting->ED_Temper_Chance;
+		if (isVendor)
+			chanceTemper = setting->ED_Temper_VendorChance;
+		else if (isBoss)
+			chanceTemper = setting->ED_Temper_BossChance;
 
-			if (Probability(chanceTemper))
-				equipData->SetItemHealthPercent(GetRandom(10001.0, 10001.0 + (actorLevel + 10) * 100));
-		}
+		if (Probability::Int(chanceTemper))
+			equipData->SetItemHealthPercent(Random::Double(10001.0, 10099.0 + ((actorLevel + 10) * 100)) * 0.0001);
+	}
 
-		// Enchant Process
-		if (setting->ED_Enchant_Enabled && !equipData->IsEnchanted()) {
-			int chanceEnchant = setting->ED_Enchant_Chance;
-			if (isVendor)
-				chanceEnchant = setting->ED_Enchant_VendorChance;
-			else if (isBoss)
-				chanceEnchant = setting->ED_Enchant_BossChance;
+	// Enchant Process
+	if (setting->ED_Enchant_Enabled && !equipData->IsEnchanted()) {
+		int chanceEnchant = setting->ED_Enchant_Chance;
+		if (isVendor)
+			chanceEnchant = setting->ED_Enchant_VendorChance;
+		else if (isBoss)
+			chanceEnchant = setting->ED_Enchant_BossChance;
 
-			if (Probability(chanceEnchant))
-				equipData->SetItemEnchantment(actorLevel, ref);
-		}
-	} 
+		if (Probability::Int(chanceEnchant))
+			equipData->SetItemEnchantment(actorLevel, ref);
+	}
 
 	if (!equipData->HasBeenProcessed())
 		equipData->ProcessItem();
@@ -523,7 +621,6 @@ public:
 				for (auto* dataList : *entry->extraLists) {
 					FoundEquipData eqD(entry->GetObject(), dataList);
 					eqD.refForm = entry->GetObject();
-					auto utility = Utility::GetSingleton();
 					
 					// Set health if tempered
 					if (float health = eqD.GetItemHealthRounded()) {
@@ -600,5 +697,7 @@ namespace Events {
 		logger::info("Hook Installed: On Update");
 		_EquipObject = trampoline.write_call<5>(EquipObject_Hook.address(), EquipObject);
 		logger::info("Hook Installed: On Equip");
+		SmithingMenuHook::Install();
+		logger::info("Hook Installed: Smithing Menu");
 	}
 }

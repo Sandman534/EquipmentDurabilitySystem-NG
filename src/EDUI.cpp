@@ -23,7 +23,7 @@ void __stdcall EDUI::RenderRates() {
 			changeRateOption = true;
 		if (Checkbox("Disable Equipment Breaking", &Settings->ED_BreakDisabled))
 			changeRateOption = true;
-		if (Checkbox("Player Equipment Only", &Settings->ED_OnlyPlayer))
+		if (Checkbox("Only Affect Player", &Settings->ED_OnlyPlayer))
 			changeRateOption = true;
 		if (Checkbox("Do Not Break 'Disallowed Enchanted' Items", &Settings->ED_NoBreakNoEnchant))
 			changeRateOption = true;
@@ -464,7 +464,7 @@ int EDUI::GetStyleIndex(const std::string& value) {
     if (it != styleOptions.end()) {
         return static_cast<int>(std::distance(styleOptions.begin(), it));
     }
-    return -1; // not found
+    return 0; // Vanilla
 }
 
 bool EDUI::MaterialEntry(const char* label, float& value) {
@@ -487,7 +487,7 @@ bool EDUI::MaterialEntry(const char* label, float& value) {
 	return changeSlider;
 }
 
-bool EDUI::DegradeEntry(const char* label, float& degradeValue, int& breakValue) {
+bool EDUI::DegradeEntry(const char* label, int& degradeValue, int& breakValue) {
 	bool changeSlider = false;
 
 	// Set Slider IDs
@@ -501,7 +501,7 @@ bool EDUI::DegradeEntry(const char* label, float& degradeValue, int& breakValue)
 	
 	// Degrade Slider
 	TableSetColumnIndex(1); 
-	if (SliderFloat(idd.c_str(), &degradeValue, 0.0, 10.0, "%.01f"))
+	if (SliderInt(idd.c_str(), &degradeValue, 0, 200, "%d%%"))
 		changeSlider = true;
 
 	// Break Slider
@@ -512,7 +512,7 @@ bool EDUI::DegradeEntry(const char* label, float& degradeValue, int& breakValue)
 	return changeSlider;
 }
 
-bool EDUI::MultiplierEntry(const char* label, float& degradeValue, float& breakValue) {
+bool EDUI::MultiplierEntry(const char* label, int& value1, int& value2) {
 	bool changeSlider = false;
 
 	// Set Slider IDs
@@ -526,12 +526,12 @@ bool EDUI::MultiplierEntry(const char* label, float& degradeValue, float& breakV
 	
 	// Degrade Slider
 	TableSetColumnIndex(1); 
-	if (SliderFloat(idd.c_str(), &degradeValue, 0.0, 6.0, "%.01f"))
+	if (SliderInt(idd.c_str(), &value1, 0, 200, "%d%%"))
 		changeSlider = true;
 
 	// Break Slider
 	TableSetColumnIndex(2); 
-	if (SliderFloat(idb.c_str(), &breakValue, 0.0, 6.0, "%.01f"))
+	if (SliderInt(idb.c_str(), &value2, 0, 200, "%d%%"))
 		changeSlider = true;
 
 	return changeSlider;
@@ -555,12 +555,15 @@ bool EDUI::CreateInputText(const char* label, std::string& str, ImGuiInputTextFl
     };
 
     // Only reserve some space if empty
-    if (str.empty()) str.reserve(64); // optional initial buffer
+    if (str.empty()) 
+		str.reserve(64); // optional initial buffer
+
+	str.resize(str.capacity());
 
     changed = InputText(
         label,
         str.data(),
-        str.capacity() + 1,
+        str.size() + 1,
         flags | ImGuiInputTextFlags_CallbackResize,
         callback,
         &user_data
