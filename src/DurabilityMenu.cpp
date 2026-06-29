@@ -40,7 +40,8 @@ void DurabilityMenu::AdvanceMovie(float a_interval, std::uint32_t a_currentTime)
 		return;
 
 	// Beast Check
-	if (Utility::GetSingleton()->PlayerIsBeast())
+	auto* utility = Utility::GetSingleton();
+	if (!utility->ActorIsNotBeast(utility->GetPlayer()))
 		return;
 
 	// Hotkey Timer
@@ -207,7 +208,7 @@ void DurabilityMenu::UpdateItemData() {
 				// Get Health Value and Color
 				if (eqD.CanTemper()) {
 					using std::max;
-					iconValue = max(std::round((eqD.GetItemHealthForWidget() - 1.0f) * 1000.0), 0.0);
+					iconValue = max(std::round((eqD.GetItemHealthForWidget() - Degredation::kMinHealth) * 1000.0), 0.0);
 					if (setting->GetBreakChance(eqD.baseForm) != 0.0 && iconValue <= setting->ED_BreakThreshold && eqD.CanBreak())
 						iconCustomColor = setting->ED_Color_Broken;
 				}

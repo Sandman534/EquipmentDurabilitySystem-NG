@@ -6,7 +6,6 @@
 // ===========================
 // Item Name Functions
 // ===========================
-#pragma region Item Name Functions
 void FoundEquipData::CreateName() {
     // Specifically create unarmed
 	if (IsUnarmed()) {
@@ -48,9 +47,9 @@ float FoundEquipData::GetItemHealthForWidget() {
         return 0.0f;
 
 	if (auto* xHealth = objectData->GetByType<RE::ExtraHealth>()) 
-        return Degredation::TruncateToDecimals(xHealth->health,3) + 0.001f;
+        return Degredation::TruncateToDecimals(xHealth->health,3);
 
-	return Degredation::kDisplayHealth;
+	return Degredation::kMaxHealth;
 }
 
 float FoundEquipData::GetItemHealthPercent() {
@@ -85,8 +84,24 @@ void FoundEquipData::SetItemHealthPercent(float value) {
         objectData->Add(extraHealth);
     }
 
+    // Set the value of health
+    extraHealth->health = Degredation::RoundToPrecision(value);
+}
+
+void FoundEquipData::SetItemHealthPercentCapped(float value) {
+	if (!objectData || IsUnarmed())
+        return;
+
+    auto* extraHealth = objectData->GetByType<RE::ExtraHealth>();
+    if (!extraHealth) {
+        extraHealth = static_cast<RE::ExtraHealth*>(
+            RE::ExtraHealth::Create(sizeof(RE::ExtraHealth), RE::VTABLE_ExtraHealth[0].address())
+        );
+        objectData->Add(extraHealth);
+    }
+
     // Make sure to cap maximum health to 1.6. (Legendary)
-    extraHealth->health = Degredation::RoundToPrecision((std::min)(value, 1.6999f));
+    extraHealth->health = Degredation::RoundToPrecision((std::min)(value, 1.6000f));
 }
 
 // ===========================
@@ -279,8 +294,7 @@ bool FoundEquipData::CanTemper() {
         return hasValidSlot &&
             armo->GetPlayable() &&
             !armo->HasKeyword(Utility::GetSingleton()->keywordClothing) &&
-            !armo->IsClothing() &&
-            armo->GetPlayable();
+            !armo->IsClothing();
 	}
 
 	return false;

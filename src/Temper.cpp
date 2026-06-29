@@ -71,12 +71,12 @@ std::string TemperManager::AsRomanNumeral(std::uint32_t a_level, [[maybe_unused]
 }
 
 const char* TemperManager::GetTemperFactor(float a_factor, bool a_isWeapon) {
-	auto objectLevel = std::floor((a_factor - 1.0f) * 10.0f);
+	auto objectLevel = (Degredation::CeilToTenths(a_factor) * 10.0f) - 10;
 
 	// If the break system is enabled, and we are below 0, return the broken name
 	if (a_factor <= Degredation::kBrokenHealth && !Settings::GetSingleton()->ED_BreakDisabled)
 		return Settings::GetSingleton()->ED_Names_Broken.c_str();
-	if (a_factor < Degredation::kDisplayHealth)
+	if (a_factor < Degredation::kMaxHealth)
 		return 0;
 
 	// Return whatever temper level we should be showing

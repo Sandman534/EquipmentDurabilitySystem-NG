@@ -8,7 +8,7 @@ void EDUI::Register() {
 	// Render Menu
     SKSEMenuFramework::SetSection("Equipment Durability NG");
 	SKSEMenuFramework::AddSectionItem("Degradation", RenderRates);
-	SKSEMenuFramework::AddSectionItem("Material Multiplier", RenderMaterial);
+	SKSEMenuFramework::AddSectionItem("Mitigation", RenderMaterial);
     SKSEMenuFramework::AddSectionItem("Dynamic Systems", RenderDynamic);
 	SKSEMenuFramework::AddSectionItem("Durability HUD", RenderHUD);
 	SKSEMenuFramework::AddSectionItem("Temper Naming", RenderTemper);
@@ -21,17 +21,23 @@ void __stdcall EDUI::RenderRates() {
 	if (CollapsingHeader("General Options", ImGuiTreeNodeFlags_DefaultOpen)) {
 		if (Checkbox("Disable Equipment Degradation", &Settings->ED_DegradationDisabled))
 			changeRateOption = true;
-		if (Checkbox("Disable Equipment Breaking", &Settings->ED_BreakDisabled))
+		if (Checkbox("Affect Player", &Settings->ED_AffectPlayer))
 			changeRateOption = true;
-		if (Checkbox("Only Affect Player", &Settings->ED_OnlyPlayer))
+		if (Checkbox("Affect Followers", &Settings->ED_AffectFollower))
+			changeRateOption = true;
+		if (Checkbox("Affect NPCs", &Settings->ED_AffectNPC))
+			changeRateOption = true;
+	}
+
+	if (CollapsingHeader("Break Options", ImGuiTreeNodeFlags_DefaultOpen)) {
+		if (Checkbox("Disable Equipment Breaking", &Settings->ED_BreakDisabled))
 			changeRateOption = true;
 		if (Checkbox("Do Not Break 'Disallowed Enchanted' Items", &Settings->ED_NoBreakNoEnchant))
 			changeRateOption = true;
 		if (Checkbox("Higher Durability Reduces Break Chance", &Settings->ED_IncreasedDurability))
 			changeRateOption = true;
-
 		Text("Break Chance Start");
-		if (SliderInt("##HleathThreshold", &Settings->ED_BreakThreshold, 0, 700))
+		if (SliderInt("##HealthThreshold", &Settings->ED_BreakThreshold, 0, 700))
 			changeRateOption = true;
 	}
 
@@ -100,15 +106,21 @@ void __stdcall EDUI::RenderMaterial() {
 	Settings* Settings = Settings::GetSingleton();
 	bool changeMaterialOption = false;
 
-	if (CollapsingHeader("General Options", ImGuiTreeNodeFlags_DefaultOpen)) {
-		if (Checkbox("Enable Material Multiplier", &Settings->ED_Material_Multiplier))
+	if (CollapsingHeader("Skill Mitigation", ImGuiTreeNodeFlags_DefaultOpen)) {
+		if (Checkbox("Skill Mitigation", &Settings->ED_Skill_Enabled))
+			changeMaterialOption = true;
+		Text("Skill Mitigation Factor");
+		if (SliderInt("##HleathThreshold", &Settings->ED_Skill_Rate, 0, 100, "%d%%"))
 			changeMaterialOption = true;
 	}
 
-	if (CollapsingHeader("Material Rates", ImGuiTreeNodeFlags_DefaultOpen)) {
+	if (CollapsingHeader("Material Mitigation", ImGuiTreeNodeFlags_DefaultOpen)) {
+		if (Checkbox("Enable Material Multiplier", &Settings->ED_Material_Multiplier))
+			changeMaterialOption = true;
+
 		if (BeginTable("##MaterialRates", 2)) {
 			TableSetupColumn("Material Name", ImGuiTableColumnFlags_WidthFixed, 150.0f);
-			TableSetupColumn("Durability Loss");
+			TableSetupColumn("Mitigation Rate");
 			TableHeadersRow();
 
 			if (EDUI::MaterialEntry("Fur", Settings->ED_Fur))
@@ -421,7 +433,8 @@ void __stdcall EDUI::RenderTemper() {
 			// Editable text field for each entry
 			SameLine();
 			SetNextItemWidth(250.0f); // width in pixels
-			CreateInputText("##Entry", Settings->CustomNames[i]);
+			if (CreateInputText("##Entry", Settings->CustomNames[i]))
+				temperChanged = true;
 
 			// Up and Down Arrows
 			SameLine();
@@ -467,7 +480,7 @@ int EDUI::GetStyleIndex(const std::string& value) {
     return 0; // Vanilla
 }
 
-bool EDUI::MaterialEntry(const char* label, float& value) {
+bool EDUI::MaterialEntry(const char* label, int& value) {
 	bool changeSlider = false;
 
 	// Set the header
@@ -478,11 +491,8 @@ bool EDUI::MaterialEntry(const char* label, float& value) {
 
 	// Set the ID and create the slider
 	std::string id = std::format("##Material_{}", label);
-	int tempValue = value * 100;
-	if (SliderInt(id.c_str(), &tempValue, 0, 200, "%d%%")) {
-		value = tempValue / 100.0f;
+	if (SliderInt(id.c_str(), &value, 0, 100, "%d%%"))
 		changeSlider = true;
-	}
 
 	return changeSlider;
 }

@@ -4,17 +4,29 @@
 namespace Degredation
 {
     // Health Boundries
-    inline constexpr float kMinHealth = 0.999f;
-    inline constexpr float kMaxHealth = 1.099f;
+    inline constexpr float kMinHealth = 0.900f;
+    inline constexpr float kMaxHealth = 1.000f;
     inline constexpr float kBrokenHealth = 0.5f;
-    inline constexpr float kDisplayHealth = 1.1f;
-    
 
+    // Max Skill Mitigation
+    constexpr float kMaxSkillMitigation = 0.40f;
+    
     // Degradation Rate Variables
     constexpr double kMinLossAt100 = 0.0015;
     constexpr double kMaxLossAt100 = 0.0040;
     constexpr double kCurve = 1.5;
     constexpr double kPrecision = 10000.0;
+
+    // Round the float value to the nearest tenth
+    inline float CeilToTenths(float value)
+    {
+        constexpr double precision = 10.0;
+        constexpr double epsilon = 0.000001;
+
+        return static_cast<float>(
+            std::ceil((static_cast<double>(value) * precision) - epsilon) / precision
+        );
+    }
 
     // Round to the desired precision
     template <class T>

@@ -23,7 +23,7 @@ namespace EDUI {
 
     // Additional Functions
 	int GetStyleIndex(const std::string& value);
-    bool MaterialEntry(const char* label, float& value);
+    bool MaterialEntry(const char* label, int& value);
     bool DegradeEntry(const char* label, int& degradeValue, int& breakValue);
     bool MultiplierEntry(const char* label, int& value1, int& value2);
     void SliderEntryMaterial(float& value, const char* id);

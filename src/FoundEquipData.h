@@ -22,6 +22,7 @@ class FoundEquipData {
 
 		// Item Setters
 		void SetItemHealthPercent(float value);
+		void SetItemHealthPercentCapped(float value);
 		void SetItemEnchantment(int level, RE::TESObjectREFR* ref);
 		
 		// Process State

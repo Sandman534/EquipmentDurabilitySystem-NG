@@ -59,7 +59,7 @@ static void TemperDecay(FoundEquipData* eqD, RE::Actor* actor, bool powerAttack)
 	
 	// --- Break Chance ---
 	if ((CurrentHealth - Degredation::kMinHealth) <= BreakThreshold) {
-		float chance = setting->GetBreakChance(eqD->baseForm);
+		float chance = setting->GetBreakChance(eqD->baseForm, actor);
 
 		// Apply modifiers
 		if (chance != 0.0 && eqD->CanBreak()) {
@@ -96,7 +96,7 @@ static void TemperDecay(FoundEquipData* eqD, RE::Actor* actor, bool powerAttack)
 	// --- Degradation ---
 	if (CurrentHealth <= Degredation::kMinHealth) return;
 
-	double degrade_rate = setting->GetDegradationRate(eqD->baseForm);
+	double degrade_rate = setting->GetDegradationRate(eqD->baseForm, actor);
 	if (degrade_rate == 0) return;
 
 	// Determine the health rate based on the defined curve
@@ -126,82 +126,6 @@ static void TemperDecay(FoundEquipData* eqD, RE::Actor* actor, bool powerAttack)
 	eqD->SetItemHealthPercent(CurrentHealth);
 }
 
-class SmithingMenuHook
-{
-public:
-    static void Install()
-    {
-        REL::Relocation<std::uintptr_t> vtbl{ RE::VTABLE_CraftingSubMenus__SmithingMenu[0] };
-        _UpdateSmithingList = vtbl.write_vfunc(0x2,UpdateSmithingList);
-    }
-
-private:
-	struct CachedHealth
-	{
-		RE::ExtraDataList* extraData;
-		float health;
-	};
-
-	static std::vector<CachedHealth> PrepareSmithingInventory()
-	{
-		std::vector<CachedHealth> cache;
-
-		auto* player = RE::PlayerCharacter::GetSingleton();
-		if (!player) {
-			return cache;
-		}
-
-		auto* invChanges = player->GetInventoryChanges();
-		if (!invChanges || !invChanges->entryList) {
-			return cache;
-		}
-
-		for (auto* entry : *invChanges->entryList) {
-			if (!entry || !entry->extraLists) continue;
-
-			for (auto* extraList : *entry->extraLists) {
-				if (!extraList) continue;
-
-				FoundEquipData eqD(entry->GetObject(), extraList);
-				float health = eqD.GetItemHealthPercent();
-
-				// Your criteria here
-				if (health > 1.0000f) {
-					cache.push_back({
-						extraList,
-						health
-					});
-
-					// Temporarily restore to Fine
-					eqD.SetItemHealthPercent(Degredation::TruncateToDecimals(health,1));
-				}
-			}
-		}
-
-		return cache;
-	}
-
-	static void RestoreSmithingInventory(const std::vector<CachedHealth>& cache)
-	{
-		for (const auto& item : cache) {
-			FoundEquipData eqD(nullptr, item.extraData);
-			eqD.SetItemHealthPercent(item.health);
-		}
-	}
-
-	static void UpdateSmithingList(RE::CraftingSubMenus::SmithingMenu* a_this)
-    {
-		// Normalize health values for tempering, then update the menu
-		auto cache = PrepareSmithingInventory();
-        _UpdateSmithingList(a_this);
-
-		// Reset any modified health values
-		RestoreSmithingInventory(cache);
-    }
-
-    static inline REL::Relocation<decltype(UpdateSmithingList)> _UpdateSmithingList;
-};
-
 // =============================================================
 // On Hit: Decay Equipment
 // =============================================================
@@ -212,10 +136,16 @@ static bool ShouldProcessActor(RE::Actor* actor) {
     auto* utility = Utility::GetSingleton();
     auto* player = utility->GetPlayer();
 
-    if (actor == player)
-        return !utility->PlayerIsBeast();
+    if (!utility->ActorIsNotBeast(actor))
+		return false;
 
-    return !settings->ED_OnlyPlayer;
+    if (actor == player)
+        return settings->ED_AffectPlayer;
+
+    if (actor->IsPlayerTeammate())
+        return settings->ED_AffectFollower;
+
+    return settings->ED_AffectNPC;
 }
 
 static bool IsValidHitSource(RE::TESForm* form) {
@@ -507,7 +437,7 @@ static void ProcessItem(FoundEquipData* equipData, RE::TESObjectREFR* ref, int a
 			chanceTemper = setting->ED_Temper_BossChance;
 
 		if (Probability::Int(chanceTemper))
-			equipData->SetItemHealthPercent(Random::Double(10001.0, 10099.0 + ((actorLevel + 10) * 100)) * 0.0001);
+			equipData->SetItemHealthPercentCapped(Random::Double(10001.0, 10099.0 + ((actorLevel + 10) * 100)) * 0.0001);
 	}
 
 	// Enchant Process
@@ -599,50 +529,6 @@ static void DynamicTemperEnchant() {
 // =============================================================
 // Break System Handler
 // =============================================================
-class ItemCraftedHandler : public RE::BSTEventSink<RE::ItemCrafted::Event> {
-public:
-	static ItemCraftedHandler* GetSingleton() {
-		static ItemCraftedHandler singleton;
-		return &singleton;
-	}
-
-	RE::BSEventNotifyControl ProcessEvent(const RE::ItemCrafted::Event* a_event, RE::BSTEventSource<RE::ItemCrafted::Event>* a_eventSource) override {
-		if (!a_event)
-			return RE::BSEventNotifyControl::kContinue;
-
-		// Get the players inventory
-		if (RE::TESForm* item = a_event->item; item) {
-			RE::PlayerCharacter* player = RE::PlayerCharacter::GetSingleton();
-			RE::InventoryChanges* invChanges = player->GetInventoryChanges(item);
-			if (!invChanges) return RE::BSEventNotifyControl::kContinue;
-			for (RE::InventoryEntryData* entry : *invChanges->entryList) {
-				if (!entry || !entry->extraLists) continue;
-
-				for (auto* dataList : *entry->extraLists) {
-					FoundEquipData eqD(entry->GetObject(), dataList);
-					eqD.refForm = entry->GetObject();
-					
-					// Set health if tempered
-					if (float health = eqD.GetItemHealthRounded()) {
-						int tenths = static_cast<int>(std::round(health * 10.0f));
-
-						if (tenths >= 11 && tenths <= 30 && std::fabs(health * 10.0f - tenths) < 1e-6f)
-							eqD.SetItemHealthPercent(health + 0.099f);
-					}		
-				}
-			}
-		}
-		return RE::BSEventNotifyControl::kContinue;
-	}
-
-	static void Register() {
-		using GetEventSource_t = RE::BSTEventSource<RE::ItemCrafted::Event>* (*)();
-		auto* eventHolder = REL::Relocation<GetEventSource_t>(RE::Offset::ItemCrafted::GetEventSource)();
-		eventHolder->AddEventSink(ItemCraftedHandler::GetSingleton());
-		logger::info("Handler Installed: Crafted Item");
-	}
-};
-
 static void EquipObject(RE::ActorEquipManager* a_manager, RE::Actor* a_actor, RE::TESBoundObject* a_object, const RE::ObjectEquipParams& a_objectEquipParams) {
 	if (a_actor && a_object && !a_objectEquipParams.forceEquip) {
 
@@ -689,15 +575,13 @@ namespace Events {
 
 	void Init(void) {
 		HitEventHandler::Register();
-		ItemCraftedHandler::Register();
-
+		
 		// Install hooks
 		auto& trampoline = SKSE::GetTrampoline();
 		_OnUpdate = trampoline.write_call<5>(On_Update_Hook.address(), OnUpdate);
 		logger::info("Hook Installed: On Update");
 		_EquipObject = trampoline.write_call<5>(EquipObject_Hook.address(), EquipObject);
 		logger::info("Hook Installed: On Equip");
-		SmithingMenuHook::Install();
-		logger::info("Hook Installed: Smithing Menu");
+
 	}
 }

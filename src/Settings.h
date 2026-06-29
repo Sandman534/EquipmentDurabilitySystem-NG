@@ -13,7 +13,11 @@ public:
 	// System Settings
 	bool ED_DegradationDisabled{ false };
 	bool ED_BreakDisabled { true };
-	bool ED_OnlyPlayer{ true };
+
+	bool ED_AffectPlayer{ true };
+	bool ED_AffectFollower{ true };
+	bool ED_AffectNPC{ true };
+
 	bool ED_NoBreakNoEnchant{ true };
 	bool ED_IncreasedDurability{ false };
 	bool ED_Material_Multiplier{ true };
@@ -56,22 +60,28 @@ public:
 	int ED_Break_NPCMulti{ 50 };
 
 	// Material Multiplier
-	float ED_Daedric{ 0.40 };
-	float ED_Dragon{ 0.44 };
-	float ED_Ebony{ 0.48 };
-	float ED_Stalhrim{ 0.52 };
-	float ED_Orcish{ 0.56 };
-	float ED_Glass{ 0.60 };
-	float ED_Dwarven{ 0.64 };
-	float ED_Chitin{ 0.68 };
-	float ED_Falmer{ 0.72 };
-	float ED_Bonemold{ 0.76 };
-	float ED_Elven{ 0.80 };
-	float ED_Silver{ 0.84 };
-	float ED_Steel{ 0.88 };
-	float ED_Iron{ 0.92 };
-	float ED_Leather{ 0.96 };
-	float ED_Fur{ 1.0 };
+	int ED_Daedric{ 60 };
+	int ED_Dragon{ 56 };
+	int ED_Ebony{ 52 };
+	int ED_Stalhrim{ 48 };
+	int ED_Orcish{ 44 };
+	int ED_Glass{ 40 };
+	int ED_Dwarven{ 36 };
+	int ED_Chitin{ 32 };
+	int ED_Falmer{ 28 };
+	int ED_Bonemold{ 24 };
+	int ED_Elven{ 20 };
+	int ED_Silver{ 16 };
+	int ED_Steel{ 12 };
+	int ED_Iron{ 8 };
+	int ED_Leather{ 4 };
+	int ED_Fur{ 0 };
+
+
+
+	// Skill Multiplier
+	bool ED_Skill_Enabled{ true };
+	int ED_Skill_Rate{ 100 };
 
 	// Dynamic Temper
 	bool ED_Temper_Enabled{ true };
@@ -111,9 +121,9 @@ public:
 	std::string ED_Names_Style{ "Vanilla" };
 	std::string ED_Names_Prefix{ " (" };
 	std::string ED_Names_Postfix{ ")" };
-	std::string ED_Names_CustomNames{ "Okay,Decent,Good,Great,Awesome,Brilliant,Masterful,Wonderful,Astonishing,Amazing,Incredible,Unbelievable,Unimaginable,Mind-Boggling,Impossible,Infinite" };
+	std::string ED_Names_CustomNames{ "Okay|Decent|Good|Great|Awesome|Brilliant|Masterful|Wonderful|Astonishing|Amazing|Incredible|Unbelievable|Unimaginable|Mind-Boggling|Impossible|Infinite" };
 
-	// Custome Names
+	// Custom Names
 	std::vector<std::string> CustomNames;
 
 	// Processing
@@ -134,14 +144,17 @@ public:
 	bool HasNoBreakForms(int formid);
 
 	// Public Functions
-	double GetDegradationRate(RE::TESForm* form);
-	double GetBreakChance(RE::TESForm* form);
+	double GetDegradationRate(RE::TESForm* forms, RE::Actor* a_actor = nullptr);
+	double GetBreakChance(RE::TESForm* form, RE::Actor* a_actor = nullptr);
 
 	static Settings* GetSingleton();
 private:
     // cannot use auto for class member declaration
 	static constexpr const wchar_t* setting_path = L"Data/SKSE/Plugins/EquipmentDurability/Settings.ini";
 	static constexpr const wchar_t* list_path = L"Data/SKSE/Plugins/EquipmentDurability/EquipmentLists.ini";
+
+	template <class Func>
+	void ForEachINIOption(Settings& settings, Func&& option);
 
 	// No Break Forms
 	std::unordered_set<int> noBreakForms;
@@ -157,27 +170,22 @@ private:
 	// Material Multipliers
 	std::unordered_map<GameData::Material, double> MaterialRates;
 	double MaterialRate(std::span<RE::BGSKeyword*> keywords);
+	RE::ActorValue GetRelevantSkill(RE::TESForm* form);
+	double SkillRate(RE::Actor* a_actor, RE::TESForm* a_form);
 
 	// Vendor Chests
 	std::unordered_set<RE::TESObjectREFR*> vendorContainers;
 	void SetVendorList();
 
 	// String Functions
-	std::vector<std::string> SplitString(const std::string& s, char delimiter);
-	std::string JoinStrings(const std::vector<std::string>& parts, char delimiter);
+	// std::vector<std::string> SplitString(const std::string& s, const std::string& delimiter = "|");
+	std::vector<std::string> SplitString(std::string_view str, std::string_view delimiter = "|");
+	std::string JoinStrings(const std::vector<std::string>& parts, const std::string& delimiter = "|");
 
-	// Get Values
-	static void get_value(CSimpleIniA& a_ini, bool& a_value, const char* a_section, const char* a_key);
-	static void get_value(CSimpleIniA& a_ini, std::string& a_value, const char* a_section, const char* a_key);
-	static void get_value(CSimpleIniA& a_ini, int& a_value, const char* a_section, const char* a_key);
-	static void get_value(CSimpleIniA& a_ini, float& a_value, const char* a_section, const char* a_key);
-	static void get_value(CSimpleIniA& a_ini, std::uint32_t& a_value, const char* a_section, const char* a_key);
+	// Value Setter/Getter
+	template <class T>
+	void set_value(CSimpleIniA& a_ini, const T& a_value, const char* a_section, const char* a_key);
 
-	// Set Values
-	static void set_value(CSimpleIniA& a_ini, bool a_value, const char* a_section, const char* a_key);
-	static void set_value(CSimpleIniA& a_ini, std::string a_value, const char* a_section, const char* a_key);
-	static void set_value(CSimpleIniA& a_ini, int a_value, const char* a_section, const char* a_key);
-	static void set_value(CSimpleIniA& a_ini, float a_value, const char* a_section, const char* a_key);
-	static void set_value(CSimpleIniA& a_ini, std::uint32_t a_value, const char* a_section, const char* a_key);
-
+	template <class T>
+	void get_value(CSimpleIniA& a_ini, T& a_value, const char* a_section, const char* a_key);
 };
