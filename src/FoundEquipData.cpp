@@ -238,7 +238,7 @@ bool FoundEquipData::IsEnchanted() {
 
 bool FoundEquipData::IsBroken() {
     if (!baseForm || !objectData) return false;
-	if (GetItemHealthPercent() < Degredation::kBrokenHealth) return true;
+	if (GetItemHealthPercent() < Degredation::kBrokenHealthThreshold) return true;
     return false;
 }
 

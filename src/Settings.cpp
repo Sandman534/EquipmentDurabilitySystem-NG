@@ -116,7 +116,12 @@ Settings* Settings::GetSingleton() {
 void Settings::LoadINI() {
 	CSimpleIniA iniSettings;
 	iniSettings.SetUnicode();
-	iniSettings.LoadFile(setting_path);
+	SI_Error iniError = iniSettings.LoadFile(setting_path);
+
+	// If not found, create it
+	if (iniError < 0 && iniError == SI_FILE) {
+		iniSettings.SaveFile(setting_path);
+	}
 
 	ForEachINIOption(*this, [this, &iniSettings](auto& value, const char* section, const char* key) {
 		get_value(iniSettings, value, section, key);

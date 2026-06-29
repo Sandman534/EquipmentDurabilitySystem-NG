@@ -42,7 +42,7 @@ static void RemoveEquipment(FoundEquipData* eqD, RE::Actor* actor) {
 		equipMgr->UnequipObject(actor, eqD->refForm, eqD->objectData, 1, nullptr, true, false, true, false, nullptr);
 
 	// Update the name and set the health value to something lower than minimum
-	eqD->SetItemHealthPercent(0.0);
+	eqD->SetItemHealthPercent(Degredation::kBrokenHealth);
 }
 
 static void TemperDecay(FoundEquipData* eqD, RE::Actor* actor, bool powerAttack) {

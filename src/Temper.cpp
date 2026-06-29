@@ -74,7 +74,7 @@ const char* TemperManager::GetTemperFactor(float a_factor, bool a_isWeapon) {
 	auto objectLevel = (Degredation::CeilToTenths(a_factor) * 10.0f) - 10;
 
 	// If the break system is enabled, and we are below 0, return the broken name
-	if (a_factor <= Degredation::kBrokenHealth && !Settings::GetSingleton()->ED_BreakDisabled)
+	if (a_factor < Degredation::kBrokenHealthThreshold && !Settings::GetSingleton()->ED_BreakDisabled)
 		return Settings::GetSingleton()->ED_Names_Broken.c_str();
 	if (a_factor < Degredation::kMaxHealth)
 		return 0;

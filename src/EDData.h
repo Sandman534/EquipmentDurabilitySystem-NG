@@ -6,7 +6,8 @@ namespace Degredation
     // Health Boundries
     inline constexpr float kMinHealth = 0.900f;
     inline constexpr float kMaxHealth = 1.000f;
-    inline constexpr float kBrokenHealth = 0.5f;
+    inline constexpr float kBrokenHealth = -1.000f;
+    inline constexpr float kBrokenHealthThreshold = 0.0f;
 
     // Max Skill Mitigation
     constexpr float kMaxSkillMitigation = 0.40f;

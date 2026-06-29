@@ -38,8 +38,8 @@ public:
 	int ED_Degrade_Clothing{ 25 };
 	int ED_Degrade_Armor{ 25 };
 	int ED_Degrade_PowerAttack{ 50 };
-	int ED_Degrade_FollowerMulti{ 50 };
-	int ED_Degrade_NPCMulti{ 50 };
+	int ED_Degrade_FollowerMulti{ 0 };
+	int ED_Degrade_NPCMulti{ 0 };
 
 	// Break Rates
 	int ED_Break_Sword{ 10 };
@@ -56,8 +56,8 @@ public:
 	int ED_Break_Clothing{ 10 };
 	int ED_Break_Armor{ 10 };
 	int ED_Break_PowerAttack{ 50 };
-	int ED_Break_FollowerMulti{ 50 };
-	int ED_Break_NPCMulti{ 50 };
+	int ED_Break_FollowerMulti{ 0 };
+	int ED_Break_NPCMulti{ 0 };
 
 	// Material Multiplier
 	int ED_Daedric{ 60 };
@@ -76,8 +76,6 @@ public:
 	int ED_Iron{ 8 };
 	int ED_Leather{ 4 };
 	int ED_Fur{ 0 };
-
-
 
 	// Skill Multiplier
 	bool ED_Skill_Enabled{ true };
