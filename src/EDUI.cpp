@@ -11,7 +11,7 @@ void EDUI::Register() {
 	SKSEMenuFramework::AddSectionItem("Mitigation", RenderMaterial);
     SKSEMenuFramework::AddSectionItem("Dynamic Systems", RenderDynamic);
 	SKSEMenuFramework::AddSectionItem("Durability HUD", RenderHUD);
-	SKSEMenuFramework::AddSectionItem("Temper Naming", RenderTemper);
+	SKSEMenuFramework::AddSectionItem("Temper Names", RenderTemper);
 }
 
 void __stdcall EDUI::RenderRates() {
