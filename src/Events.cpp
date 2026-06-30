@@ -534,7 +534,7 @@ static void EquipObject(RE::ActorEquipManager* a_manager, RE::Actor* a_actor, RE
 
 		// If it has the broken keyword, stop it from equipping
 		FoundEquipData eqD(a_object, a_objectEquipParams.extraDataList);
-		if (eqD.IsBroken()) { 
+		if (eqD.IsBroken() && !Settings::GetSingleton()->ED_BreakDisabled) { 
 			if (a_actor == Utility::GetSingleton()->GetPlayer()) {
 				auto msg = std::format("{} is broken and cannot be equipped", a_object->GetName());
 				Utility::GetSingleton()->ShowNotification(msg, false, "VOCShoutImpactDisarm");
