@@ -12,22 +12,24 @@ class FoundEquipData {
 		explicit FoundEquipData(RE::TESForm* a_Form) : baseForm(a_Form), objectData(nullptr), refForm(nullptr) {}
 		explicit FoundEquipData(RE::TESForm* a_Form, RE::ExtraDataList* a_ExtraData) : baseForm(a_Form), objectData(a_ExtraData), refForm(nullptr) {}
 
-		// Naming
+		// SetName
 		void CreateName();
 
 		// Item Getters
 		float GetItemHealthPercent();
 		float GetItemHealthForWidget();
-		float GetItemHealthRounded();
 
 		// Item Setters
 		void SetItemHealthPercent(float value);
 		void SetItemHealthPercentCapped(float value);
+
+		// Item Enchantments
 		void SetItemEnchantment(int level, RE::TESObjectREFR* ref);
-		
+		const char * GetItemName();
+
 		// Process State
-		bool HasBeenProcessed();
 		void ProcessItem();
+		bool CanProcess();
 
 		// Status Checks
 		bool IsTempered();
@@ -36,6 +38,7 @@ class FoundEquipData {
 		bool IsUnarmed();
 		bool CanBreak();
 		bool CanTemper();
+		bool CanEnchant();
 
 	private:
 		std::optional<GameData::TierInfo> GetTierForLevel(GameData::Material mat, int playerLevel);

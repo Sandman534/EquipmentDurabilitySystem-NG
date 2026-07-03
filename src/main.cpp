@@ -47,7 +47,6 @@ extern "C" DLLEXPORT bool SKSEAPI SKSEPlugin_Load(const SKSE::LoadInterface* a_s
 	 
 	SKSE::Init(a_skse);
 	SKSE::AllocTrampoline(256);
-
 	g_messaging->RegisterListener("SKSE", SKSEMessageHandler);
 
 	// Register the SKSE Menu

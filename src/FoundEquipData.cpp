@@ -18,21 +18,24 @@ void FoundEquipData::CreateName() {
         return;
 
     // Resolve the extra data to an object to pull information about it
-    RE::InventoryEntryData entry(baseForm->As<RE::TESBoundObject>(), objectData->GetCount());
-    entry.AddExtraList(objectData);
+    // RE::InventoryEntryData entry(baseForm->As<RE::TESBoundObject>(), objectData->GetCount());
+    // entry.AddExtraList(objectData);
 
 	// Get the basic name
-    objectName = entry.GetDisplayName();
+    // objectName = entry.GetDisplayName();
+    objectName = objectData->GetDisplayName(baseForm->As<RE::TESBoundObject>());
 
     // Show the poison attached the weapon
     auto settings = Settings::GetSingleton();
-    const bool shouldShowPoison =
-        baseForm->IsWeapon() &&
-        settings->ED_Widget_ShowPoisonName &&
-        objectData->HasType(RE::ExtraDataType::kPoison);
-
-    if (!shouldShowPoison)
+    if (!baseForm->IsWeapon() || !settings->ED_Widget_ShowPoisonName || !objectData->HasType(RE::ExtraDataType::kPoison))
         return;
+    // const bool shouldShowPoison =
+    //     baseForm->IsWeapon() &&
+    //     settings->ED_Widget_ShowPoisonName &&
+    //     objectData->HasType(RE::ExtraDataType::kPoison);
+
+    // if (!shouldShowPoison)
+    //     return;
 
     auto* poisonData = static_cast<RE::ExtraPoison*>(objectData->GetByType(RE::ExtraDataType::kPoison));
     if (poisonData && poisonData->poison)
@@ -58,16 +61,6 @@ float FoundEquipData::GetItemHealthPercent() {
 
     if (auto* xHealth = objectData->GetByType<RE::ExtraHealth>())
         return xHealth->health;
-
-	return Degredation::kMaxHealth;
-}
-
-float FoundEquipData::GetItemHealthRounded() {
-    if (!objectData)
-        return Degredation::kMaxHealth;
-
-	if (auto* xHealth = objectData->GetByType<RE::ExtraHealth>())
-        return Degredation::RoundToPrecision(xHealth->health);
 
 	return Degredation::kMaxHealth;
 }
@@ -199,24 +192,49 @@ void FoundEquipData::SetItemEnchantment(int playerLevel, RE::TESObjectREFR* ref)
 	}
 }
 
+const char* FoundEquipData::GetItemName() {
+    auto* xTextName = baseForm->GetName();
+    if (auto* xTextData = static_cast<RE::ExtraTextDisplayData*>(objectData->GetByType(RE::ExtraDataType::kTextDisplayData)))
+        xTextName = xTextData->displayName.c_str();
+
+    return xTextName;
+}
+
 // ===========================
 // Item Process Functions
 // ===========================
-bool FoundEquipData::HasBeenProcessed() {
-	return objectData && objectData->GetByType<RE::ExtraHealth>() != nullptr;
+bool FoundEquipData::CanProcess() {
+    if (!baseForm || !objectData || IsUnarmed()) return false;
+
+    // Already has ExtraHealth
+    if (auto* ExtraHealth = objectData->GetByType<RE::ExtraHealth>())
+        if (ExtraHealth) return false;
+
+    // Is a quest item
+    if (objectData->HasQuestObjectAlias()) return false;
+
+    // Is a Weapon
+    if (auto* weapon = baseForm->As<RE::TESObjectWEAP>()) {
+        if (weapon->IsBound() || weapon->IsStaff()) return false;
+        return true;
+    }
+
+    // Is Armor
+    if (auto* armor = baseForm->As<RE::TESObjectARMO>()) 
+        return true;
+
+    return false;
 }
 
 void FoundEquipData::ProcessItem() {
-    if (!objectData || IsUnarmed()) return;
-
-    auto* extraHealth = objectData->GetByType<RE::ExtraHealth>();
-    if (!extraHealth) {
-        extraHealth = static_cast<RE::ExtraHealth*>(
+    if (!objectData) return;
+    auto* ExtraHealth = objectData->GetByType<RE::ExtraHealth>();
+    if (!ExtraHealth) {
+        ExtraHealth = static_cast<RE::ExtraHealth*>(
             RE::ExtraHealth::Create(sizeof(RE::ExtraHealth), RE::VTABLE_ExtraHealth[0].address())
         );
-        objectData->Add(extraHealth);
+        objectData->Add(ExtraHealth);
     }
-    extraHealth->health = Degredation::RoundToPrecision(Degredation::kMaxHealth);
 }
 
 // ===========================
@@ -229,11 +247,10 @@ bool FoundEquipData::IsTempered() {
 }
 
 bool FoundEquipData::IsEnchanted() {
-	return objectData && (
-		(baseForm && baseForm->IsWeapon() && baseForm->As<RE::TESObjectWEAP>()->formEnchanting) ||
-		(baseForm && baseForm->IsArmor() && baseForm->As<RE::TESObjectARMO>()->formEnchanting) ||
-		objectData->HasType(RE::ExtraDataType::kEnchantment)
-	);
+    if (!baseForm || !objectData) return false;
+	return objectData->HasType(RE::ExtraDataType::kEnchantment) ||
+        (baseForm->IsWeapon() && baseForm->As<RE::TESObjectWEAP>()->formEnchanting) ||
+		(baseForm->IsArmor() && baseForm->As<RE::TESObjectARMO>()->formEnchanting);
 }
 
 bool FoundEquipData::IsBroken() {
@@ -243,7 +260,8 @@ bool FoundEquipData::IsBroken() {
 }
 
 bool FoundEquipData::IsUnarmed() {
-	return (baseForm && baseForm->formID == 0x0001F4);
+    if (!baseForm) return false;
+	return baseForm->formID == 0x0001F4;
 }
 
 bool FoundEquipData::CanBreak() {
@@ -274,30 +292,23 @@ bool FoundEquipData::CanBreak() {
 }
 
 bool FoundEquipData::CanTemper() {
-    //No form or unarmed
-	if (!baseForm || IsUnarmed()) return false;
+    if (!baseForm) return false;
+    return Utility::GetSingleton()->TemperableForms.contains(baseForm->formID);
+}
 
-	// Weapon processing
-	if (auto* weap = baseForm->As<RE::TESObjectWEAP>())
-		return !weap->IsStaff() && !weap->IsBound();
+bool FoundEquipData::CanEnchant() {
+    if (!baseForm) return false;
+    auto* utility = Utility::GetSingleton();
 
-	// Armor processing
-	if (auto* armo = baseForm->As<RE::TESObjectARMO>()) {
-        const bool hasValidSlot =
-            armo->HasPartOf(RE::BGSBipedObjectForm::BipedObjectSlot::kHead) ||
-            armo->HasPartOf(RE::BGSBipedObjectForm::BipedObjectSlot::kHair) ||
-            armo->HasPartOf(RE::BGSBipedObjectForm::BipedObjectSlot::kBody) ||
-            armo->HasPartOf(RE::BGSBipedObjectForm::BipedObjectSlot::kHands) ||
-            armo->HasPartOf(RE::BGSBipedObjectForm::BipedObjectSlot::kFeet) ||
-            armo->HasPartOf(RE::BGSBipedObjectForm::BipedObjectSlot::kShield);
+    // Check for Weapon
+    if (auto* weapon = baseForm->As<RE::TESObjectWEAP>())
+        return !weapon->HasKeyword(utility->keywordMagicDisallow);
 
-        return hasValidSlot &&
-            armo->GetPlayable() &&
-            !armo->HasKeyword(Utility::GetSingleton()->keywordClothing) &&
-            !armo->IsClothing();
-	}
+    // Check for Armor
+    if (auto* armor = baseForm->As<RE::TESObjectARMO>())
+        return !armor->HasKeyword(utility->keywordMagicDisallow);
 
-	return false;
+    return false;
 }
 
 // ===========================

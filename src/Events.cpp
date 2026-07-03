@@ -318,7 +318,7 @@ struct NearbyObjects {
     std::vector<RE::TESObjectREFR*> equipment; // world references that are weapons/armor
 };
 
-inline static bool IsPlayerIndoors(RE::Actor* player)
+static bool IsPlayerIndoors(RE::Actor* player)
 {
     if (!player) return false;
     auto cell = player->GetParentCell();
@@ -326,7 +326,7 @@ inline static bool IsPlayerIndoors(RE::Actor* player)
     return cell->IsInteriorCell();
 }
 
-inline static bool IsPlayerOwned(RE::Actor* player) {
+static bool IsPlayerOwned(RE::Actor* player) {
     if (!player) return false;
     auto cell = player->GetParentCell();
     if (!cell) return false;
@@ -339,7 +339,7 @@ inline static bool IsPlayerOwned(RE::Actor* player) {
 	return false;
 }
 
-inline static void ProcessReference(RE::TESObjectREFR* ref, NearbyObjects& result) {
+static void ProcessReference(RE::TESObjectREFR* ref, NearbyObjects& result) {
 	if (!ref) return;
 
     auto* base = ref->GetBaseObject();
@@ -423,37 +423,31 @@ NearbyObjects GetNearbyObjects(RE::Actor* player) {
 	return result;
 }
 
-static void ProcessItem(FoundEquipData* equipData, RE::TESObjectREFR* ref, int actorLevel, bool isVendor = false, bool isBoss = false) {
+static void TemperItem(FoundEquipData* equipData, int actorLevel, bool isVendor = false, bool isBoss = false) {
 	auto* setting = Settings::GetSingleton(); 
-	if (actorLevel == 0) return;
 
-	// Temper Process
-	if (setting->ED_Temper_Enabled && !equipData->IsTempered()) {
-		// Set the temper chance based on if we are in a boss location or if this is a vendor container
-		int chanceTemper = setting->ED_Temper_Chance;
-		if (isVendor)
-			chanceTemper = setting->ED_Temper_VendorChance;
-		else if (isBoss)
-			chanceTemper = setting->ED_Temper_BossChance;
+	// Set the temper chance based on if we are in a boss location or if this is a vendor container
+	int chanceTemper = setting->ED_Temper_Chance;
+	if (isVendor)
+		chanceTemper = setting->ED_Temper_VendorChance;
+	else if (isBoss)
+		chanceTemper = setting->ED_Temper_BossChance;
 
-		if (Probability::Int(chanceTemper))
-			equipData->SetItemHealthPercentCapped(Random::Double(10001.0, 10099.0 + ((actorLevel + 10) * 100)) * 0.0001);
-	}
+	if (Probability::Int(chanceTemper))
+		equipData->SetItemHealthPercentCapped(Random::Double(10001.0, 10099.0 + ((actorLevel + 10) * 100)) * 0.0001);
+}
 
-	// Enchant Process
-	if (setting->ED_Enchant_Enabled && !equipData->IsEnchanted()) {
-		int chanceEnchant = setting->ED_Enchant_Chance;
-		if (isVendor)
-			chanceEnchant = setting->ED_Enchant_VendorChance;
-		else if (isBoss)
-			chanceEnchant = setting->ED_Enchant_BossChance;
+static void EnchantItem(FoundEquipData* equipData, RE::TESObjectREFR* ref, int actorLevel, bool isVendor = false, bool isBoss = false) {
+	auto* setting = Settings::GetSingleton(); 
 
-		if (Probability::Int(chanceEnchant))
-			equipData->SetItemEnchantment(actorLevel, ref);
-	}
+	int chanceEnchant = setting->ED_Enchant_Chance;
+	if (isVendor)
+		chanceEnchant = setting->ED_Enchant_VendorChance;
+	else if (isBoss)
+		chanceEnchant = setting->ED_Enchant_BossChance;
 
-	if (!equipData->HasBeenProcessed())
-		equipData->ProcessItem();
+	if (Probability::Int(chanceEnchant))
+		equipData->SetItemEnchantment(actorLevel, ref);
 }
 
 static void ProcessInventory(RE::TESObjectREFR* ref) {
@@ -467,45 +461,46 @@ static void ProcessInventory(RE::TESObjectREFR* ref) {
     auto* ui = RE::UI::GetSingleton();
     if (ui && ui->IsMenuOpen(RE::BarterMenu::MENU_NAME)) return;
 
+	// Get Utility Script
+	auto* utility = Utility::GetSingleton();
+	auto* setting = Settings::GetSingleton(); 
+
+	// Get the level of the Actor or the Player
+	int level = utility->GetPlayer()->GetLevel();
+	if (RE::Actor* actor = ref->As<RE::Actor>()) {
+		if (actor->IsPlayerTeammate()) return;
+		else level = actor->GetLevel();
+	}
+
 	// Get the inventory changes, return if there are none
 	RE::InventoryChanges* invChanges = ref->GetInventoryChanges();
 	if (!invChanges || !invChanges->entryList) return;
 
-	// Get the level of the Actor or the Player
-	int level = 0;
-	if (RE::Actor* actor = ref->As<RE::Actor>()) {
-		// Don't modify a followers inventory, set the level to the NPC
-		if (actor->IsPlayerTeammate())
-			return;
-		else
-			level = actor->GetLevel();
-	} else
-		level = Utility::GetSingleton()->GetPlayer()->GetLevel();
+	// Check for Vendor Chest or Boss Lair
+    const bool isVendor = utility->ObjectIsVendor(ref);
+    const bool isBoss = utility->LocationIsBoss(ref->extraList);
 
-	// Vendor/boss check
-	RE::ExtraLocationRefType* xRefType = nullptr;
-    if (ref->extraList.HasType(RE::ExtraDataType::kLocationRefType))
-        xRefType = static_cast<RE::ExtraLocationRefType*>(ref->extraList.GetByType(RE::ExtraDataType::kLocationRefType));
-
-    const bool isVendor = (ref->GetBaseObject() && ref->GetBaseObject()->formType == RE::FormType::Container && Settings::GetSingleton()->IsVendorContainer(ref));
-    const bool isBoss = (xRefType && (xRefType->locRefType == Utility::GetSingleton()->locationBoss || xRefType->locRefType == Utility::GetSingleton()->locationBossContainer));
-
-	// Loop through all items in list
+	// Loop through all items in inventory
 	for (const auto& entry : *invChanges->entryList) {
 		if (!entry || !entry->object || !entry->extraLists) continue;
-
-		// We need to check the initial object
-		FoundEquipData equipData(entry->GetObject());
-		if (!equipData.CanTemper()) continue;
 
 		// Process Items with Extra Data
 		for (auto& entryData : *entry->extraLists) {
 			if (entryData) {
-				equipData.objectData = entryData;
-				if (!equipData.HasBeenProcessed()) {
-					ProcessItem(&equipData, ref, level, isVendor, isBoss);
-					entryData = equipData.objectData;
-				}
+				// Dont process what we've already processed
+				FoundEquipData equipData(entry->GetObject(), entryData);
+				if (!equipData.CanProcess()) continue;
+
+				// Temper the Item
+				if (setting->ED_Temper_Enabled && equipData.CanTemper() && !equipData.IsTempered())
+					TemperItem(&equipData, level, isVendor, isBoss);
+
+				// Enchant the Item
+				if (setting->ED_Enchant_Enabled && equipData.CanEnchant() && !equipData.IsEnchanted())
+					EnchantItem(&equipData, ref, level, isVendor, isBoss);
+
+				// Process the Item so we dont run this again
+				equipData.ProcessItem();
 			}
 		}
 	}

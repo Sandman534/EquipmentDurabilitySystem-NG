@@ -19,6 +19,8 @@ public:
     RE::BGSKeyword* keywordClothing;
     RE::BGSKeyword* keywordJewelry;
     RE::BGSKeyword* keywordMagicDisallow;
+    RE::BGSKeyword* keywordArmorTable;
+    RE::BGSKeyword* keywordSharpeningWheel;
 
     // Races
     RE::TESRace* raceVampireLord;
@@ -37,10 +39,20 @@ public:
     // Forms
 	RE::TESForm* Unarmed;
 
+    // Temperable Forms
+    std::unordered_set<RE::FormID> TemperableForms;
+
     // Functions
     void LoadForms();
+    void CacheTemperRecipes();
     RE::PlayerCharacter* GetPlayer();
+
+    // Form Checks
     bool ActorIsNotBeast(RE::Actor* actor);
+    bool ObjectIsVendor(RE::TESObjectREFR* RefObject);
+    bool LocationIsBoss(RE::ExtraDataList& ExtraList);
+
+    // UI Functions
     void ShowNotification(std::string msg, bool messageBox = false, const char* a_soundToPlay = 0);
     bool MenuShouldHide(RE::UI* ui);
 };

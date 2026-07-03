@@ -2,6 +2,9 @@
 
 using namespace ImGuiMCP;
 
+// ===========================
+// ImGUI Functions
+// ===========================
 namespace HelperFunctions
 {
 	inline std::uint32_t AdjustScanCodes(RE::INPUT_DEVICE a_device, uint32_t a_scan_code)
@@ -397,6 +400,7 @@ namespace GameData {
         std::string suffix;                 // Suffix name (e.g., "of Luck")
     };
 
+	// 0 - tier, 1 - Minimum Level, 2 - Max Charge
     static const std::vector<TierInfo> TierTable = {
         {1,  1,  500},
         {2,  9,  1000},

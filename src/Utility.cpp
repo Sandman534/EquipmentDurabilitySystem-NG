@@ -35,6 +35,10 @@ void Utility::LoadForms() {
     keywordJewelry = LookupForm<RE::BGSKeyword>(dataHandler, RE::FormID(0x08F95A), pluginSkyrim, "Jewelry keyword");
     keywordMagicDisallow = LookupForm<RE::BGSKeyword>(dataHandler, RE::FormID(0x0C27BD), pluginSkyrim, "Magic Disallow keyword");    
 
+    // Crafting Keywords
+    keywordArmorTable = LookupForm<RE::BGSKeyword>(dataHandler, RE::FormID(0x0ADB78), pluginSkyrim, "Armor Table keyword");
+    keywordSharpeningWheel = LookupForm<RE::BGSKeyword>(dataHandler, RE::FormID(0x088108), pluginSkyrim, "Sharpening Wheel keyword");    
+
     // Locations
     locationBoss = LookupForm<RE::BGSLocationRefType>(dataHandler, RE::FormID(0x0130F7), pluginSkyrim, "Boss location type");
     locationBossContainer = LookupForm<RE::BGSLocationRefType>(dataHandler, RE::FormID(0x0130F8), pluginSkyrim, "Boss container type");
@@ -52,7 +56,31 @@ void Utility::LoadForms() {
     // Perks
     Undeath_LichPerk = LookupForm<RE::BGSPerk>(dataHandler, RE::FormID(0x3326D5), "Undeath.esp", "Undeath Lich perk", false);
 
+    // Load Temperable Forms
+    CacheTemperRecipes();
+
     logger::info("Loaded: All Required Forms");
+}
+
+void Utility::CacheTemperRecipes() {
+    auto* dataHandler = RE::TESDataHandler::GetSingleton();
+    if (!dataHandler) return;
+    
+    // Get all constructible objects
+    const auto recipes = dataHandler->GetFormArray(RE::FormType::ConstructibleObject);
+
+    // Loop through all the recipes
+    for (auto* form : recipes) {
+        auto* recipe = form ? form->As<RE::BGSConstructibleObject>() : nullptr;
+        if (!recipe || !recipe->createdItem || !recipe->benchKeyword)
+            continue;
+
+        // If the recipe comes from the Armor Bench or the Sharpening Wheel, Track it
+        if (recipe->benchKeyword == keywordArmorTable || recipe->benchKeyword == keywordSharpeningWheel)
+            TemperableForms.insert(recipe->createdItem->formID);
+    }
+
+    logger::info("Loaded: {} Temper Objects", TemperableForms.size());
 }
 
 bool Utility::ActorIsNotBeast(RE::Actor* actor) {
@@ -62,6 +90,20 @@ bool Utility::ActorIsNotBeast(RE::Actor* actor) {
     if (Undeath_LichPerk) isLich = actor->HasPerk(Undeath_LichPerk);
 
     return actor->GetRace() != raceWerewolf && actor->GetRace() != raceVampireLord && !isLich;
+}
+
+bool Utility::ObjectIsVendor (RE::TESObjectREFR* RefObject) {
+    return RefObject->GetBaseObject() && 
+        RefObject->GetBaseObject()->formType == RE::FormType::Container && 
+        Settings::GetSingleton()->IsVendorContainer(RefObject);
+}
+
+bool Utility::LocationIsBoss (RE::ExtraDataList& ExtraList) {
+    RE::ExtraLocationRefType* xRefType = nullptr;
+    if (ExtraList.HasType(RE::ExtraDataType::kLocationRefType))
+        xRefType = static_cast<RE::ExtraLocationRefType*>(ExtraList.GetByType(RE::ExtraDataType::kLocationRefType));
+
+    return xRefType && (xRefType->locRefType == locationBoss || xRefType->locRefType == locationBossContainer);
 }
 
 void Utility::ShowNotification(std::string msg, bool messageBox, const char* a_soundToPlay) {
