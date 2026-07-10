@@ -56,6 +56,13 @@ void Utility::LoadForms() {
     // Perks
     Undeath_LichPerk = LookupForm<RE::BGSPerk>(dataHandler, RE::FormID(0x3326D5), "Undeath.esp", "Undeath Lich perk", false);
 
+    // Equip Types
+    RightHand = LookupForm<RE::BGSEquipSlot>(dataHandler, RE::FormID(0x013F42), pluginSkyrim, "Right Hand");
+    LeftHand = LookupForm<RE::BGSEquipSlot>(dataHandler, RE::FormID(0x013F43), pluginSkyrim, "Left Hand");
+    EitherHand = LookupForm<RE::BGSEquipSlot>(dataHandler, RE::FormID(0x013F44), pluginSkyrim, "Either Hand");
+    BothHands = LookupForm<RE::BGSEquipSlot>(dataHandler, RE::FormID(0x013F45), pluginSkyrim, "Both Hands");
+    
+
     // Load Temperable Forms
     CacheTemperRecipes();
 

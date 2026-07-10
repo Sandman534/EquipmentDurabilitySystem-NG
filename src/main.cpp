@@ -5,6 +5,7 @@
 #include "Utility.h"
 #include "EDUI.h"
 #include "Temper.h"
+#include "EDpapyrus.h"
 
 using namespace RE::BSScript;
 using namespace SKSE;
@@ -48,6 +49,18 @@ extern "C" DLLEXPORT bool SKSEAPI SKSEPlugin_Load(const SKSE::LoadInterface* a_s
 	SKSE::Init(a_skse);
 	SKSE::AllocTrampoline(256);
 	g_messaging->RegisterListener("SKSE", SKSEMessageHandler);
+
+    // Papyrus
+    if (SKSE::GetPapyrusInterface()->Register(EDPapyrus::Register))
+        logger::debug("Papyrus functions bound.");
+    else
+		logger::error("Failure to register Papyrus bindings.");
+
+	// Scaleform
+	// if (auto* scaleform = SKSE::GetScaleformInterface()) {
+	// 	scaleform->Register(EDPapyrus::InventoryDataCallback);
+	// 	logger::info("Registered Scaleform inventory callback");
+	// }
 
 	// Register the SKSE Menu
 	EDUI::Register();

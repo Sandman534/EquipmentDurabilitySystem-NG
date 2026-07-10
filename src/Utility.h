@@ -39,6 +39,12 @@ public:
     // Forms
 	RE::TESForm* Unarmed;
 
+    // Equip Types
+    RE::BGSEquipSlot* RightHand;
+    RE::BGSEquipSlot* LeftHand;
+    RE::BGSEquipSlot* BothHands;
+    RE::BGSEquipSlot* EitherHand;
+
     // Temperable Forms
     std::unordered_set<RE::FormID> TemperableForms;
 
