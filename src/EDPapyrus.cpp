@@ -11,11 +11,11 @@ bool EDPapyrus::Register(RE::BSScript::IVirtualMachine* vm) {
     return true;
 }
 
-void EDPapyrus::EquipGearByID(RE::StaticFunctionTag*, RE::TESForm* item, std::uint32_t itemID, std::uint32_t slotID, bool preventUnequip, bool equipSound) {
+void EDPapyrus::EquipGearByID(RE::StaticFunctionTag*, RE::TESForm* item, std::uint32_t fixedItemID, std::uint32_t slotID, bool preventUnequip, bool equipSound) {
     //=========================================================
     // Status Checks
     //=========================================================
-    if (!item || itemID == 0) return;
+    if (!item || fixedItemID == 0) return;
 
     auto* utility = Utility::GetSingleton();
     auto* actor = utility->GetPlayer();
@@ -29,8 +29,8 @@ void EDPapyrus::EquipGearByID(RE::StaticFunctionTag*, RE::TESForm* item, std::ui
     //=========================================================
     // Get the top item for the associated gear
     //=========================================================
-    GearData FoundGear = GetGearData(entryLists, item, itemID);
-    if (!FoundGear.FoundData) return;
+    GearData FoundGear = GetGearData(*entryLists, item, fixedItemID);
+    if (!FoundGear.data) return;
 
     //=========================================================
     // Process Rest of Equip
@@ -38,26 +38,22 @@ void EDPapyrus::EquipGearByID(RE::StaticFunctionTag*, RE::TESForm* item, std::ui
     RE::BGSEquipSlot * targetEquipSlot = GetEquipSlotById(slotID);
     bool isTargetSlotInUse = false;
 
-
     // Need at least 1 (maybe 2 for dual wield, checked later)
-    int itemCount = FoundGear.FoundData->GetCount();
+    int itemCount = FoundGear.data->GetCount();
     bool hasItemMinCount = itemCount > 0;
     bool canDualWield = false;
 
-    // RE::ExtraDataList* newEquipList = FoundData;
-
-    if (hasItemMinCount)
-    {
+    if (hasItemMinCount) {
         // Case 1: Type already equipped in both hands.
-        if (FoundGear.FoundData->HasType<RE::ExtraWorn>() && FoundGear.FoundData->HasType<RE::ExtraWornLeft>())
+        if (FoundGear.data->HasType<RE::ExtraWorn>() && FoundGear.data->HasType<RE::ExtraWornLeft>())
             isTargetSlotInUse = true;
 
         // Case 2: Type already equipped in right hand.
-        else if (FoundGear.FoundData->HasType<RE::ExtraWorn>())
-            isTargetSlotInUse = actor->GetEquippedObject(false) || targetEquipSlot == NULL;
+        else if (FoundGear.data->HasType<RE::ExtraWorn>())
+            isTargetSlotInUse = actor->GetEquippedObject(false) || !targetEquipSlot;
 
         // Case 3: Type already equipped in left hand.
-        else if (FoundGear.FoundData->HasType<RE::ExtraWornLeft>())
+        else if (FoundGear.data->HasType<RE::ExtraWornLeft>())
             isTargetSlotInUse = actor->GetEquippedObject(true);
 
         // Case 4: Type not equipped yet.
@@ -67,7 +63,7 @@ void EDPapyrus::EquipGearByID(RE::StaticFunctionTag*, RE::TESForm* item, std::ui
 
     if (isTargetSlotInUse || !hasItemMinCount) return;
 
-    bool isItemEquipped = FoundGear.FoundData->HasType<RE::ExtraWorn>() || FoundGear.FoundData->HasType<RE::ExtraWornLeft>();
+    bool isItemEquipped = FoundGear.data->HasType<RE::ExtraWorn>() || FoundGear.data->HasType<RE::ExtraWornLeft>();
 
     // Does this item qualify for dual wield?
     if (item->IsWeapon() && targetEquipSlot && isItemEquipped && CanEquipBothHands(actor, item))
@@ -76,45 +72,48 @@ void EDPapyrus::EquipGearByID(RE::StaticFunctionTag*, RE::TESForm* item, std::ui
     // Not enough items to dual wield, weapon has to swap hands
     if (canDualWield && itemCount < 2) {
         // If the item is WornLeft or Worn
-        if (FoundGear.FoundData->HasType<RE::ExtraWornLeft>() || FoundGear.FoundData->GetByType<RE::ExtraWorn>()) {
+        if (FoundGear.data->HasType<RE::ExtraWornLeft>() || FoundGear.data->GetByType<RE::ExtraWorn>()) {
 
 			// Unequip might destroy passed list (return value indicates that).
 	        if (auto equipMgr = RE::ActorEquipManager::GetSingleton())
-		        equipMgr->UnequipObject(actor, FoundGear.FoundItem, FoundGear.FoundData, 1, nullptr, true, false, true, false, nullptr);
+		        equipMgr->UnequipObject(actor, FoundGear.item, FoundGear.data, 1, nullptr, true, false, true, false, nullptr);
         }
     }
 
     // Equip the item
     if (auto equipMgr = RE::ActorEquipManager::GetSingleton())
-        equipMgr->EquipObject(actor, FoundGear.FoundItem, FoundGear.FoundData, 1, targetEquipSlot, true, false, equipSound, false);
-
+        equipMgr->EquipObject(actor, FoundGear.item, FoundGear.data, 1, targetEquipSlot, true, false, equipSound, false);
 }
 
-bool EDPapyrus::IsGearEquipped(RE::StaticFunctionTag*, RE::TESForm* item, std::uint32_t itemID, std::uint32_t slotID) {
+bool EDPapyrus::IsGearEquipped(RE::StaticFunctionTag*, RE::TESForm* item, std::uint32_t fixedItemID, std::uint32_t slotID) {
     //=========================================================
     // Status Checks
     //=========================================================
-    if (!item || itemID == 0) return false;
+    if (!item || fixedItemID == 0) return false;
 
+    // Get the player
     auto* utility = Utility::GetSingleton();
     auto* actor = utility->GetPlayer();
     if (!actor) return false;
 
+    // Get the players inventory
     RE::ExtraContainerChanges* containerChanges = static_cast<RE::ExtraContainerChanges*>(actor->extraList.GetByType(RE::ExtraDataType::kContainerChanges));
     if (!containerChanges) return false;
     auto* entryLists = containerChanges->changes->entryList;
     if (!entryLists) return false;
 
-    RE::TESForm* EquippedItem = GetEquippedItem(actor, slotID);
-    if (!GetEquippedItem) return false;
+    // Get the Item ID of the gear we have equipped
+    GearData FoundEquipped = GetEquippedItem(actor, slotID, fixedItemID);
+    if (!FoundEquipped.item) return false;
 
-    const char* name = EquippedItem->GetName();
-    std::uint32_t formID = EquippedItem->formID;
+    // Get the item ID of the gear we plan to equip
+    GearData FoundGear = GetGearData(*entryLists, item, fixedItemID);
+    if (!FoundGear.item) return false;
 
-    std::uint32_t EquippedItemID = HashItemID(EquippedItem->GetName(), EquippedItem->formID);
-    GearData FoundGear = GetGearData(entryLists, item, itemID);
-
-    return item->GetFormID() == EquippedItem->GetFormID() && FoundGear.FoundItemID != EquippedItemID;
+    // Are we equipping the same item?
+    return
+        FoundGear.item->formID == FoundEquipped.item->formID && 
+        FoundGear.itemID != FoundEquipped.itemID;
 }
 
 std::uint32_t EDPapyrus::FixedItemID(RE::StaticFunctionTag*, RE::TESForm * item, std::uint32_t itemID) {
@@ -122,85 +121,80 @@ std::uint32_t EDPapyrus::FixedItemID(RE::StaticFunctionTag*, RE::TESForm * item,
     auto* actor = utility->GetPlayer();
     if (!actor) return 0;
 
+    // Grab any container changes
     RE::ExtraContainerChanges* containerChanges = static_cast<RE::ExtraContainerChanges*>(actor->extraList.GetByType(RE::ExtraDataType::kContainerChanges));
     if (!containerChanges) return 0;
     auto* entryLists = containerChanges->changes->entryList;
     if (!entryLists) return 0;
 
-    // Loop through 
+    // Loop through all inventory lists
     for (auto* entry : *entryLists) {
-        if (auto* name = entry->GetDisplayName()) {
+        // Get the object name
+        auto* name = entry->GetDisplayName();
+        if (!name) continue;
 
-            // Hash the display name of the object, compare it to the incoming ID
-            std::uint32_t xItemId = HashItemID(name, entry->GetObject()->formID);
-            if (itemID == xItemId) {
-                // Set name to the base object, without temper status
-                name = entry->GetObject()->GetName();
+        // Get the object of the item
+        RE::TESBoundObject* WorkingObject = entry->GetObject();
+        if (!WorkingObject) continue;
 
-                // If the name was customized, grab that instead
-                if (auto* extraLists = entry->extraLists) {
-                    for (auto& xList : *extraLists) {
-                        if (xList && xList->HasType<RE::ExtraTextDisplayData>()) {
-                            auto* xTextData = xList->GetByType<RE::ExtraTextDisplayData>();
-                            if (xTextData->IsPlayerSet()) {
-                                std::string customName = xTextData->displayName.c_str();
-                                customName.erase(customName.begin() + xTextData->customNameLength, customName.end());
-                                name = customName.c_str();
-                            }                        
-                        }
-                    }
-                }
+        // Hash the display name and compare to the incoming ID.
+        // We want to get the item that we are currently trying to get a fixed ID for
+        std::uint32_t xItemId = HashItemID(name, WorkingObject->formID);
+        if (itemID != xItemId) continue;
 
-                // return the newly created Item ID
-                return HashItemID(name, entry->GetObject()->formID);
+        // Set name to the base object, without temper state
+        name = WorkingObject->GetName();
+
+        // If the name was customized, grab that instead without the temper state
+        if (auto* extraLists = entry->extraLists) {
+            for (auto& xList : *extraLists) {
+                name = CustomName(xList, WorkingObject->GetName());
             }
         }
+
+        // Return the newly created Item ID
+        // This is a more generalized ID that will look for the Object minus temper state
+        // If the object is named, that will be in here instead. This way we make sure we
+        // are grabbing the correct object
+        return HashItemID(name, WorkingObject->formID);
     }
 
     return 0;
 }
 
-std::uint32_t EDPapyrus::UpdatedItemID(RE::StaticFunctionTag*, RE::TESForm* item, std::uint32_t itemID) {
+std::uint32_t EDPapyrus::UpdatedItemID(RE::StaticFunctionTag*, RE::TESForm* item, std::uint32_t fixedItemID) {
     //=========================================================
     // Status Checks
     //=========================================================
-    if (!item || itemID == 0) return 0;
+    if (!item || fixedItemID == 0) return 0;
 
+    // Get the player
     auto* utility = Utility::GetSingleton();
     auto* actor = utility->GetPlayer();
     if (!actor) return 0;
 
+    // Get players inventory
     RE::ExtraContainerChanges* containerChanges = static_cast<RE::ExtraContainerChanges*>(actor->extraList.GetByType(RE::ExtraDataType::kContainerChanges));
     if (!containerChanges) return 0;
     auto* entryLists = containerChanges->changes->entryList;
     if (!entryLists) return 0;
 
-    //=========================================================
     // Get the top item for the associated gear
-    //=========================================================
-    GearData FoundGear = GetGearData(entryLists, item, itemID);
-    if (!FoundGear.FoundData) return 0;
+    GearData FoundGear = GetGearData(*entryLists, item, fixedItemID);
+    if (!FoundGear.data) return 0;
 
-    //=========================================================
     // If the count is greater than 0
-    //=========================================================
-    if (FoundGear.FoundData->GetCount() <= 0) return 0;
+    if (FoundGear.data->GetCount() <= 0) return 0;
 
-    //=========================================================
     // Generate Standard Item ID
-    //=========================================================
-    const char* name = FoundGear.FoundData->GetDisplayName(FoundGear.FoundItem);
-
-    if (!name) 
-        name = FoundGear.FoundItem->GetName();
-
-    if (name && name != "") 
-        return HashItemID(name, FoundGear.FoundItem->formID);
+    const char* name = FoundGear.data->GetDisplayName(FoundGear.item);
+    if (!name) name = FoundGear.item->GetName();
+    if (name && name != "") return HashItemID(name, FoundGear.item->formID);
 
     return 0;
 }
 
-EDPapyrus::GearData EDPapyrus::GetGearData(RE::BSSimpleList<RE::InventoryEntryData *> *entryLists, RE::TESForm* item, std::uint32_t itemID) {
+EDPapyrus::GearData EDPapyrus::GetGearData(RE::BSSimpleList<RE::InventoryEntryData*> &entryLists, RE::TESForm* item, std::uint32_t fixedItemID) {
     // If the item name is generic, we will store all matching extralists for further processing
     std::vector<RE::ExtraDataList*> FoundLists;
     RE::TESBoundObject* FoundItem;
@@ -209,36 +203,30 @@ EDPapyrus::GearData EDPapyrus::GetGearData(RE::BSSimpleList<RE::InventoryEntryDa
     // Get Associated Extra Lists
     //=========================================================
     // Loop through inventory
-    for (auto* entry : *entryLists) {
+    for (auto* entry : entryLists) {
+        // If the item is not favorited, exclude it
         if (!entry->IsFavorited()) continue;
-        if (entry->GetObject()->formID != item->formID) continue;
-
+        
+        // If the item matches
+        if (!entry->GetObject()) continue;
         FoundItem = entry->GetObject();
+        if (FoundItem->formID != item->formID) continue;
+        
         // If the name was customized, grab that instead
         if (auto* extraLists = entry->extraLists) {
             for (auto* xList : *extraLists) {
                 // Set name to the base object, without temper status
-                auto* name = entry->GetObject()->GetName();
-
-                if (xList && xList->HasType<RE::ExtraTextDisplayData>()) {
-                    auto* xTextData = xList->GetByType<RE::ExtraTextDisplayData>();
-                    if (xTextData->IsPlayerSet()) {
-                        std::string customName = xTextData->displayName.c_str();
-                        customName.erase(customName.begin() + xTextData->customNameLength, customName.end());
-                        name = customName.c_str();
-                    }
-                }
+                auto* name = CustomName(xList, FoundItem->GetName());
 
                 // If we have found a matching record, store it
-                std::uint32_t xItemId = HashItemID(name, entry->GetObject()->formID);
-                if (itemID == xItemId) FoundLists.push_back(xList);
+                std::uint32_t xItemId = HashItemID(name, FoundItem->formID);
+                if (fixedItemID == xItemId) FoundLists.push_back(xList);
             }
         }
     }
 
     // If no objects found, return nothing
-    if (FoundLists.size() <= 0)
-        return GearData { nullptr, nullptr, 0 };
+    if (FoundLists.size() <= 0) return GearData { nullptr, nullptr, 0 };
 
     //=========================================================
     // Process found ExtraLists
@@ -253,7 +241,9 @@ EDPapyrus::GearData EDPapyrus::GetGearData(RE::BSSimpleList<RE::InventoryEntryDa
         return GetObjectHealth(a) > GetObjectHealth(b);
     });
 
-    // Gathered Found List and ItemID
+    //=========================================================
+    // Generate a Standard Item ID for comparison
+    //=========================================================
     std::uint32_t FoundItemID = 0;
     auto* FoundList = FoundLists.back();
     if (FoundList && FoundList->HasType<RE::ExtraTextDisplayData>())
@@ -261,7 +251,41 @@ EDPapyrus::GearData EDPapyrus::GetGearData(RE::BSSimpleList<RE::InventoryEntryDa
     else
         FoundItemID = HashItemID(item->GetName(), FoundItem->formID);
 
+    //=========================================================
+    // Return the found data
+    //=========================================================
     return GearData { FoundItem, FoundList, FoundItemID };    
+}
+
+EDPapyrus::GearData EDPapyrus::GetEquippedItem(RE::PlayerCharacter* actor, std::uint32_t slotID, std::uint32_t fixedItemID) {
+    // Get the equipped item
+    RE::TESForm* EquippedItem = actor->GetEquippedObject(slotID);
+    RE::InventoryEntryData* EquippedEntry = actor->GetEquippedEntryData(slotID);
+    RE::BSSimpleList<RE::InventoryEntryData*> EquippedEntries;
+
+    // If right hand is null, check for a Two Handed weapon
+    if (!EquippedItem && slotID == 1) {
+        RE::TESForm* TwoHandedItem = actor->GetEquippedObject(0);
+        RE::InventoryEntryData* TwoHandedEntry = actor->GetEquippedEntryData(0);
+
+        if (TwoHandedItem) {
+            if (auto* weap = TwoHandedItem->As<RE::TESObjectWEAP>()) {
+                if (weap->IsTwoHandedAxe() || weap->IsTwoHandedSword())
+                    EquippedItem = TwoHandedItem;
+                    EquippedEntry = TwoHandedEntry;
+            }
+        }
+    }
+
+    // If no item is found, return nothing
+    if (!EquippedItem || !EquippedEntry) 
+        return GearData { nullptr, nullptr, 0 };
+
+    // Add that inventory entry to an inventory list
+    EquippedEntries.push_front(EquippedEntry);
+
+    // Return the Gear Data
+    return GetGearData(EquippedEntries, EquippedItem, fixedItemID);
 }
 
 float EDPapyrus::GetObjectHealth(RE::ExtraDataList* extralist) {
@@ -278,23 +302,18 @@ float EDPapyrus::GetObjectCharge(RE::ExtraDataList* extralist) {
     return xcharge ? xcharge->charge : static_cast<float>(xench->charge);
 }
 
-RE::TESForm* EDPapyrus::GetEquippedItem(RE::PlayerCharacter* actor, std::uint32_t slotID) {
-    // Get the equipped item
-    RE::TESForm* EquippedItem = actor->GetEquippedObject(slotID);
-
-    // If right hand is null, check for a Two Handed weapon
-    if (!EquippedItem && slotID == 1) {
-        RE::TESForm* TwoHandEquipItem = actor->GetEquippedObject(0);
-
-        if (TwoHandEquipItem) {
-            if (auto* weap = TwoHandEquipItem->As<RE::TESObjectWEAP>()) {
-                if (weap->IsTwoHandedAxe() || weap->IsTwoHandedSword())
-                    return TwoHandEquipItem;
-            }
-        }
+const char* EDPapyrus::CustomName(RE::ExtraDataList* list, const char* name) {
+    const char* NewName = name;
+    if (list && list->HasType<RE::ExtraTextDisplayData>()) {
+        auto* xTextData = list->GetByType<RE::ExtraTextDisplayData>();
+        if (xTextData->IsPlayerSet()) {
+            std::string customName = xTextData->displayName.c_str();
+            customName.erase(customName.begin() + xTextData->customNameLength, customName.end());
+            NewName = customName.c_str();
+        }                        
     }
-
-    return EquippedItem;
+    
+    return NewName;
 }
 
 RE::BGSEquipSlot* EDPapyrus::GetEquipSlotById(std::uint32_t slotID) {

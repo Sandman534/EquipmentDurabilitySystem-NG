@@ -56,12 +56,6 @@ extern "C" DLLEXPORT bool SKSEAPI SKSEPlugin_Load(const SKSE::LoadInterface* a_s
     else
 		logger::error("Failure to register Papyrus bindings.");
 
-	// Scaleform
-	// if (auto* scaleform = SKSE::GetScaleformInterface()) {
-	// 	scaleform->Register(EDPapyrus::InventoryDataCallback);
-	// 	logger::info("Registered Scaleform inventory callback");
-	// }
-
 	// Register the SKSE Menu
 	EDUI::Register();
 	logger::info("{} has finished loading.", Plugin::NAME);

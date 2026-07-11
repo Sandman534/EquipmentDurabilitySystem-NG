@@ -3,9 +3,9 @@
 
 namespace EDPapyrus {
     struct GearData {
-        RE::TESBoundObject* FoundItem;
-        RE::ExtraDataList* FoundData;
-        std::uint32_t FoundItemID;
+        RE::TESBoundObject* item;
+        RE::ExtraDataList* data;
+        std::uint32_t itemID;
     };
 
     inline constexpr auto ScriptName = "EquipmentDurability"sv;
@@ -14,16 +14,16 @@ namespace EDPapyrus {
 
     void EquipGearByID(RE::StaticFunctionTag*, RE::TESForm* item, std::uint32_t itemID, std::uint32_t slotID, bool preventUnequip, bool equipSound);
     bool IsGearEquipped(RE::StaticFunctionTag*, RE::TESForm* item, std::uint32_t itemID, std::uint32_t slotID);
-    std::uint32_t FixedItemID(RE::StaticFunctionTag*, RE::TESForm * item, std::uint32_t itemID);
+    std::uint32_t FixedItemID(RE::StaticFunctionTag*, RE::TESForm* item, std::uint32_t itemID);
     std::uint32_t UpdatedItemID(RE::StaticFunctionTag*, RE::TESForm* item, std::uint32_t itemID);
 
-    RE::TESForm* GetEquippedItem(RE::PlayerCharacter* actor, std::uint32_t slotID);
-    GearData GetGearData(RE::BSSimpleList<RE::InventoryEntryData *> *entryLists, RE::TESForm* item, std::uint32_t itemID);
+    GearData GetEquippedItem(RE::PlayerCharacter* actor, std::uint32_t slotID, std::uint32_t fixedItemID);
+    GearData GetGearData(RE::BSSimpleList<RE::InventoryEntryData *> &entryLists, RE::TESForm* item, std::uint32_t itemID);
     float GetObjectHealth(RE::ExtraDataList* extralist);
     float GetObjectCharge(RE::ExtraDataList* extralist);
     RE::BGSEquipSlot* GetEquipSlotById(std::uint32_t slotID);
-    bool CanEquipBothHands(RE::Actor* actor, RE::TESForm * item);
-
+    bool CanEquipBothHands(RE::Actor* actor, RE::TESForm* item);
+    const char* CustomName(RE::ExtraDataList* list, const char* name);
     
     std::uint32_t HashItemID(const char * name, std::uint32_t formID);
     std::uint32_t CRC32(const char* str, std::uint32_t start);
