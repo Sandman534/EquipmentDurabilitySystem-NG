@@ -216,6 +216,7 @@ void __stdcall EDUI::RenderHUD() {
 				bool is_selected = (Settings->ED_Widget_Display == i);
 				if (Selectable(displayOptions[i].c_str(), is_selected)) {
 					Settings->ED_Widget_Display = i;
+					hudChanged = true;
 					auto ui = RE::UI::GetSingleton();
 					if (!ui) return; 
 
@@ -239,13 +240,18 @@ void __stdcall EDUI::RenderHUD() {
 			TableHeadersRow();
 
 			TableNextRow();
-			TableSetColumnIndex(0); SliderInt("##Widget_XPosition", &Settings->ED_Widget_PosX, 0, 100, "%d%%");
-			TableSetColumnIndex(1); SliderInt("##Widget_YPosition", &Settings->ED_Widget_PosY, 0, 100, "%d%%");
+			TableSetColumnIndex(0); 
+			if (SliderInt("##Widget_XPosition", &Settings->ED_Widget_PosX, 0, 100, "%d%%"))
+				hudChanged = true;
+			TableSetColumnIndex(1); 
+			if (SliderInt("##Widget_YPosition", &Settings->ED_Widget_PosY, 0, 100, "%d%%"))
+				hudChanged = true;
 			
 			EndTable();
 		}
 		Text("Scale");
-		SliderInt("##Widget_Scale", &Settings->ED_Widget_Scale, 0, 200, "%d%%");
+		if (SliderInt("##Widget_Scale", &Settings->ED_Widget_Scale, 0, 200, "%d%%"))
+			hudChanged = true;
 
 		// Unbreakable and Breakable Colors
 		ImVec4 color_unbreak(

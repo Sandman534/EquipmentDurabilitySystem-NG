@@ -61,10 +61,6 @@ void Utility::LoadForms() {
     LeftHand = LookupForm<RE::BGSEquipSlot>(dataHandler, RE::FormID(0x013F43), pluginSkyrim, "Left Hand");
     EitherHand = LookupForm<RE::BGSEquipSlot>(dataHandler, RE::FormID(0x013F44), pluginSkyrim, "Either Hand");
     BothHands = LookupForm<RE::BGSEquipSlot>(dataHandler, RE::FormID(0x013F45), pluginSkyrim, "Both Hands");
-    
-
-    // Load Temperable Forms
-    CacheTemperRecipes();
 
     logger::info("Loaded: All Required Forms");
 }

@@ -17,25 +17,13 @@ void FoundEquipData::CreateName() {
 	if (!baseForm || !objectData)
         return;
 
-    // Resolve the extra data to an object to pull information about it
-    // RE::InventoryEntryData entry(baseForm->As<RE::TESBoundObject>(), objectData->GetCount());
-    // entry.AddExtraList(objectData);
-
 	// Get the basic name
-    // objectName = entry.GetDisplayName();
     objectName = objectData->GetDisplayName(baseForm->As<RE::TESBoundObject>());
 
     // Show the poison attached the weapon
     auto settings = Settings::GetSingleton();
     if (!baseForm->IsWeapon() || !settings->ED_Widget_ShowPoisonName || !objectData->HasType(RE::ExtraDataType::kPoison))
         return;
-    // const bool shouldShowPoison =
-    //     baseForm->IsWeapon() &&
-    //     settings->ED_Widget_ShowPoisonName &&
-    //     objectData->HasType(RE::ExtraDataType::kPoison);
-
-    // if (!shouldShowPoison)
-    //     return;
 
     auto* poisonData = static_cast<RE::ExtraPoison*>(objectData->GetByType(RE::ExtraDataType::kPoison));
     if (poisonData && poisonData->poison)

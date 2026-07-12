@@ -209,18 +209,21 @@ EDPapyrus::GearData EDPapyrus::GetGearData(RE::BSSimpleList<RE::InventoryEntryDa
         
         // If the item matches
         if (!entry->GetObject()) continue;
-        FoundItem = entry->GetObject();
-        if (FoundItem->formID != item->formID) continue;
+        auto *WorkingItem = entry->GetObject();
+        if (WorkingItem->formID != item->formID) continue;
         
         // If the name was customized, grab that instead
         if (auto* extraLists = entry->extraLists) {
             for (auto* xList : *extraLists) {
                 // Set name to the base object, without temper status
-                auto* name = CustomName(xList, FoundItem->GetName());
+                auto* name = CustomName(xList, WorkingItem->GetName());
 
                 // If we have found a matching record, store it
-                std::uint32_t xItemId = HashItemID(name, FoundItem->formID);
-                if (fixedItemID == xItemId) FoundLists.push_back(xList);
+                std::uint32_t xItemId = HashItemID(name, WorkingItem->formID);
+                if (fixedItemID == xItemId) {
+                    FoundItem = entry->GetObject();
+                    FoundLists.push_back(xList);
+                }
             }
         }
     }

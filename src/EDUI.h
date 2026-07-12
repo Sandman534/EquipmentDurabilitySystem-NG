@@ -10,7 +10,7 @@ namespace EDUI {
     // Static Variables
 	static bool waitKey = false;
     static std::vector<std::string> displayOptions = { "Never", "Always", "Weapon Drawn", "Hotkey" };
-	static std::vector<std::string> styleOptions = { "Vanilla", "VanillaPlus", "PlusN", "Internal", "Custom", "RomanNumeral" };
+	static std::vector<std::string> styleOptions = { "Vanilla", "VanillaPlus", "PlusN", "Internal", "Custom", "RomanNumeral", "Health" };
 
     // Render Functions
     void __stdcall RenderRates();

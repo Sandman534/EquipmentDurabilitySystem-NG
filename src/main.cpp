@@ -22,6 +22,8 @@ static void SKSEMessageHandler(SKSE::MessagingInterface::Message* message)
 		Menu::Init();
 		TemperManager::Init();
 		PlayerGraphEventHook::Install();
+		// Account for other plugins hat might add new temper recipes
+		SKSE::GetTaskInterface()->AddTask([] { Utility::GetSingleton()->CacheTemperRecipes(); });
 		break;
 	case SKSE::MessagingInterface::kPostLoadGame:
 		SKSE::GetTaskInterface()->AddTask([]() { Menu::MenuInit(); });

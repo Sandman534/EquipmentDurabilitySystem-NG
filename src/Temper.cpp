@@ -76,10 +76,19 @@ const char* TemperManager::GetTemperFactor(float a_factor, bool a_isWeapon) {
 	// If the break system is enabled, and we are below 0, return the broken name
 	if (a_factor < Degredation::kBrokenHealthThreshold && !Settings::GetSingleton()->ED_BreakDisabled)
 		return Settings::GetSingleton()->ED_Names_Broken.c_str();
+
+	// If the extra health is at or below 0, return nothing
 	if (objectLevel <= 0)
 		return 0;
 
-	// Return whatever temper level we should be showing
+	// If Object Health is the selected style, return the health
+	if (Settings::GetSingleton()->ED_Names_Style == "Health") {
+		const auto objectHealth = static_cast<std::int64_t>(max(std::round((Degredation::TruncateToDecimals(a_factor,3) - Degredation::kMinHealth) * 1000.0), 0.0));
+		thread_local std::string healthText = std::to_string(objectHealth);
+		return healthText.c_str();
+	}
+		
+	// Return every other temper style as it translates a level to a name
 	auto level = static_cast<std::uint32_t>(objectLevel);
 	auto it = _stringCache.insert(_formatterMap(level, a_isWeapon));
 	return it.first != _stringCache.end() ? it.first->c_str() : 0;
