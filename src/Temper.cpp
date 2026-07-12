@@ -82,7 +82,7 @@ const char* TemperManager::GetTemperFactor(float a_factor, bool a_isWeapon) {
 		return 0;
 
 	// If Object Health is the selected style, return the health
-	if (Settings::GetSingleton()->ED_Names_Style == "Health") {
+	if (Settings::GetSingleton()->ED_Names_Style == 6) {
 		const auto objectHealth = static_cast<std::int64_t>(max(std::round((Degredation::TruncateToDecimals(a_factor,3) - Degredation::kMinHealth) * 1000.0), 0.0));
 		thread_local std::string healthText = std::to_string(objectHealth);
 		return healthText.c_str();
@@ -221,7 +221,8 @@ TemperManager::FormatterMap::FormatterMap() : _map() {
 }
 
 std::string TemperManager::FormatterMap::operator()(std::uint32_t a_factor, bool a_isWeapon) {
-	auto it = _map.find(Settings::GetSingleton()->ED_Names_Style);
+	auto* settings = Settings::GetSingleton();
+	auto it = _map.find(settings->ED_Names_StyleOptions[settings->ED_Names_Style]);
 	if (it != _map.end())
 		return it->second(a_factor, a_isWeapon);
 	else

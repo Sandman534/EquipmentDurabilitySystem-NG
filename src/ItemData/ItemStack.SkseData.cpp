@@ -112,8 +112,6 @@ namespace I4Data::Items {
 			_data.keywords = keywordForm;
 		}
 
-		const auto player = RE::PlayerCharacter::GetSingleton();
-
 		switch (_foundEquip->baseForm->GetFormType()) {
 		case RE::FormType::Armor:
 			_data.armor.armor = _foundEquip->baseForm->As<RE::TESObjectARMO>()->armorRating;

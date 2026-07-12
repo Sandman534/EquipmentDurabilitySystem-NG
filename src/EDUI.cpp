@@ -1,102 +1,119 @@
 ﻿#include "EDUI.h"
+
 using json = nlohmann::json;
-
-void EDUI::Register() {
-    if (!SKSEMenuFramework::IsInstalled()) {
-        return;
-    }
-
-	// Render Menu
-    SKSEMenuFramework::SetSection("Equipment Durability NG");
-	SKSEMenuFramework::AddSectionItem("Degradation", RenderRates);
-	SKSEMenuFramework::AddSectionItem("Mitigation", RenderMaterial);
-    SKSEMenuFramework::AddSectionItem("Dynamic Systems", RenderDynamic);
-	SKSEMenuFramework::AddSectionItem("Durability HUD", RenderHUD);
-	SKSEMenuFramework::AddSectionItem("Temper Names", RenderTemper);
-}
 
 void EDUI::InstallTranslation() {
     std::ifstream file(translationsFolder);
-    nlohmann::json j;
-    file >> j;
+    // nlohmann::json j;
+    // file >> j;
+	if (!file.is_open())
+		logger::info("No configuration file found at {}", translationsFolder);
+
+	json data = json::parse(file);
     logger::trace("reading translation");
-    if (!j.is_object()) {
+
+
+
+	// Translation object error
+    if (!data.is_object()) {
         logger::trace("translation json: {} must be an object", translationsFolder);
     }
-    for (auto& [key, value] : j.items()) {
+
+	// Log all keys
+    for (auto& [key, value] : data.items()) {
         logger::trace("{} -> {}", key, value.dump());
         std::string v = value;
         translations[key] = strdup(v.c_str());
     }
 }
 
+const char* EDUI::Translate(std::string key) {
+    auto it = translations.find(key);
+    if (it != translations.end())
+		return it->second;
+
+	return defaultTranslation;
+}
+
+void EDUI::Register() {
+    if (!SKSEMenuFramework::IsInstalled()) return;
+
+	// Setup Display Options
+	displayOptions.push_back(Translate("HUDDisplay.Never"));
+	displayOptions.push_back(Translate("HUDDisplay.Always"));
+	displayOptions.push_back(Translate("HUDDisplay.WeaponDrawn"));
+	displayOptions.push_back(Translate("HUDDisplay.Hotkey"));
+
+	// Setup Display Names
+	styleOptions.push_back(Translate("HUDDisplay.Vanilla"));
+	styleOptions.push_back(Translate("HUDDisplay.VanillaPlus"));
+	styleOptions.push_back(Translate("HUDDisplay.PlusN"));
+	styleOptions.push_back(Translate("HUDDisplay.Internal"));
+	styleOptions.push_back(Translate("HUDDisplay.Custom"));
+	styleOptions.push_back(Translate("HUDDisplay.RomanNumeral"));
+	styleOptions.push_back(Translate("HUDDisplay.Health"));
+
+	// Render Menu
+    SKSEMenuFramework::SetSection(Translate("Settings.ModName"));
+	SKSEMenuFramework::AddSectionItem(Translate("Degradation"), RenderRates);
+	SKSEMenuFramework::AddSectionItem(Translate("Mitigation"), RenderMaterial);
+    SKSEMenuFramework::AddSectionItem(Translate("Dynamic"), RenderDynamic);
+	SKSEMenuFramework::AddSectionItem(Translate("HUD"), RenderHUD);
+	SKSEMenuFramework::AddSectionItem(Translate("Temper"), RenderTemper);
+}
 
 void __stdcall EDUI::RenderRates() {
 	Settings* Settings = Settings::GetSingleton();
 	bool changeRateOption = false;
 
-	if (CollapsingHeader("General Options", ImGuiTreeNodeFlags_DefaultOpen)) {
-		if (Checkbox("Disable Equipment Degradation", &Settings->ED_DegradationDisabled))
+	if (CollapsingHeader(Translate("Degradation.DegradationOptions"), ImGuiTreeNodeFlags_DefaultOpen)) {
+		if (Checkbox(Translate("Degradation.Disable"), &Settings->ED_DegradationDisabled))
 			changeRateOption = true;
-		if (Checkbox("Affect Player", &Settings->ED_AffectPlayer))
+		if (Checkbox(Translate("Degradation.Player"), &Settings->ED_AffectPlayer))
 			changeRateOption = true;
-		if (Checkbox("Affect Followers", &Settings->ED_AffectFollower))
+		if (Checkbox(Translate("Degradation.Follower"), &Settings->ED_AffectFollower))
 			changeRateOption = true;
-		if (Checkbox("Affect NPCs", &Settings->ED_AffectNPC))
+		if (Checkbox(Translate("Degradation.NPC"), &Settings->ED_AffectNPC))
 			changeRateOption = true;
 	}
 
-	if (CollapsingHeader("Break Options", ImGuiTreeNodeFlags_DefaultOpen)) {
-		if (Checkbox("Disable Equipment Breaking", &Settings->ED_BreakDisabled))
+	if (CollapsingHeader(Translate("Break.Options"), ImGuiTreeNodeFlags_DefaultOpen)) {
+		if (Checkbox(Translate("Break.Disable"), &Settings->ED_BreakDisabled))
 			changeRateOption = true;
-		if (Checkbox("Do Not Break 'Disallowed Enchanted' Items", &Settings->ED_NoBreakNoEnchant))
+		if (Checkbox(Translate("Break.NoEnchanted"), &Settings->ED_NoBreakNoEnchant))
 			changeRateOption = true;
-		if (Checkbox("Higher Durability Reduces Break Chance", &Settings->ED_IncreasedDurability))
+		if (Checkbox(Translate("Break.Durability"), &Settings->ED_IncreasedDurability))
 			changeRateOption = true;
-		Text("Break Chance Start");
+		Text(Translate("Break.Start"));
 		if (SliderInt("##HealthThreshold", &Settings->ED_BreakThreshold, 0, 700))
 			changeRateOption = true;
 	}
 
-	if (CollapsingHeader("Durability Rates", ImGuiTreeNodeFlags_DefaultOpen)) {
+	if (CollapsingHeader(Translate("Degradation.Durability"), ImGuiTreeNodeFlags_DefaultOpen)) {
 		if (BeginTable("##SystemRates", 3, ImGuiTableFlags_BordersV )) {
-			TableSetupColumn("Category");
-			TableSetupColumn("Degradation Rate");
-			TableSetupColumn("Break Chance");
+			TableSetupColumn(Translate("Degradation.Category"));
+			TableSetupColumn(Translate("Degradation.Rate"));
+			TableSetupColumn(Translate("Break.Chance"));
 			TableHeadersRow();
 
 			// Degradation Rates
-			if (DegradeEntry("Swords", Settings->ED_Degrade_Sword, Settings->ED_Break_Sword))
+			if (DegradeEntry(Translate("Degradation.Sword"), Settings->ED_Degrade_Sword, Settings->ED_Break_Sword))
 				changeRateOption = true;
-			if (DegradeEntry("Dagger", Settings->ED_Degrade_Dagger, Settings->ED_Break_Dagger))
+			if (DegradeEntry(Translate("Degradation.Dagger"), Settings->ED_Degrade_Dagger, Settings->ED_Break_Dagger))
 				changeRateOption = true;
-			if (DegradeEntry("War Axes", Settings->ED_Degrade_WarAxe, Settings->ED_Break_WarAxe))
+			if (DegradeEntry(Translate("Degradation.WarAxe"), Settings->ED_Degrade_WarAxe, Settings->ED_Break_WarAxe))
 				changeRateOption = true;
-			if (DegradeEntry("Maces", Settings->ED_Degrade_Mace, Settings->ED_Break_Mace))
+			if (DegradeEntry(Translate("Degradation.Mace"), Settings->ED_Degrade_Mace, Settings->ED_Break_Mace))
 				changeRateOption = true;
-			if (DegradeEntry("Great Swords", Settings->ED_Degrade_GreatSword, Settings->ED_Break_GreatSword))
+			if (DegradeEntry(Translate("Degradation.GreatSword"), Settings->ED_Degrade_GreatSword, Settings->ED_Break_GreatSword))
 				changeRateOption = true;
-			if (DegradeEntry("Hammers", Settings->ED_Degrade_Warhammer, Settings->ED_Break_Warhammer))
+			if (DegradeEntry(Translate("Degradation.Hammer"), Settings->ED_Degrade_Warhammer, Settings->ED_Break_Warhammer))
 				changeRateOption = true;
-			if (DegradeEntry("Battle Axe", Settings->ED_Degrade_BattleAxe, Settings->ED_Break_BattleAxe))
+			if (DegradeEntry(Translate("Degradation.BattleAxe"), Settings->ED_Degrade_BattleAxe, Settings->ED_Break_BattleAxe))
 				changeRateOption = true;
-			if (DegradeEntry("Bows", Settings->ED_Degrade_Bow, Settings->ED_Break_Bow))
+			if (DegradeEntry(Translate("Degradation.Bow"), Settings->ED_Degrade_Bow, Settings->ED_Break_Bow))
 				changeRateOption = true;
-			if (DegradeEntry("Crossbows", Settings->ED_Degrade_CrossBow, Settings->ED_Break_CrossBow))
-				changeRateOption = true;
-
-			TableNextRow();
-			TableSetColumnIndex(0); Text("");
-			TableSetColumnIndex(1); Text("");
-			TableSetColumnIndex(2); Text("");
-
-			if (DegradeEntry("Light Armor", Settings->ED_Degrade_LightArmor, Settings->ED_Break_LightArmor))
-				changeRateOption = true;
-			if (DegradeEntry("Heavy Armor", Settings->ED_Degrade_HeavyArmor, Settings->ED_Break_HeavyArmor))
-				changeRateOption = true;
-			if (DegradeEntry("Clothing", Settings->ED_Degrade_Clothing, Settings->ED_Break_Clothing))
-				changeRateOption = true;
-			if (DegradeEntry("Other Armor", Settings->ED_Degrade_Armor, Settings->ED_Break_Armor))
+			if (DegradeEntry(Translate("Degradation.Crossbow"), Settings->ED_Degrade_CrossBow, Settings->ED_Break_CrossBow))
 				changeRateOption = true;
 
 			TableNextRow();
@@ -104,11 +121,25 @@ void __stdcall EDUI::RenderRates() {
 			TableSetColumnIndex(1); Text("");
 			TableSetColumnIndex(2); Text("");
 
-			if (MultiplierEntry("Power Attack Multipler", Settings->ED_Degrade_PowerAttack, Settings->ED_Break_PowerAttack))
+			if (DegradeEntry(Translate("Degradation.LightArmor"), Settings->ED_Degrade_LightArmor, Settings->ED_Break_LightArmor))
 				changeRateOption = true;
-			if (MultiplierEntry("Follower Multipler", Settings->ED_Degrade_FollowerMulti, Settings->ED_Break_FollowerMulti))
+			if (DegradeEntry(Translate("Degradation.HeavyArmor"), Settings->ED_Degrade_HeavyArmor, Settings->ED_Break_HeavyArmor))
 				changeRateOption = true;
-			if (MultiplierEntry("NPC Multipler", Settings->ED_Degrade_NPCMulti, Settings->ED_Break_NPCMulti))
+			if (DegradeEntry(Translate("Degradation.Clothing"), Settings->ED_Degrade_Clothing, Settings->ED_Break_Clothing))
+				changeRateOption = true;
+			if (DegradeEntry(Translate("Degradation.OtherArmor"), Settings->ED_Degrade_Armor, Settings->ED_Break_Armor))
+				changeRateOption = true;
+
+			TableNextRow();
+			TableSetColumnIndex(0); Text("");
+			TableSetColumnIndex(1); Text("");
+			TableSetColumnIndex(2); Text("");
+
+			if (MultiplierEntry(Translate("Degradation.PowerMulti"), Settings->ED_Degrade_PowerAttack, Settings->ED_Break_PowerAttack))
+				changeRateOption = true;
+			if (MultiplierEntry(Translate("Degradation.FollowerMulti"), Settings->ED_Degrade_FollowerMulti, Settings->ED_Break_FollowerMulti))
+				changeRateOption = true;
+			if (MultiplierEntry(Translate("Degradation.NPCMulti"), Settings->ED_Degrade_NPCMulti, Settings->ED_Break_NPCMulti))
 				changeRateOption = true;
 
 			EndTable();
@@ -123,54 +154,54 @@ void __stdcall EDUI::RenderMaterial() {
 	Settings* Settings = Settings::GetSingleton();
 	bool changeMaterialOption = false;
 
-	if (CollapsingHeader("Skill Mitigation", ImGuiTreeNodeFlags_DefaultOpen)) {
-		if (Checkbox("Skill Mitigation", &Settings->ED_Skill_Enabled))
+	if (CollapsingHeader(Translate("Mitigation.Skill"), ImGuiTreeNodeFlags_DefaultOpen)) {
+		if (Checkbox(Translate("Mitigation.Enable"), &Settings->ED_Skill_Enabled))
 			changeMaterialOption = true;
-		Text("Skill Mitigation Factor");
+		Text(Translate("Mitigation.SkillFactor"));
 		if (SliderInt("##HleathThreshold", &Settings->ED_Skill_Rate, 0, 100, "%d%%"))
 			changeMaterialOption = true;
 	}
 
-	if (CollapsingHeader("Material Mitigation", ImGuiTreeNodeFlags_DefaultOpen)) {
-		if (Checkbox("Enable Material Multiplier", &Settings->ED_Material_Multiplier))
+	if (CollapsingHeader(Translate("Mitigation.Material"), ImGuiTreeNodeFlags_DefaultOpen)) {
+		if (Checkbox(Translate("Mitigation.Enable"), &Settings->ED_Material_Multiplier))
 			changeMaterialOption = true;
 
 		if (BeginTable("##MaterialRates", 2)) {
-			TableSetupColumn("Material Name", ImGuiTableColumnFlags_WidthFixed, 150.0f);
-			TableSetupColumn("Mitigation Rate");
+			TableSetupColumn(Translate("Mitigation.Name"), ImGuiTableColumnFlags_WidthFixed, 150.0f);
+			TableSetupColumn(Translate("Mitigation.Rate"));
 			TableHeadersRow();
 
-			if (EDUI::MaterialEntry("Fur", Settings->ED_Fur))
+			if (EDUI::MaterialEntry(Translate("Mitigation.Fur"), Settings->ED_Fur))
 				changeMaterialOption = true;
-			if (EDUI::MaterialEntry("Leather", Settings->ED_Leather))
+			if (EDUI::MaterialEntry(Translate("Mitigation.Leather"), Settings->ED_Leather))
 				changeMaterialOption = true;
-			if (EDUI::MaterialEntry("Iron", Settings->ED_Iron))
+			if (EDUI::MaterialEntry(Translate("Mitigation.Iron"), Settings->ED_Iron))
 				changeMaterialOption = true;
-			if (EDUI::MaterialEntry("Steel", Settings->ED_Steel))
+			if (EDUI::MaterialEntry(Translate("Mitigation.Steel"), Settings->ED_Steel))
 				changeMaterialOption = true;
-			if (EDUI::MaterialEntry("Silver", Settings->ED_Silver))
+			if (EDUI::MaterialEntry(Translate("Mitigation.Silver"), Settings->ED_Silver))
 				changeMaterialOption = true;
-			if (EDUI::MaterialEntry("Elven", Settings->ED_Elven))
+			if (EDUI::MaterialEntry(Translate("Mitigation.Elven"), Settings->ED_Elven))
 				changeMaterialOption = true;
-			if (EDUI::MaterialEntry("Bonemold", Settings->ED_Bonemold))
+			if (EDUI::MaterialEntry(Translate("Mitigation.Bonemold"), Settings->ED_Bonemold))
 				changeMaterialOption = true;
-			if (EDUI::MaterialEntry("Falmer", Settings->ED_Falmer))
+			if (EDUI::MaterialEntry(Translate("Mitigation.Falmer"), Settings->ED_Falmer))
 				changeMaterialOption = true;
-			if (EDUI::MaterialEntry("Chitin", Settings->ED_Chitin))
+			if (EDUI::MaterialEntry(Translate("Mitigation.Chitin"), Settings->ED_Chitin))
 				changeMaterialOption = true;
-			if (EDUI::MaterialEntry("Dwarven", Settings->ED_Dwarven))
+			if (EDUI::MaterialEntry(Translate("Mitigation.Dwarven"), Settings->ED_Dwarven))
 				changeMaterialOption = true;
-			if (EDUI::MaterialEntry("Glass", Settings->ED_Glass))
+			if (EDUI::MaterialEntry(Translate("Mitigation.Glass"), Settings->ED_Glass))
 				changeMaterialOption = true;
-			if (EDUI::MaterialEntry("Orcish", Settings->ED_Orcish))
+			if (EDUI::MaterialEntry(Translate("Mitigation.Orcish"), Settings->ED_Orcish))
 				changeMaterialOption = true;
-			if (EDUI::MaterialEntry("Stalhrim", Settings->ED_Stalhrim))
+			if (EDUI::MaterialEntry(Translate("Mitigation.Stalhrim"), Settings->ED_Stalhrim))
 				changeMaterialOption = true;
-			if (EDUI::MaterialEntry("Ebony", Settings->ED_Ebony))
+			if (EDUI::MaterialEntry(Translate("Mitigation.Ebony"), Settings->ED_Ebony))
 				changeMaterialOption = true;
-			if (EDUI::MaterialEntry("Dragon", Settings->ED_Dragon))
+			if (EDUI::MaterialEntry(Translate("Mitigation.Dragon"), Settings->ED_Dragon))
 				changeMaterialOption = true;
-			if (EDUI::MaterialEntry("Daedric", Settings->ED_Daedric))
+			if (EDUI::MaterialEntry(Translate("Mitigation.Daedric"), Settings->ED_Daedric))
 				changeMaterialOption = true;
 			EndTable();
 		}
@@ -184,36 +215,36 @@ void __stdcall EDUI::RenderDynamic() {
 	Settings* Settings = Settings::GetSingleton();
 	bool dynamicChanged = false;
 
-	if (CollapsingHeader("Dynamic Tempering", ImGuiTreeNodeFlags_DefaultOpen)) {
-		if (Checkbox("Tempering Enabled", &Settings->ED_Temper_Enabled))
+	if (CollapsingHeader(Translate("Dynamic.Temper"), ImGuiTreeNodeFlags_DefaultOpen)) {
+		if (Checkbox(Translate("Dynamic.TemperEnabled"), &Settings->ED_Temper_Enabled))
 			dynamicChanged = true;
 
-		Text("Base Chance");
+		Text(Translate("Dynamic.Base"));
 		if (SliderInt("##Temper_BaseChance", &Settings->ED_Temper_Chance, 0, 100, "%d%%"))
 			dynamicChanged = true;
 			
-		Text("Vendor Inventory Chance");
+		Text(Translate("Dynamic.Vendor"));
 		if (SliderInt("##Temper_VendorInventoryChance", &Settings->ED_Temper_VendorChance, 0, 100, "%d%%"))
 			dynamicChanged = true;
 
-		Text("Boss Inventory Chance");
+		Text(Translate("Dynamic.Boss"));
 		if (SliderInt("##Temper_BossInventoryChance", &Settings->ED_Temper_BossChance, 0, 100, "%d%%"))
 			dynamicChanged = true;
 	}
 
-	if (CollapsingHeader("Dynamic Enchanting", ImGuiTreeNodeFlags_DefaultOpen)) {
-		if (Checkbox("Enchanting Enabled", &Settings->ED_Enchant_Enabled))
+	if (CollapsingHeader(Translate("Dynamic.Enchant"), ImGuiTreeNodeFlags_DefaultOpen)) {
+		if (Checkbox(Translate("Dynamic.EnchantEnabled"), &Settings->ED_Enchant_Enabled))
 			dynamicChanged = true;
 
-		Text("Base Chance");
+		Text(Translate("Dynamic.Base"));
 		if (SliderInt("##Enchanting_BaseChancee", &Settings->ED_Enchant_Chance, 0, 100, "%d%%"))
 			dynamicChanged = true;
 
-		Text("Vendor Inventory Chance");
+		Text(Translate("Dynamic.Vendor"));
 		if (SliderInt("##Enchanting_VendorInventoryChance", &Settings->ED_Enchant_VendorChance, 0, 100, "%d%%"))
 			dynamicChanged = true;
 
-		Text("Boss Inventory Chance");
+		Text(Translate("Dynamic.Boss"));
 		if (SliderInt("##Enchanting_BossInventoryChance", &Settings->ED_Enchant_BossChance, 0, 100, "%d%%"))
 			dynamicChanged = true;
 	}
@@ -226,9 +257,9 @@ void __stdcall EDUI::RenderHUD() {
 	Settings* Settings = Settings::GetSingleton();
 	bool hudChanged = false;
 
-	if (CollapsingHeader("Display Settings", ImGuiTreeNodeFlags_DefaultOpen)) {
+	if (CollapsingHeader(Translate("HUD.Display"), ImGuiTreeNodeFlags_DefaultOpen)) {
 		// Display option for the Menu
-		if (BeginCombo("Displayed", displayOptions[Settings->ED_Widget_Display].c_str())) {
+		if (BeginCombo(Translate("HUD.DisplayType"), displayOptions[Settings->ED_Widget_Display].c_str())) {
 			for (int i = 0; i < displayOptions.size(); i++) {
 				bool is_selected = (Settings->ED_Widget_Display == i);
 				if (Selectable(displayOptions[i].c_str(), is_selected)) {
@@ -252,8 +283,8 @@ void __stdcall EDUI::RenderHUD() {
 
 		// X/Y Position and Scale
 		if (BeginTable("##Hud_Position", 2, ImGuiTableFlags_NoBordersInBody)) {
-			TableSetupColumn("X Position");
-			TableSetupColumn("Y Position");
+			TableSetupColumn(Translate("HUD.X"));
+			TableSetupColumn(Translate("HUD.Y"));
 			TableHeadersRow();
 
 			TableNextRow();
@@ -277,7 +308,7 @@ void __stdcall EDUI::RenderHUD() {
 			( Settings->ED_Color_Unbreakable & 0xFF) / 255.0f,        // B
 			1.0f                                                 	  // A
 		);
-		if (ColorEdit4("Unbreakable Color", &color_unbreak.x, ImGuiColorEditFlags_NoAlpha)) {
+		if (ColorEdit4(Translate("HUD.Unbreakable"), &color_unbreak.x, ImGuiColorEditFlags_NoAlpha)) {
 			Settings->ED_Color_Unbreakable = (static_cast<uint32_t>(color_unbreak.x*255) << 16) | (static_cast<uint32_t>(color_unbreak.y*255) << 8) | (static_cast<uint32_t>(color_unbreak.z*255));
 			hudChanged = true;
 		}
@@ -288,7 +319,7 @@ void __stdcall EDUI::RenderHUD() {
 			( Settings->ED_Color_Broken & 0xFF) / 255.0f,        // B
 			1.0f                                                 // A
 		);
-		if (ColorEdit4("Breakable Color", &color_break.x, ImGuiColorEditFlags_NoAlpha)) {
+		if (ColorEdit4(Translate("HUD.Breakable"), &color_break.x, ImGuiColorEditFlags_NoAlpha)) {
 			Settings->ED_Color_Broken = (static_cast<uint32_t>(color_break.x*255) << 16) | (static_cast<uint32_t>(color_break.y*255) << 8) | (static_cast<uint32_t>(color_break.z*255));
 			hudChanged = true;
 		}
@@ -300,31 +331,31 @@ void __stdcall EDUI::RenderHUD() {
 			TableHeadersRow();
 
 			TableSetColumnIndex(0); 
-			if (Checkbox("Reverse Order", &Settings->ED_Widget_Reverse))
+			if (Checkbox(Translate("HUD.Reverse"), &Settings->ED_Widget_Reverse))
 				hudChanged = true;
 			TableSetColumnIndex(1); 
-			if (Checkbox("Show Poison Name", &Settings->ED_Widget_ShowPoisonName))
+			if (Checkbox(Translate("HUD.Poison"), &Settings->ED_Widget_ShowPoisonName))
 				hudChanged = true;
 			
 			TableNextRow();
 			TableSetColumnIndex(0); 
-			if (Checkbox("Show Health", &Settings->ED_Widget_ShowHealth))
+			if (Checkbox(Translate("HUD.Health"), &Settings->ED_Widget_ShowHealth))
 				hudChanged = true;
 			TableSetColumnIndex(1);
-			if (Checkbox("Show Armor Name", &Settings->ED_Widget_ShowArmorName))
+			if (Checkbox(Translate("HUD.Armor"), &Settings->ED_Widget_ShowArmorName))
 				hudChanged = true;
 
 			TableNextRow();
 			TableSetColumnIndex(0);
-			if (Checkbox("Show Shout", &Settings->ED_Widget_ShowShout))
+			if (Checkbox(Translate("HUD.Shout"), &Settings->ED_Widget_ShowShout))
 				hudChanged = true;
 			TableSetColumnIndex(1);
-			if (Checkbox("Show Weapon Name", &Settings->ED_Widget_ShowWeaponName))
+			if (Checkbox(Translate("HUD.Weapon"), &Settings->ED_Widget_ShowWeaponName))
 				hudChanged = true;
 
 			TableNextRow();
 			TableSetColumnIndex(0);
-			if (Checkbox("Show Unarmed", &Settings->ED_Widget_ShowUnarmed))
+			if (Checkbox(Translate("HUD.Unarmed"), &Settings->ED_Widget_ShowUnarmed))
 				hudChanged = true;
 			TableSetColumnIndex(1);
 			Text("");
@@ -333,7 +364,7 @@ void __stdcall EDUI::RenderHUD() {
 		}
 
 		// Allows user to update HUD positioning
-		if (Button("Update HUD")) {
+		if (Button(Translate("HUD.Update"))) {
 			auto ui = RE::UI::GetSingleton();
 			if (!ui) return; 
 
@@ -349,13 +380,13 @@ void __stdcall EDUI::RenderHUD() {
 	}
 
 	// Hotkey Options
-	if (CollapsingHeader("Hotkey Settings", ImGuiTreeNodeFlags_DefaultOpen)) {
-		Text("HUD Hotkey");
+	if (CollapsingHeader(Translate("HUD.Hotkey"), ImGuiTreeNodeFlags_DefaultOpen)) {
+		Text(Translate("HUD.HotkeyKey"));
 		SameLine();
 		int &hotkey = Settings->ED_Widget_ToggleKeyCode;
 
 		// Show the button with current hotkey name
-		if (Button(waitKey ? "Press a key..." : GetKeyName((ImGuiKey)HelperFunctions::IDCodeToImGuiKey(hotkey)))) {
+		if (Button(waitKey ? Translate("Settings.WaitKey") : GetKeyName((ImGuiKey)HelperFunctions::IDCodeToImGuiKey(hotkey)))) {
 			waitKey = true;
 			hotkey = -1;
 		}
@@ -375,13 +406,13 @@ void __stdcall EDUI::RenderHUD() {
 		// Show a Clear Button
 		if (hotkey >= 0) {
 			SameLine();
-			if (Button("Reset")) {
+			if (Button(Translate("Settings.Reset"))) {
 				hotkey = -1;
 				hudChanged = true;
 			}
 		}
 
-		Text("  Display Duration (0 is persistent)");
+		Text(Translate("HUD.Duration"));
 		if (SliderInt("##Hotkey_Duration", &Settings->ED_Widget_ToggleDuration, 0, 30))
 			hudChanged = true;
 	}
@@ -401,14 +432,14 @@ void __stdcall EDUI::RenderTemper() {
 
 	// General Name Settings
 	Columns(2);
-	if (CollapsingHeader("Name Settings", ImGuiTreeNodeFlags_DefaultOpen)) {
+	if (CollapsingHeader(Translate("Temper.Names"), ImGuiTreeNodeFlags_DefaultOpen)) {
 		// Display option for the Menu
-		Text("Naming Style");
-		if (BeginCombo("##Naming_Style", styleOptions[GetStyleIndex(Settings->ED_Names_Style)].c_str())) {
+		Text(Translate("Temper.Style"));
+		if (BeginCombo("##Naming_Style", styleOptions[Settings->ED_Names_Style].c_str())) {
 			for (int i = 0; i < styleOptions.size(); i++) {
-				bool is_selected = (GetStyleIndex(Settings->ED_Names_Style) == i);
+				bool is_selected = (Settings->ED_Names_Style == i);
 				if (Selectable(styleOptions[i].c_str(), is_selected)) {
-					Settings->ED_Names_Style = styleOptions[i];
+					Settings->ED_Names_Style = i;
 					temperChanged = true;
 				}
 			}
@@ -417,8 +448,8 @@ void __stdcall EDUI::RenderTemper() {
 
 		// Pre and Post Entries
 		if (BeginTable("##Pre_Post", 2, ImGuiTableFlags_NoBordersInBody)) {
-			TableSetupColumn("Prefix");
-			TableSetupColumn("Postfix");
+			TableSetupColumn(Translate("Temper.Prefix"));
+			TableSetupColumn(Translate("Temper.Postfix"));
 			TableHeadersRow();
 
 			TableNextRow();
@@ -437,7 +468,7 @@ void __stdcall EDUI::RenderTemper() {
 			EndTable();
 		}
 
-		Text("Broken Text");
+		Text(Translate("Temper.Broken"));
 		if (CreateInputText("##Broken_Text", brokenText)) {
 			Settings->ED_Names_Broken = brokenText;
 			temperChanged = true;
@@ -446,12 +477,12 @@ void __stdcall EDUI::RenderTemper() {
 
 	// Custom Name List
 	NextColumn();
-	if (CollapsingHeader("Custom Names", ImGuiTreeNodeFlags_DefaultOpen)) {
+	if (CollapsingHeader(Translate("Temper.Custom"), ImGuiTreeNodeFlags_DefaultOpen)) {
 		for (int i = 0; i < Settings->CustomNames.size(); i++) {
 			PushID(i);
 
 			// Level Text
-			Text("Level %02d:", i + 1);
+			Text(Translate("Temper.Level"), i + 1);
 
 			// Editable text field for each entry
 			SameLine();
@@ -484,8 +515,8 @@ void __stdcall EDUI::RenderTemper() {
 		}
 
 		// Add new entry button at the bottom
-		if (Button("Add Entry")) {
-			Settings->CustomNames.push_back("New Entry");
+		if (Button(Translate("Temper.Add"))) {
+			Settings->CustomNames.push_back(Translate("Temper.New"));
 			temperChanged = true;
 			SetKeyboardFocusHere();
 		}

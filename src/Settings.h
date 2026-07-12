@@ -1,5 +1,4 @@
 #pragma once
-
 #include <unordered_map>
 #include <unordered_set>
 #include "SimpleIni.h"
@@ -116,10 +115,11 @@ public:
 
 	// Temper Names
 	std::string ED_Names_Broken{ "Broken" };
-	std::string ED_Names_Style{ "Vanilla" };
+	int ED_Names_Style{ 0 };
 	std::string ED_Names_Prefix{ " (" };
 	std::string ED_Names_Postfix{ ")" };
 	std::string ED_Names_CustomNames{ "Okay|Decent|Good|Great|Awesome|Brilliant|Masterful|Wonderful|Astonishing|Amazing|Incredible|Unbelievable|Unimaginable|Mind-Boggling|Impossible|Infinite" };
+	std::vector<std::string> ED_Names_StyleOptions = { "Vanilla", "VanillaPlus", "PlusN", "Internal", "Custom", "RomanNumeral", "Health" };
 
 	// Custom Names
 	std::vector<std::string> CustomNames;

@@ -189,7 +189,7 @@ std::uint32_t EDPapyrus::UpdatedItemID(RE::StaticFunctionTag*, RE::TESForm* item
     // Generate Standard Item ID
     const char* name = FoundGear.data->GetDisplayName(FoundGear.item);
     if (!name) name = FoundGear.item->GetName();
-    if (name && name != "") return HashItemID(name, FoundGear.item->formID);
+    if (name && std::string_view(name) != "") return HashItemID(name, FoundGear.item->formID);
 
     return 0;
 }

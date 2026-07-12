@@ -17,12 +17,6 @@
 // xbyak
 #include <xbyak/xbyak.h>
 
-// json
-#include <include/nlohmann/json.hpp>
-
-// SKSE Menu Framework
-#include "resources/SKSEMenuFramework.h"
-
 using namespace std::literals;
 using namespace REL::literals;
 
@@ -44,4 +38,5 @@ namespace util
 
 #include "plugin.h"
 #include "EDData.h"
+#include "SKSEMenuFramework.h"
 #include "HelperFunctions.h"

@@ -1,6 +1,7 @@
 #pragma once
 #include "Settings.h"
 #include "DurabilityMenu.h"
+#include <nlohmann/json.hpp>
 
 using namespace ImGuiMCP;
 
@@ -8,17 +9,17 @@ namespace EDUI {
     void Register();
 
     // Static Variables
-	static bool waitKey = false;
-    static std::vector<std::string> displayOptions = { "Never", "Always", "Weapon Drawn", "Hotkey" };
-	static std::vector<std::string> styleOptions = { "Vanilla", "VanillaPlus", "PlusN", "Internal", "Custom", "RomanNumeral", "Health" };
+	inline bool waitKey = false;
+    inline std::vector<std::string> displayOptions = { };
+	inline std::vector<std::string> styleOptions = { };
 
-    constexpr const char* translationsFolder = "Data/SKSE/Plugins/SKSEMenuFrameworkStrings.json";
-    const char* defaultTranslation = "missing translation";
+    inline constexpr const char* translationsFolder = "Data\\SKSE\\Plugins\\EquipmentDurability\\EquipmentTranslation.json";
+    inline const char* defaultTranslation = "missing translation";
     static inline std::map<std::string, const char*> translations;
 
     // Translations
     void InstallTranslation();
-    const const char* Translate(std::string key);
+    const char* Translate(std::string key);
 
     // Render Functions
     void __stdcall RenderRates();

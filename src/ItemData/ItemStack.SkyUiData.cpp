@@ -5,7 +5,6 @@ namespace I4Data::Items {
 	void ItemStack::SkyUiProcessEntry() const {
 		PROFILE_SCOPE;
 
-		const auto player = RE::PlayerCharacter::GetSingleton();
 		const auto value = _data.value.value;
 		using std::max;
 		const auto weight = max(0.0f, _data.weight.value);

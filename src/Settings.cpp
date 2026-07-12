@@ -105,7 +105,7 @@ void Settings::ForEachINIOption(Settings& settings, Func&& option) {
 	option(settings.ED_Widget_ShowUnarmed, "Widget", "ShowUnarmed");
 
 	// Temper Name Settings
-	option(settings.ED_Names_Style, "Temper Names", "Style");
+	option(settings.ED_Names_Style, "Temper Names", "DisplayStyle");
 }
 
 Settings* Settings::GetSingleton() {

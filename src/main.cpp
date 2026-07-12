@@ -22,6 +22,8 @@ static void SKSEMessageHandler(SKSE::MessagingInterface::Message* message)
 		Menu::Init();
 		TemperManager::Init();
 		PlayerGraphEventHook::Install();
+		EDUI::InstallTranslation();
+		EDUI::Register();
 		// Account for other plugins hat might add new temper recipes
 		SKSE::GetTaskInterface()->AddTask([] { Utility::GetSingleton()->CacheTemperRecipes(); });
 		break;
@@ -58,8 +60,6 @@ extern "C" DLLEXPORT bool SKSEAPI SKSEPlugin_Load(const SKSE::LoadInterface* a_s
     else
 		logger::error("Failure to register Papyrus bindings.");
 
-	// Register the SKSE Menu
-	EDUI::Register();
 	logger::info("{} has finished loading.", Plugin::NAME);
 	return true;
 }
