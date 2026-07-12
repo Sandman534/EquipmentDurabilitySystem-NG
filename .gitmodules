@@ -2,3 +2,15 @@
 	path = lib/commonlibsse-ng
 	url = https://github.com/alandtse/CommonLibVR.git
 	branch = ng
+[submodule "json"]
+	path = json
+	url = https://github.com/nlohmann/json.git
+[submodule "fmt"]
+	path = fmt
+	url = https://github.com/fmtlib/fmt.git
+[submodule "simpleini"]
+	path = simpleini
+	url = https://github.com/brofield/simpleini
+[submodule "xbyak"]
+	path = xbyak
+	url = https://github.com/herumi/xbyak.git
