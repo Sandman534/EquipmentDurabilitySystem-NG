@@ -14,3 +14,6 @@
 [submodule "xbyak"]
 	path = xbyak
 	url = https://github.com/herumi/xbyak.git
+[submodule "sksemenuframework"]
+	path = sksemenuframework
+	url = https://github.com/QTR-Modding/SKSE-Menu-Framework-3
