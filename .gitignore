@@ -9,9 +9,6 @@
 build/
 vs*/
 lib/
-simpleini/
-fmt/
-xbyak/
 view/
 
 # files

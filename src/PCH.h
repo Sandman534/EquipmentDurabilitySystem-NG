@@ -8,14 +8,17 @@
 #include <fstream>
 
 #ifdef NDEBUG
-#	include <spdlog/sinks/basic_file_sink.h>
+#include <spdlog/sinks/basic_file_sink.h>
 #else
-#	include <spdlog/sinks/msvc_sink.h>
+#include <spdlog/sinks/msvc_sink.h>
 #endif
 #pragma warning(pop)
 
 // xbyak
 #include <xbyak/xbyak.h>
+
+// json
+#include <include/nlohmann/json.hpp>
 
 using namespace std::literals;
 using namespace REL::literals;

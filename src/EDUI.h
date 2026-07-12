@@ -12,14 +12,20 @@ namespace EDUI {
     static std::vector<std::string> displayOptions = { "Never", "Always", "Weapon Drawn", "Hotkey" };
 	static std::vector<std::string> styleOptions = { "Vanilla", "VanillaPlus", "PlusN", "Internal", "Custom", "RomanNumeral", "Health" };
 
+    constexpr const char* translationsFolder = "Data/SKSE/Plugins/SKSEMenuFrameworkStrings.json";
+    const char* defaultTranslation = "missing translation";
+    static inline std::map<std::string, const char*> translations;
+
+    // Translations
+    void InstallTranslation();
+    const const char* Translate(std::string key);
+
     // Render Functions
     void __stdcall RenderRates();
 	void __stdcall RenderMaterial();
 	void __stdcall RenderDynamic();
 	void __stdcall RenderHUD();
     void __stdcall RenderTemper();
-
-    void __stdcall EventListener(SKSEMenuFramework::Model::EventType* eventType);
 
     // Additional Functions
 	int GetStyleIndex(const std::string& value);

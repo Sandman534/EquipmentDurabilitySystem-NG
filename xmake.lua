@@ -64,7 +64,8 @@ target('EquipmentDurabilitySystem-NG')
         '$(projectdir)/include',
         '$(projectdir)/xbyak',
         '$(projectdir)/simpleini',
-        '$(projectdir)/fmt'
+        '$(projectdir)/fmt',
+		  '$(projectdir)/json'
     )
 
     set_pcxxheader('src/pch.h')

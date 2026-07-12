@@ -1,4 +1,5 @@
 ﻿#include "EDUI.h"
+using json = nlohmann::json;
 
 void EDUI::Register() {
     if (!SKSEMenuFramework::IsInstalled()) {
@@ -13,6 +14,22 @@ void EDUI::Register() {
 	SKSEMenuFramework::AddSectionItem("Durability HUD", RenderHUD);
 	SKSEMenuFramework::AddSectionItem("Temper Names", RenderTemper);
 }
+
+void EDUI::InstallTranslation() {
+    std::ifstream file(translationsFolder);
+    nlohmann::json j;
+    file >> j;
+    logger::trace("reading translation");
+    if (!j.is_object()) {
+        logger::trace("translation json: {} must be an object", translationsFolder);
+    }
+    for (auto& [key, value] : j.items()) {
+        logger::trace("{} -> {}", key, value.dump());
+        std::string v = value;
+        translations[key] = strdup(v.c_str());
+    }
+}
+
 
 void __stdcall EDUI::RenderRates() {
 	Settings* Settings = Settings::GetSingleton();
