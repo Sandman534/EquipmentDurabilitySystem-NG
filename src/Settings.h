@@ -18,6 +18,7 @@ public:
 	bool ED_AffectNPC{ true };
 
 	bool ED_NoBreakNoEnchant{ true };
+	bool ED_RemoveEquipment{ false };
 	bool ED_IncreasedDurability{ false };
 	bool ED_Material_Multiplier{ true };
 	int ED_BreakThreshold{ 50 };

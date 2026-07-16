@@ -13,6 +13,7 @@ void Settings::ForEachINIOption(Settings& settings, Func&& option) {
 	option(settings.ED_AffectFollower, "Degradation", "AffectFollower");
 	option(settings.ED_AffectNPC, "Degradation", "AffectNPC");
 	option(settings.ED_NoBreakNoEnchant, "Degradation", "NoBreakMagicDisallowEnchanting");
+	option(settings.ED_RemoveEquipment, "Degradation", "RemoveBrokenEquipment");
 	option(settings.ED_IncreasedDurability, "Degradation", "IncreaseDurability");
 	option(settings.ED_Material_Multiplier, "Degradation", "MaterialMultiplier");
 	option(settings.ED_BreakThreshold, "Degradation", "BreakThreshold");
@@ -118,11 +119,6 @@ void Settings::LoadINI() {
 	iniSettings.SetUnicode();
 	SI_Error iniError = iniSettings.LoadFile(setting_path);
 
-	// If not found, create it
-	if (iniError < 0 && iniError == SI_FILE) {
-		iniSettings.SaveFile(setting_path);
-	}
-
 	ForEachINIOption(*this, [this, &iniSettings](auto& value, const char* section, const char* key) {
 		get_value(iniSettings, value, section, key);
 	});
@@ -167,6 +163,10 @@ void Settings::LoadINI() {
 	ProcessEnchantingForms();
 	ProcessMaterialForms();
 	SetVendorList();
+
+	// If not found, create it
+	if (iniError < 0)
+		iniSettings.SaveFile(setting_path);
 }
 
 void Settings::SaveINI() {
@@ -482,7 +482,7 @@ RE::ActorValue Settings::GetRelevantSkill(RE::TESForm* form) {
 		auto WeaponType = weap->GetWeaponType();
 
 		// Set the Value Type
-		RE::ActorValue av = RE::ActorValue::kOneHanded;
+		av = RE::ActorValue::kOneHanded;
 		if (WeaponType == RE::WEAPON_TYPE::kTwoHandSword || WeaponType == RE::WEAPON_TYPE::kTwoHandAxe)
 			av = RE::ActorValue::kTwoHanded;
 		else if (WeaponType == RE::WEAPON_TYPE::kBow || WeaponType == RE::WEAPON_TYPE::kCrossbow)
@@ -506,7 +506,7 @@ double Settings::SkillRate(RE::Actor* a_actor, RE::TESForm* a_form) {
 	if (a_value == RE::ActorValue::kNone) return 1.0f;
 
 	// Get the mitigation factor
-	float SkillRate = ED_Skill_Rate / 100.0;
+	float SkillRate = ED_Skill_Rate / 100.0f;
 	float SkillValue = a_actor->GetActorValueModifier(RE::ACTOR_VALUE_MODIFIERS::kTotal, a_value);
 	float mitigation = Degredation::kMaxSkillMitigation * SkillValue / (SkillValue + SkillRate);
 

@@ -44,12 +44,15 @@ float FoundEquipData::GetItemHealthForWidget() {
 }
 
 float FoundEquipData::GetItemHealthPercent() {
+    // If no object data, return standard health
 	if (!objectData)
         return Degredation::kMaxHealth;
 
+    // If the health of the object is 0, return standard health
     if (auto* xHealth = objectData->GetByType<RE::ExtraHealth>())
-        return xHealth->health;
+        if (xHealth->health > 0.0f) return xHealth->health;
 
+    // Otherwise always return standard health
 	return Degredation::kMaxHealth;
 }
 

@@ -26,9 +26,10 @@ static void ClearActor() {
 // =============================================================
 // Temper / Decay Functions
 // =============================================================
-static void RemoveEquipment(FoundEquipData* eqD, RE::Actor* actor) {
+static void BreakEquipment(FoundEquipData* eqD, RE::Actor* actor) {
 	if (!actor || !eqD->baseForm) return;
 	auto utility = Utility::GetSingleton();
+	auto setting = Settings::GetSingleton();
 
     // Player notification
     if (actor == utility->GetPlayer()) {
@@ -37,12 +38,18 @@ static void RemoveEquipment(FoundEquipData* eqD, RE::Actor* actor) {
         utility->ShowNotification(msg, false, "VOCShoutImpactDisarm");
     }
 
-	// Unequip and mark weapon as broken
-	if (auto equipMgr = RE::ActorEquipManager::GetSingleton())
-		equipMgr->UnequipObject(actor, eqD->refForm, eqD->objectData, 1, nullptr, true, false, true, false, nullptr);
+	// Unequip or Remove the broken weapon
+	if (setting->ED_RemoveEquipment) {
+		actor->RemoveItem(eqD->refForm, 1, RE::ITEM_REMOVE_REASON::kRemove, eqD->objectData, nullptr, 0, 0);
+	} else {
+		if (auto equipMgr = RE::ActorEquipManager::GetSingleton())
+			equipMgr->UnequipObject(actor, eqD->refForm, eqD->objectData, 1, nullptr, true, false, true, false, nullptr);
 
-	// Update the name and set the health value to something lower than minimum
-	eqD->SetItemHealthPercent(Degredation::kBrokenHealth);
+		// Update the name and set the health value to something lower than minimum
+		eqD->SetItemHealthPercent(Degredation::kBrokenHealth);
+	}
+
+	
 }
 
 static void TemperDecay(FoundEquipData* eqD, RE::Actor* actor, bool powerAttack) {
@@ -87,7 +94,7 @@ static void TemperDecay(FoundEquipData* eqD, RE::Actor* actor, bool powerAttack)
 
 			// Check to see if we break
 			if (Probability::Double(chance)) {
-				RemoveEquipment(eqD, actor);
+				BreakEquipment(eqD, actor);
 				return;
 			}
 		}
