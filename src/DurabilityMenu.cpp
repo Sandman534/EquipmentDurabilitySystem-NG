@@ -208,7 +208,7 @@ void DurabilityMenu::UpdateItemData() {
 				// Get Health Value and Color
 				if (eqD.CanTemper()) {
 					using std::max;
-					iconValue = max(std::round((eqD.GetItemHealthForWidget() - Degredation::kMinHealth) * 1000.0), 0.0);
+					iconValue = eqD.GetItemHealthForWidget();
 					if (setting->GetBreakChance(eqD.baseForm) != 0.0 && iconValue <= setting->ED_BreakThreshold && eqD.CanBreak())
 						iconCustomColor = setting->ED_Color_Broken;
 				}

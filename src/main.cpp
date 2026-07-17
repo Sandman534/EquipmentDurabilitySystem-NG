@@ -6,6 +6,7 @@
 #include "EDUI.h"
 #include "Temper.h"
 #include "EDpapyrus.h"
+#include "EDIntegration.h"
 
 using namespace RE::BSScript;
 using namespace SKSE;
@@ -53,6 +54,9 @@ extern "C" DLLEXPORT bool SKSEAPI SKSEPlugin_Load(const SKSE::LoadInterface* a_s
 	SKSE::Init(a_skse);
 	SKSE::AllocTrampoline(256);
 	g_messaging->RegisterListener("SKSE", SKSEMessageHandler);
+
+	// Register UI integration
+	UIIntegration::Register();
 
     // Papyrus
     if (SKSE::GetPapyrusInterface()->Register(EDPapyrus::Register))

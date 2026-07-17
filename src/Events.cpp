@@ -441,7 +441,7 @@ static void TemperItem(FoundEquipData* equipData, int actorLevel, bool isVendor 
 		chanceTemper = setting->ED_Temper_BossChance;
 
 	if (Probability::Int(chanceTemper))
-		equipData->SetItemHealthPercentCapped(Random::Double(10001.0, 10099.0 + ((actorLevel + 10) * 100)) * 0.0001);
+		equipData->SetItemHealthPercentCapped(Random::Double(10001.0, 10001.0 + ((actorLevel + 10) * 100)) * 0.0001);
 }
 
 static void EnchantItem(FoundEquipData* equipData, RE::TESObjectREFR* ref, int actorLevel, bool isVendor = false, bool isBoss = false) {

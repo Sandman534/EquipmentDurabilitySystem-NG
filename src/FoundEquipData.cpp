@@ -34,13 +34,8 @@ void FoundEquipData::CreateName() {
 // Item Health Functions
 // ===========================
 float FoundEquipData::GetItemHealthForWidget() {
-	if (!objectData || IsUnarmed())
-        return 0.0f;
-
-	if (auto* xHealth = objectData->GetByType<RE::ExtraHealth>()) 
-        return Degredation::TruncateToDecimals(xHealth->health,3);
-
-	return Degredation::kMaxHealth;
+    auto objectHealth = GetItemHealthPercent();
+    return max(std::round((Degredation::TruncateToDecimals(objectHealth,3) - Degredation::kMinHealth) * 1000.0), 0.0);
 }
 
 float FoundEquipData::GetItemHealthPercent() {
