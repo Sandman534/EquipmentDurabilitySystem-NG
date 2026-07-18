@@ -90,6 +90,7 @@ void Settings::ForEachINIOption(Settings& settings, Func&& option) {
 
 	// Widget
 	option(settings.ED_Widget_Display, "Widget", "DisplayType");
+	option(settings.ED_Widget_Layout, "Widget", "Layout");
 	option(settings.ED_Widget_PosX, "Widget", "PositionX");
 	option(settings.ED_Widget_PosY, "Widget", "PositionY");
 	option(settings.ED_Widget_Scale, "Widget", "Scale");

@@ -110,17 +110,18 @@ void DurabilityMenu::HideMenu() {
 void DurabilityMenu::UpdatePosition() {
 	if (uiMovie) {
 		auto* setting = Settings::GetSingleton();
-		RE::GFxValue args[8];
+		RE::GFxValue args[9];
 		args[0].SetNumber(setting->ED_Widget_PosX / 100.0);
 		args[1].SetNumber(setting->ED_Widget_PosY / 100.0);
 		args[2].SetNumber(setting->ED_Widget_Scale);
-		args[3].SetBoolean(setting->ED_Widget_Reverse);
-		args[4].SetBoolean(setting->ED_Widget_ShowShout);
-		args[5].SetBoolean(setting->ED_Widget_ShowArmorName);
-		args[6].SetBoolean(setting->ED_Widget_ShowWeaponName);
-		args[7].SetBoolean(setting->ED_Widget_ShowHealth);
+		args[3].SetNumber(setting->ED_Widget_Layout);
+		args[4].SetBoolean(setting->ED_Widget_Reverse);
+		args[5].SetBoolean(setting->ED_Widget_ShowShout);
+		args[6].SetBoolean(setting->ED_Widget_ShowArmorName);
+		args[7].SetBoolean(setting->ED_Widget_ShowWeaponName);
+		args[8].SetBoolean(setting->ED_Widget_ShowHealth);
 
-		uiMovie->Invoke("_root.widget.Setup", nullptr, args, 8);
+		uiMovie->Invoke("_root.widget.Setup", nullptr, args, 9);
 	}
 }
 

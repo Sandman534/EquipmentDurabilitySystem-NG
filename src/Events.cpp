@@ -3,6 +3,7 @@
 #include "FoundEquipData.h"
 #include "Settings.h"
 #include "Utility.h"
+#include "Translation.h"
 #include <unordered_set>
 #include <set>
 #include <array>
@@ -34,7 +35,7 @@ static void BreakEquipment(FoundEquipData* eqD, RE::Actor* actor) {
     // Player notification
     if (actor == utility->GetPlayer()) {
         eqD->CreateName();
-        auto msg = std::format("Your {} has broken", eqD->objectName);
+        auto msg = std::vformat(EDTranslation::Translate("Notification.Break"), std::make_format_args(eqD->objectName));
         utility->ShowNotification(msg, false, "VOCShoutImpactDisarm");
     }
 
@@ -538,7 +539,8 @@ static void EquipObject(RE::ActorEquipManager* a_manager, RE::Actor* a_actor, RE
 		FoundEquipData eqD(a_object, a_objectEquipParams.extraDataList);
 		if (eqD.IsBroken() && !Settings::GetSingleton()->ED_BreakDisabled) { 
 			if (a_actor == Utility::GetSingleton()->GetPlayer()) {
-				auto msg = std::format("{} is broken and cannot be equipped", a_object->GetName());
+				const char* objectName = a_object->GetName();
+				auto msg = std::vformat(EDTranslation::Translate("Notification.Broken"), std::make_format_args(objectName));
 				Utility::GetSingleton()->ShowNotification(msg, false, "VOCShoutImpactDisarm");
 			}
 			return;

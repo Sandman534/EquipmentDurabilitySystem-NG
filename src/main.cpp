@@ -5,6 +5,7 @@
 #include "Utility.h"
 #include "EDUI.h"
 #include "Temper.h"
+#include "Translation.h"
 #include "EDpapyrus.h"
 #include "EDIntegration.h"
 
@@ -23,7 +24,7 @@ static void SKSEMessageHandler(SKSE::MessagingInterface::Message* message)
 		Menu::Init();
 		TemperManager::Init();
 		PlayerGraphEventHook::Install();
-		EDUI::InstallTranslation();
+		EDTranslation::Install();
 		EDUI::Register();
 		// Account for other plugins hat might add new temper recipes
 		SKSE::GetTaskInterface()->AddTask([] { Utility::GetSingleton()->CacheTemperRecipes(); });

@@ -1,41 +1,9 @@
 ﻿#include "EDUI.h"
+#include "Translation.h"
 
-using json = nlohmann::json;
+using EDTranslation::Translate;
 
 namespace EDUI {
-	void InstallTranslation() {
-		std::ifstream file(translationsFolder);
-		// nlohmann::json j;
-		// file >> j;
-		if (!file.is_open())
-			logger::info("No configuration file found at {}", translationsFolder);
-
-		json data = json::parse(file);
-		logger::trace("reading translation");
-
-
-
-		// Translation object error
-		if (!data.is_object()) {
-			logger::trace("translation json: {} must be an object", translationsFolder);
-		}
-
-		// Log all keys
-		for (auto& [key, value] : data.items()) {
-			logger::trace("{} -> {}", key, value.dump());
-			std::string v = value;
-			translations[key] = _strdup(v.c_str());
-		}
-	}
-
-	const char* Translate(std::string key) {
-		auto it = translations.find(key);
-		if (it != translations.end())
-			return it->second;
-
-		return defaultTranslation;
-	}
-
 	void Register() {
 		if (!SKSEMenuFramework::IsInstalled()) return;
 
@@ -53,6 +21,10 @@ namespace EDUI {
 		styleOptions.push_back(Translate("HUDDisplay.Custom"));
 		styleOptions.push_back(Translate("HUDDisplay.RomanNumeral"));
 		styleOptions.push_back(Translate("HUDDisplay.Health"));
+
+		// Orientation Options
+		layoutOptions.push_back(Translate("HUDDisplay.Vertical"));
+		layoutOptions.push_back(Translate("HUDDisplay.Horizontal"));
 
 		// Render Menu
 		SKSEMenuFramework::SetSection(Translate("Settings.ModName"));
@@ -87,7 +59,7 @@ namespace EDUI {
 				changeRateOption = true;
 			if (Checkbox(Translate("Break.Durability"), &Settings->ED_IncreasedDurability))
 				changeRateOption = true;
-			Text(Translate("Break.Start"));
+			ShowHeaderText(Translate("Break.Start"));
 			if (SliderInt("##HealthThreshold", &Settings->ED_BreakThreshold, 0, 700))
 				changeRateOption = true;
 		}
@@ -160,7 +132,7 @@ namespace EDUI {
 		if (CollapsingHeader(Translate("Mitigation.Skill"), ImGuiTreeNodeFlags_DefaultOpen)) {
 			if (Checkbox(Translate("Mitigation.SkillEnable"), &Settings->ED_Skill_Enabled))
 				changeMaterialOption = true;
-			Text(Translate("Mitigation.SkillFactor"));
+			ShowHeaderText(Translate("Mitigation.SkillFactor"));
 			if (SliderInt("##HleathThreshold", &Settings->ED_Skill_Rate, 0, 100, "%d%%"))
 				changeMaterialOption = true;
 		}
@@ -222,15 +194,15 @@ namespace EDUI {
 			if (Checkbox(Translate("Dynamic.TemperEnabled"), &Settings->ED_Temper_Enabled))
 				dynamicChanged = true;
 
-			Text(Translate("Dynamic.Base"));
+			ShowHeaderText(Translate("Dynamic.Base"));
 			if (SliderInt("##Temper_BaseChance", &Settings->ED_Temper_Chance, 0, 100, "%d%%"))
 				dynamicChanged = true;
 				
-			Text(Translate("Dynamic.Vendor"));
+			ShowHeaderText(Translate("Dynamic.Vendor"));
 			if (SliderInt("##Temper_VendorInventoryChance", &Settings->ED_Temper_VendorChance, 0, 100, "%d%%"))
 				dynamicChanged = true;
 
-			Text(Translate("Dynamic.Boss"));
+			ShowHeaderText(Translate("Dynamic.Boss"));
 			if (SliderInt("##Temper_BossInventoryChance", &Settings->ED_Temper_BossChance, 0, 100, "%d%%"))
 				dynamicChanged = true;
 		}
@@ -239,15 +211,15 @@ namespace EDUI {
 			if (Checkbox(Translate("Dynamic.EnchantEnabled"), &Settings->ED_Enchant_Enabled))
 				dynamicChanged = true;
 
-			Text(Translate("Dynamic.Base"));
+			ShowHeaderText(Translate("Dynamic.Base"));
 			if (SliderInt("##Enchanting_BaseChancee", &Settings->ED_Enchant_Chance, 0, 100, "%d%%"))
 				dynamicChanged = true;
 
-			Text(Translate("Dynamic.Vendor"));
+			ShowHeaderText(Translate("Dynamic.Vendor"));
 			if (SliderInt("##Enchanting_VendorInventoryChance", &Settings->ED_Enchant_VendorChance, 0, 100, "%d%%"))
 				dynamicChanged = true;
 
-			Text(Translate("Dynamic.Boss"));
+			ShowHeaderText(Translate("Dynamic.Boss"));
 			if (SliderInt("##Enchanting_BossInventoryChance", &Settings->ED_Enchant_BossChance, 0, 100, "%d%%"))
 				dynamicChanged = true;
 		}
@@ -262,23 +234,32 @@ namespace EDUI {
 
 		if (CollapsingHeader(Translate("HUD.Display"), ImGuiTreeNodeFlags_DefaultOpen)) {
 			// Display option for the Menu
-			if (BeginCombo(Translate("HUD.DisplayType"), displayOptions[Settings->ED_Widget_Display].c_str())) {
+			ShowHeaderText(Translate("HUD.DisplayType"));
+			if (BeginCombo("##HUDDisplayType", displayOptions[Settings->ED_Widget_Display].c_str())) {
 				for (int i = 0; i < displayOptions.size(); i++) {
 					bool is_selected = (Settings->ED_Widget_Display == i);
 					if (Selectable(displayOptions[i].c_str(), is_selected)) {
 						Settings->ED_Widget_Display = i;
 						hudChanged = true;
-						auto ui = RE::UI::GetSingleton();
-						if (!ui) return; 
 
-						auto menuBase = ui->GetMenu("DurabilityMenu");
-						if (!menuBase) return;
+						// Update the state of the menu
+						if (auto* ui = RE::UI::GetSingleton())
+						if (auto menuBase = ui->GetMenu("DurabilityMenu"))
+						if (auto durabilityMenu = static_cast<DurabilityMenu*>(menuBase.get()))
+							durabilityMenu->MenuState();
+					}
+				}
+				EndCombo();
+			}
 
-						auto durabilityMenu = static_cast<DurabilityMenu*>(menuBase.get());
-						if (!durabilityMenu) return;
-
-						// Call your function
-						durabilityMenu->MenuState();
+			// Vertical or Horizontal Layout
+			ShowHeaderText(Translate("HUD.Layout"));
+			if (BeginCombo("##HUDLayout", layoutOptions[Settings->ED_Widget_Layout].c_str())) {
+				for (int i = 0; i < layoutOptions.size(); i++) {
+					bool is_selected = (Settings->ED_Widget_Layout == i);
+					if (Selectable(layoutOptions[i].c_str(), is_selected)) {
+						Settings->ED_Widget_Layout = i;
+						hudChanged = UpdateMenu(true);
 					}
 				}
 				EndCombo();
@@ -286,34 +267,38 @@ namespace EDUI {
 
 			// X/Y Position and Scale
 			if (BeginTable("##Hud_Position", 2, ImGuiTableFlags_NoBordersInBody)) {
-				TableSetupColumn(Translate("HUD.X"));
-				TableSetupColumn(Translate("HUD.Y"));
+				ShowHeaderColumn(Translate("HUD.X"));
+				ShowHeaderColumn(Translate("HUD.Y"));
 				TableHeadersRow();
 
 				TableNextRow();
 				TableSetColumnIndex(0); 
 				if (SliderInt("##Widget_XPosition", &Settings->ED_Widget_PosX, 0, 100, "%d%%"))
-					hudChanged = true;
+					hudChanged = UpdateMenu(true);
 				TableSetColumnIndex(1); 
 				if (SliderInt("##Widget_YPosition", &Settings->ED_Widget_PosY, 0, 100, "%d%%"))
-					hudChanged = true;
+					hudChanged = UpdateMenu(true);
 				
 				EndTable();
 			}
-			Text("Scale");
+			ShowHeaderText(Translate("HUD.Scale"));
 			if (SliderInt("##Widget_Scale", &Settings->ED_Widget_Scale, 0, 200, "%d%%"))
-				hudChanged = true;
+				hudChanged = UpdateMenu(true);
+		}
 
+		if (CollapsingHeader(Translate("HUD.Color"), ImGuiTreeNodeFlags_DefaultOpen)) {
 			// Unbreakable and Breakable Colors
+			
 			ImVec4 color_unbreak(
 				((Settings->ED_Color_Unbreakable >> 16) & 0xFF) / 255.0f, // R
 				((Settings->ED_Color_Unbreakable >> 8) & 0xFF) / 255.0f,  // G
 				( Settings->ED_Color_Unbreakable & 0xFF) / 255.0f,        // B
 				1.0f                                                 	  // A
 			);
-			if (ColorEdit4(Translate("HUD.Unbreakable"), &color_unbreak.x, ImGuiColorEditFlags_NoAlpha)) {
+			ShowHeaderText(Translate("HUD.Unbreakable"));
+			if (ColorEdit4("##unbreakable_color", &color_unbreak.x, ImGuiColorEditFlags_NoAlpha)) {
 				Settings->ED_Color_Unbreakable = (static_cast<uint32_t>(color_unbreak.x*255) << 16) | (static_cast<uint32_t>(color_unbreak.y*255) << 8) | (static_cast<uint32_t>(color_unbreak.z*255));
-				hudChanged = true;
+				hudChanged = UpdateMenu(true);
 			}
 
 			ImVec4 color_break(
@@ -322,11 +307,14 @@ namespace EDUI {
 				( Settings->ED_Color_Broken & 0xFF) / 255.0f,        // B
 				1.0f                                                 // A
 			);
-			if (ColorEdit4(Translate("HUD.Breakable"), &color_break.x, ImGuiColorEditFlags_NoAlpha)) {
+			ShowHeaderText(Translate("HUD.Breakable"));
+			if (ColorEdit4("##breakable_color", &color_break.x, ImGuiColorEditFlags_NoAlpha)) {
 				Settings->ED_Color_Broken = (static_cast<uint32_t>(color_break.x*255) << 16) | (static_cast<uint32_t>(color_break.y*255) << 8) | (static_cast<uint32_t>(color_break.z*255));
-				hudChanged = true;
+				hudChanged = UpdateMenu(true);
 			}
+		}
 
+		if (CollapsingHeader(Translate("HUD.Options"), ImGuiTreeNodeFlags_DefaultOpen)) {
 			// All of the Show/Hide Options
 			if (BeginTable("##Show_Hide", 2, ImGuiTableFlags_NoBordersInBody)) {
 				TableSetupColumn("", ImGuiTableColumnFlags_NoHeaderLabel);
@@ -335,50 +323,32 @@ namespace EDUI {
 
 				TableSetColumnIndex(0); 
 				if (Checkbox(Translate("HUD.Reverse"), &Settings->ED_Widget_Reverse))
-					hudChanged = true;
+					hudChanged = UpdateMenu(true);
 				TableSetColumnIndex(1); 
 				if (Checkbox(Translate("HUD.Poison"), &Settings->ED_Widget_ShowPoisonName))
-					hudChanged = true;
-				
+					hudChanged = UpdateMenu(true);
 				TableNextRow();
 				TableSetColumnIndex(0); 
 				if (Checkbox(Translate("HUD.Health"), &Settings->ED_Widget_ShowHealth))
-					hudChanged = true;
+					hudChanged = UpdateMenu(true);
 				TableSetColumnIndex(1);
 				if (Checkbox(Translate("HUD.Armor"), &Settings->ED_Widget_ShowArmorName))
-					hudChanged = true;
-
+					hudChanged = UpdateMenu(true);
 				TableNextRow();
 				TableSetColumnIndex(0);
 				if (Checkbox(Translate("HUD.Shout"), &Settings->ED_Widget_ShowShout))
-					hudChanged = true;
+					hudChanged = UpdateMenu(true);
 				TableSetColumnIndex(1);
 				if (Checkbox(Translate("HUD.Weapon"), &Settings->ED_Widget_ShowWeaponName))
-					hudChanged = true;
-
+					hudChanged = UpdateMenu(true);
 				TableNextRow();
 				TableSetColumnIndex(0);
 				if (Checkbox(Translate("HUD.Unarmed"), &Settings->ED_Widget_ShowUnarmed))
-					hudChanged = true;
+					hudChanged = UpdateMenu(true);
 				TableSetColumnIndex(1);
 				Text("");
 
 				EndTable();
-			}
-
-			// Allows user to update HUD positioning
-			if (Button(Translate("HUD.Update"))) {
-				auto ui = RE::UI::GetSingleton();
-				if (!ui) return; 
-
-				auto menuBase = ui->GetMenu("DurabilityMenu");
-				if (!menuBase) return;
-
-				auto durabilityMenu = static_cast<DurabilityMenu*>(menuBase.get());
-				if (!durabilityMenu) return;
-
-				// Call your function
-				durabilityMenu->UpdatePosition();
 			}
 		}
 
@@ -415,7 +385,7 @@ namespace EDUI {
 				}
 			}
 
-			Text(Translate("HUD.Duration"));
+			ShowHeaderText(Translate("HUD.Duration"));
 			if (SliderInt("##Hotkey_Duration", &Settings->ED_Widget_ToggleDuration, 0, 30))
 				hudChanged = true;
 		}
@@ -437,7 +407,7 @@ namespace EDUI {
 		Columns(2);
 		if (CollapsingHeader(Translate("Temper.Names"), ImGuiTreeNodeFlags_DefaultOpen)) {
 			// Display option for the Menu
-			Text(Translate("Temper.Style"));
+			ShowHeaderText(Translate("Temper.Style"));
 			if (BeginCombo("##Naming_Style", styleOptions[Settings->ED_Names_Style].c_str())) {
 				for (int i = 0; i < styleOptions.size(); i++) {
 					bool is_selected = (Settings->ED_Names_Style == i);
@@ -451,8 +421,8 @@ namespace EDUI {
 
 			// Pre and Post Entries
 			if (BeginTable("##Pre_Post", 2, ImGuiTableFlags_NoBordersInBody)) {
-				TableSetupColumn(Translate("Temper.Prefix"));
-				TableSetupColumn(Translate("Temper.Postfix"));
+				ShowHeaderColumn(Translate("Temper.Prefix"));
+				ShowHeaderColumn(Translate("Temper.Postfix"));
 				TableHeadersRow();
 
 				TableNextRow();
@@ -471,7 +441,7 @@ namespace EDUI {
 				EndTable();
 			}
 
-			Text(Translate("Temper.Broken"));
+			ShowHeaderText(Translate("Temper.Broken"));
 			if (CreateInputText("##Broken_Text", brokenText)) {
 				Settings->ED_Names_Broken = brokenText;
 				temperChanged = true;
@@ -637,5 +607,24 @@ namespace EDUI {
 		);
 
 		return changed;
+	}
+
+	void ShowHeaderText(const char* text) {
+		std::string result = std::string(text) + ':';
+		Text(result.c_str());
+	}
+
+	void ShowHeaderColumn(const char* text) {
+		std::string result = std::string(text) + ':';
+		TableSetupColumn(result.c_str());
+	}
+
+	bool UpdateMenu(bool value) {
+		if (auto* ui = RE::UI::GetSingleton())
+		if (auto menuBase = ui->GetMenu("DurabilityMenu"))
+		if (auto durabilityMenu = static_cast<DurabilityMenu*>(menuBase.get()))
+			durabilityMenu->UpdatePosition();
+
+		return value;
 	}
 }

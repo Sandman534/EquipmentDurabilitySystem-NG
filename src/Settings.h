@@ -95,6 +95,7 @@ public:
 
 	// Widget Position and Color
 	int ED_Widget_Display{ 1 };
+	int ED_Widget_Layout{ 0 };
 	int ED_Widget_PosX{ 3 };
 	int ED_Widget_PosY{ 73 };
 	int ED_Widget_Scale{ 100 };
@@ -117,7 +118,7 @@ public:
 	// Temper Names
 	std::string ED_Names_Broken{ "Broken" };
 	int ED_Names_Style{ 0 };
-	std::string ED_Names_Prefix{ " (" };
+	std::string ED_Names_Prefix{ "(" };
 	std::string ED_Names_Postfix{ ")" };
 	std::string ED_Names_CustomNames{ "Okay|Decent|Good|Great|Awesome|Brilliant|Masterful|Wonderful|Astonishing|Amazing|Incredible|Unbelievable|Unimaginable|Mind-Boggling|Impossible|Infinite" };
 	std::vector<std::string> ED_Names_StyleOptions = { "Vanilla", "VanillaPlus", "PlusN", "Internal", "Custom", "RomanNumeral", "Health" };

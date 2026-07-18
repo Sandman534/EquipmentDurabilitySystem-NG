@@ -1,7 +1,6 @@
 #pragma once
 #include "Settings.h"
 #include "DurabilityMenu.h"
-#include <nlohmann/json.hpp>
 
 using namespace ImGuiMCP;
 
@@ -11,15 +10,8 @@ namespace EDUI {
     // Static Variables
 	inline bool waitKey = false;
     inline std::vector<std::string> displayOptions = { };
+    inline std::vector<std::string> layoutOptions = { };
 	inline std::vector<std::string> styleOptions = { };
-
-    inline constexpr const char* translationsFolder = "Data\\SKSE\\Plugins\\EquipmentDurability\\EquipmentTranslation.json";
-    inline const char* defaultTranslation = "missing translation";
-    static inline std::map<std::string, const char*> translations;
-
-    // Translations
-    void InstallTranslation();
-    const char* Translate(std::string key);
 
     // Render Functions
     void __stdcall RenderRates();
@@ -35,4 +27,7 @@ namespace EDUI {
     bool MultiplierEntry(const char* label, int& value1, int& value2);
     void SliderEntryMaterial(float& value, const char* id);
 	bool CreateInputText(const char* label, std::string& str, ImGuiInputTextFlags flags = 0);
+    void ShowHeaderText(const char* text);
+    void ShowHeaderColumn(const char* text);
+    bool UpdateMenu(bool value);
 };

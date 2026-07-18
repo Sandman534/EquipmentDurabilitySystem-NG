@@ -96,6 +96,7 @@ const char* TemperManager::GetTemperFactor(float a_factor, bool a_isWeapon) {
 
 void TemperManager::VFormat(RE::BSString* a_dst, const char* a_fmt, ...) {
 	std::string fmt = "%s";
+	fmt += " ";
 	fmt += Settings::GetSingleton()->ED_Names_Prefix;
 	fmt += "%s";
 	fmt += Settings::GetSingleton()->ED_Names_Postfix;
@@ -114,7 +115,8 @@ void TemperManager::VFormat(RE::BSString* a_dst, const char* a_fmt, ...) {
 }
 
 void TemperManager::sprintf_s(char* a_buffer, std::size_t a_buffSize, const char* a_fmt, ...) {
-	std::string fmt = Settings::GetSingleton()->ED_Names_Prefix;
+	std::string fmt = " ";
+	fmt += Settings::GetSingleton()->ED_Names_Prefix;
 	fmt += "%s";
 	fmt += Settings::GetSingleton()->ED_Names_Postfix;
 
@@ -170,7 +172,7 @@ void TemperManager::Init() {
 	// These however are all the same
 	trampoline.write_call<5>(TemporFormat01_Hook.address(), TemperManager::VFormat);
 	trampoline.write_call<5>(TemporFormat02_Hook.address(), TemperManager::VFormat);
-	// trampoline.write_call<5>(TemporString_Hook.address(), TemperManager::sprintf_s);
+	trampoline.write_call<5>(TemporString_Hook.address(), TemperManager::sprintf_s);
 
 	logger::info("Hook Installed: Temper Names");
 
