@@ -73,11 +73,12 @@ std::string TemperManager::AsRomanNumeral(std::uint32_t a_level, [[maybe_unused]
 const char* TemperManager::GetTemperFactor(float a_factor, bool a_isWeapon) {
 	auto objectLevel = (Degredation::CeilToTenths(a_factor) * 10.0f) - 10;
 
-	// If the break system is enabled, and we are below 0, return the broken name
-	if (a_factor < Degredation::kBrokenHealthThreshold && !Settings::GetSingleton()->ED_BreakDisabled)
+	// If the break system is enabled, and item health is below the break threshold, return the broken name
+	// If the object health is 0, it could mean that the object is an NPC or something
+	if (a_factor != 0.0f && a_factor < Degredation::kBrokenHealthThreshold && !Settings::GetSingleton()->ED_BreakDisabled)
 		return Settings::GetSingleton()->ED_Names_Broken.c_str();
 
-	// If the extra health is at or below 0, return nothing
+	// If the extra health level is 0, return nothing
 	if (objectLevel <= 0)
 		return 0;
 

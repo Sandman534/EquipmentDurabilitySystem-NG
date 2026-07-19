@@ -35,17 +35,21 @@ void FoundEquipData::CreateName() {
 // ===========================
 float FoundEquipData::GetItemHealthForWidget() {
     auto objectHealth = GetItemHealthPercent();
+    if (objectHealth < Degredation::kBrokenHealth) return 0.0f;
     return max(std::round((Degredation::TruncateToDecimals(objectHealth,3) - Degredation::kMinHealth) * 1000.0), 0.0);
 }
 
 float FoundEquipData::GetItemHealthPercent() {
     // If no object data, return standard health
-	if (!objectData)
-        return Degredation::kMaxHealth;
+	if (!objectData) return Degredation::kMaxHealth;
 
-    // If the health of the object is 0, return standard health
+    // If there is extra health and its not 0
     if (auto* xHealth = objectData->GetByType<RE::ExtraHealth>())
-        if (xHealth->health > 0.0f) return xHealth->health;
+        if (xHealth->health != 0.0f)
+            if (xHealth->health < Degredation::kBrokenHealthThreshold)
+                return Degredation::kBrokenHealth;
+            else
+                return xHealth->health;
 
     // Otherwise always return standard health
 	return Degredation::kMaxHealth;
@@ -86,40 +90,33 @@ void FoundEquipData::SetItemHealthPercentCapped(float value) {
 // ===========================
 // Enchantment Functions
 // ===========================
-void FoundEquipData::SetItemEnchantment(int playerLevel, RE::TESObjectREFR* ref)
-{
-	if (!baseForm)
-		return;
+void FoundEquipData::SetItemEnchantment(int playerLevel, RE::TESObjectREFR* ref) {
+	if (!baseForm) return;
 
 	// --- Step 1: Determine player's max tier access ---
 	int playerTier = 0;
 	for (const auto& tier : GameData::TierTable) {
-		if (playerLevel >= tier.minLevel) {
+		if (playerLevel >= tier.minLevel)
 			playerTier = (std::max)(playerTier, tier.tier);
-		}
 	}
-	if (playerTier == 0)
-		return;
+	if (playerTier == 0) return;
 
 	// --- Step 2: Get material limits ---
 	GameData::Material itemMaterial = getStrongestMaterial();
 	auto it = GameData::MaterialTable.find(itemMaterial);
-	if (it == GameData::MaterialTable.end())
-		return;  // unknown material
+	if (it == GameData::MaterialTable.end()) return;  // unknown material
 	int materialMin = it->second.minTier;
 	int materialMax = it->second.maxTier;
 
 	// Player not high enough level for the enchantment
-	if (playerTier < materialMin)
-		return;
+	if (playerTier < materialMin) return;
 
-	// --- Step 3: Get Enchantment Vector based on Body Part ---]]
+	// --- Step 3: Get Enchantment Vector based on Body Part ---
 	std::vector<GameData::Enchantment>* allEnchantments = Settings::GetSingleton()->GetEnchantmentList(GetEquipmentType());
 	std::vector<GameData::Enchantment> validEnchantments;
 
     // If we dont have enchantments
-    if (!allEnchantments)
-        return;
+    if (!allEnchantments) return;
 
 	// --- Step 4: Get Enchantment Vector based on Body Part ---
 	int effectiveMinTier = materialMin;
@@ -130,8 +127,7 @@ void FoundEquipData::SetItemEnchantment(int playerLevel, RE::TESObjectREFR* ref)
 		});
 
     // --- Step 4.5: Check if we have valid enchantments ---
-    if (validEnchantments.empty())
-        return;
+    if (validEnchantments.empty()) return;
 
 	// --- Step 5: Random pick ---
 	std::random_device rd;
