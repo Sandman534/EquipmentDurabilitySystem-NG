@@ -114,6 +114,8 @@ public:
 	bool ED_Widget_ShowArmorName{ true };
 	bool ED_Widget_ShowHealth{ true };
 	bool ED_Widget_ShowUnarmed{ true };
+	bool ED_Widget_ShowOnlyBreaking{ false };
+	bool ED_Widget_ShowIndestructible{ true };
 
 	// Temper Names
 	std::string ED_Names_Broken{ "Broken" };

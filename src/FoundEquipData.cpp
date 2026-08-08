@@ -293,6 +293,17 @@ bool FoundEquipData::CanEnchant() {
     return false;
 }
 
+bool FoundEquipData::IsBelowBreakingThreshold() {
+    if (!CanBreak()) return false;
+    auto* setting = Settings::GetSingleton();
+
+    // Check for Weapon
+    if (GetItemHealthForWidget() <= setting->ED_BreakThreshold)
+        return true;
+
+    return false;
+}
+
 // ===========================
 // Private Functions
 // ===========================

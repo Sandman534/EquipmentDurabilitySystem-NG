@@ -105,6 +105,8 @@ void Settings::ForEachINIOption(Settings& settings, Func&& option) {
 	option(settings.ED_Widget_ShowArmorName, "Widget", "ShowArmorName");
 	option(settings.ED_Widget_ShowHealth, "Widget", "ShowHealth");
 	option(settings.ED_Widget_ShowUnarmed, "Widget", "ShowUnarmed");
+	option(settings.ED_Widget_ShowOnlyBreaking, "Widget", "ShowOnlyBreaking");
+	option(settings.ED_Widget_ShowIndestructible, "Widget", "ShowIndestructible");
 
 	// Temper Name Settings
 	option(settings.ED_Names_Style, "Temper Names", "DisplayStyle");
