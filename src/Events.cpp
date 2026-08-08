@@ -318,6 +318,56 @@ public:
 };
 
 // =============================================================
+// Inventory Transfer Handler
+// =============================================================
+static void AddHealthToTransferredItem(RE::FormID containerID, RE::FormID baseObjectID) {
+	auto* container = RE::TESForm::LookupByID<RE::TESObjectREFR>(containerID);
+	auto* baseObject = RE::TESForm::LookupByID<RE::TESBoundObject>(baseObjectID);
+	if (!container || !baseObject) return;
+
+	auto* inventoryChanges = container->GetInventoryChanges();
+	if (!inventoryChanges || !inventoryChanges->entryList) return;
+
+	for (auto* entry : *inventoryChanges->entryList) {
+		if (!entry || entry->GetObject() != baseObject) continue;
+		if (entry->extraLists) {
+			for (auto* extraList : *entry->extraLists) {
+				FoundEquipData equipData(baseObject, extraList);
+				if (!equipData.CanProcess()) continue;
+				equipData.ProcessItem();
+			}
+		}
+		return;
+	}
+}
+
+class ContainerChangedEventHandler : public RE::BSTEventSink<RE::TESContainerChangedEvent> {
+public:
+	static ContainerChangedEventHandler* GetSingleton() {
+		static ContainerChangedEventHandler singleton;
+		return &singleton;
+	}
+
+	RE::BSEventNotifyControl ProcessEvent(const RE::TESContainerChangedEvent* event, RE::BSTEventSource<RE::TESContainerChangedEvent>*) override {
+		if (!event || event->newContainer == 0 || event->itemCount <= 0)
+			return RE::BSEventNotifyControl::kContinue;
+
+		// Add extra health to the item if it does not have it
+		auto* setting = Settings::GetSingleton();
+		if (setting->ED_Temper_Enabled || setting->ED_Enchant_Enabled)
+			AddHealthToTransferredItem(event->newContainer, event->baseObj);
+
+		return RE::BSEventNotifyControl::kContinue;
+	}
+
+	static void Register() {
+		auto* eventHolder = RE::ScriptEventSourceHolder::GetSingleton();
+		eventHolder->AddEventSink(ContainerChangedEventHandler::GetSingleton());
+		logger::info("Handler Installed: Container Changed");
+	}
+};
+
+// =============================================================
 // Dynamic Tempering and Enchanting
 // =============================================================
 struct NearbyObjects {
@@ -579,6 +629,7 @@ namespace Events {
 
 	void Init(void) {
 		HitEventHandler::Register();
+		ContainerChangedEventHandler::Register();
 		
 		// Install hooks
 		auto& trampoline = SKSE::GetTrampoline();
