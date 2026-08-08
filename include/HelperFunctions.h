@@ -7,8 +7,7 @@ using namespace ImGuiMCP;
 // ===========================
 namespace HelperFunctions
 {
-	inline std::uint32_t AdjustScanCodes(RE::INPUT_DEVICE a_device, uint32_t a_scan_code)
-	{
+	inline int FixCode(RE::INPUT_DEVICE a_device, uint32_t a_scan_code) {
 		if (a_device == RE::INPUT_DEVICE::kMouse)
 			a_scan_code += 257;
 		else if (a_device == RE::INPUT_DEVICE::kGamepad) {
@@ -68,7 +67,7 @@ namespace HelperFunctions
 			}
 		}
 
-		return a_scan_code;
+		return static_cast<int>(a_scan_code);
 	};
 
 	inline int ImGuiKeyToIDCode(ImGuiKey key) {

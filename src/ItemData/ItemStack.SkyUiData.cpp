@@ -32,7 +32,7 @@ namespace I4Data::Items {
 
 		case RE::FormType::Armor:
 			_data.armor.isEnchanted = _foundEquip->IsEnchanted();
-			_data.armor.infoArmor = TruncatePrecision(_foundEquip->baseForm->As<RE::TESObjectARMO>()->armorRating);
+			_data.armor.infoArmor = TruncatePrecision(static_cast<float>(_foundEquip->baseForm->As<RE::TESObjectARMO>()->armorRating));
 
 			SkyUiProcessArmorClass();
 			SkyUiProcessArmorPartMask();

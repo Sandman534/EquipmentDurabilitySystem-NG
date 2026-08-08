@@ -114,7 +114,7 @@ namespace I4Data::Items {
 
 		switch (_foundEquip->baseForm->GetFormType()) {
 		case RE::FormType::Armor:
-			_data.armor.armor = _foundEquip->baseForm->As<RE::TESObjectARMO>()->armorRating;
+			_data.armor.armor = static_cast<float>(_foundEquip->baseForm->As<RE::TESObjectARMO>()->armorRating);
 			break;
 
 		case RE::FormType::Weapon:

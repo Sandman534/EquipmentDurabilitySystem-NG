@@ -3,7 +3,7 @@
 
 namespace UIIntegration
 {
-    void ExtendItemData(RE::GFxMovieView* a_view, RE::GFxValue* a_object, RE::InventoryEntryData* a_item) {
+    void ExtendItemData([[maybe_unused]] RE::GFxMovieView* a_view, RE::GFxValue* a_object, RE::InventoryEntryData* a_item) {
         if (!a_object || !a_item || !a_item->object) return;
         if (!a_item->object->IsArmor() && !a_item->object->IsWeapon()) return;
 

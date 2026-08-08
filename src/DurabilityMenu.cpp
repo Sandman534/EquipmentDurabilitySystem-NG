@@ -288,7 +288,7 @@ class MenuInputHandler : public RE::BSTEventSink<RE::InputEvent*> {
 		return &singleton;
     }
 
-    RE::BSEventNotifyControl ProcessEvent(RE::InputEvent* const* a_event,RE::BSTEventSource<RE::InputEvent*>* a_eventSource) {
+    RE::BSEventNotifyControl ProcessEvent(RE::InputEvent* const* a_event, [[maybe_unused]]RE::BSTEventSource<RE::InputEvent*>* a_eventSource) {
 		if (a_event) {
 			// If a block menu is open, do not process
 			if (Utility::GetSingleton()->MenuShouldHide(RE::UI::GetSingleton())) return RE::BSEventNotifyControl::kContinue;
@@ -307,7 +307,7 @@ class MenuInputHandler : public RE::BSTEventSink<RE::InputEvent*> {
 					if (!button || (button->IsPressed() && !button->IsDown())) continue;
 
 					auto device = button->device.get();
-					auto scan_code = HelperFunctions::AdjustScanCodes(device, button->GetIDCode());
+					auto scan_code = HelperFunctions::FixCode(device, button->GetIDCode());
 
 					if ((device == RE::INPUT_DEVICE::kKeyboard || device == RE::INPUT_DEVICE::kGamepad) && !button->IsUp()) {
 						auto durability = DurabilityMenu::GetSingleton();

@@ -3,6 +3,8 @@
 #include "Utility.h"
 #include "Settings.h"
 
+#include <cstdint>
+
 // ===========================
 // Item Name Functions
 // ===========================
@@ -36,7 +38,7 @@ void FoundEquipData::CreateName() {
 float FoundEquipData::GetItemHealthForWidget() {
     auto objectHealth = GetItemHealthPercent();
     if (objectHealth < Degredation::kBrokenHealth) return 0.0f;
-    return max(std::round((Degredation::TruncateToDecimals(objectHealth,3) - Degredation::kMinHealth) * 1000.0), 0.0);
+    return static_cast<float>(max(std::round((Degredation::TruncateToDecimals(objectHealth,3) - Degredation::kMinHealth) * 1000.0), 0.0));
 }
 
 float FoundEquipData::GetItemHealthPercent() {
@@ -136,11 +138,11 @@ void FoundEquipData::SetItemEnchantment(int playerLevel, RE::TESObjectREFR* ref)
 	GameData::Enchantment& chosen = validEnchantments[dist(gen)];
 
 	// --- Step 6: Get charges from TierTable ---
-	int chargeValue = 1;
+	std::uint16_t chargeValue = 1;
 	if (baseForm->IsWeapon()) {
 		for (const auto& tier : GameData::TierTable) {
 			if (tier.tier == chosen.tier) {
-				chargeValue = tier.charge;
+				chargeValue = static_cast<std::uint16_t>(tier.charge);
 				break;
 			}
 		}
@@ -156,7 +158,7 @@ void FoundEquipData::SetItemEnchantment(int playerLevel, RE::TESObjectREFR* ref)
 
         // If the weapon is being held by an actor, set a charge value
 		if (RE::Actor* a_actor = ref->As<RE::Actor>(); a_actor && baseForm->IsWeapon()) {
-			int RandomEnchant = Random::Int(0,chargeValue);
+			float RandomEnchant = static_cast<float>(Random::Int(0,chargeValue));
 			if (objectData->HasType<RE::ExtraWornLeft>())
                 a_actor->AsActorValueOwner()->ModActorValue(RE::ActorValue::kLeftItemCharge, RandomEnchant);
 			else if (objectData->HasType<RE::ExtraWorn>())
@@ -316,7 +318,7 @@ std::optional<GameData::TierInfo> FoundEquipData::GetTierForLevel(GameData::Mate
     const auto& limits = itMat->second;
 
     // Search tiers from highest to lowest
-    for (int i = GameData::TierTable.size() - 1; i >= 0; --i) {
+    for (auto i = GameData::TierTable.size() - 1; i >= 0; --i) {
         const GameData::TierInfo& tier = GameData::TierTable[i];
 
         // Tier must be within material bounds

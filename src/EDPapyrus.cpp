@@ -12,7 +12,7 @@ namespace EDPapyrus {
         return true;
     }
 
-    void EquipGearByID(RE::StaticFunctionTag*, RE::TESForm* item, std::uint32_t fixedItemID, std::uint32_t slotID, bool preventUnequip, bool equipSound) {
+    void EquipGearByID(RE::StaticFunctionTag*, RE::TESForm* item, std::uint32_t fixedItemID, std::uint32_t slotID, [[maybe_unused]] bool preventUnequip, bool equipSound) {
         //=========================================================
         // Status Checks
         //=========================================================
@@ -117,7 +117,7 @@ namespace EDPapyrus {
             FoundGear.itemID != FoundEquipped.itemID;
     }
 
-    std::uint32_t FixedItemID(RE::StaticFunctionTag*, RE::TESForm * item, std::uint32_t itemID) {
+    std::uint32_t FixedItemID(RE::StaticFunctionTag*, [[maybe_unused]] RE::TESForm * item, std::uint32_t itemID) {
         auto* utility = Utility::GetSingleton();
         auto* actor = utility->GetPlayer();
         if (!actor) return 0;

@@ -67,7 +67,7 @@ static void TemperDecay(FoundEquipData* eqD, RE::Actor* actor, bool powerAttack)
 	
 	// --- Break Chance ---
 	if ((CurrentHealth - Degredation::kMinHealth) <= BreakThreshold) {
-		float chance = setting->GetBreakChance(eqD->baseForm, actor);
+		auto chance = setting->GetBreakChance(eqD->baseForm, actor);
 
 		// Apply modifiers
 		if (chance != 0.0 && eqD->CanBreak()) {
@@ -123,8 +123,8 @@ static void TemperDecay(FoundEquipData* eqD, RE::Actor* actor, bool powerAttack)
 			: 1.0 + (setting->ED_Degrade_NPCMulti / 100.0);
 
 	// Apply the lost health
-	CurrentHealth -= loss;
-	CurrentHealth = std::round(CurrentHealth * Degredation::kPrecision) / Degredation::kPrecision;
+	CurrentHealth -= static_cast<float>(loss);
+	CurrentHealth = static_cast<float>(std::round(CurrentHealth * Degredation::kPrecision) / Degredation::kPrecision);
 
 	// The default health of an item is always one, so it cant go lower
 	if (CurrentHealth < Degredation::kMinHealth)
@@ -293,7 +293,7 @@ public:
         return &singleton;
     }
 
-    RE::BSEventNotifyControl ProcessEvent(const RE::TESHitEvent* a_event, RE::BSTEventSource<RE::TESHitEvent>* a_eventSource) override {
+    RE::BSEventNotifyControl ProcessEvent(const RE::TESHitEvent* a_event, [[maybe_unused]] RE::BSTEventSource<RE::TESHitEvent>* a_eventSource) override {
 		if (!a_event) return RE::BSEventNotifyControl::kContinue;
 		if (Settings::GetSingleton()->ED_DegradationDisabled) return RE::BSEventNotifyControl::kContinue;
 
@@ -492,7 +492,7 @@ static void TemperItem(FoundEquipData* equipData, int actorLevel, bool isVendor 
 		chanceTemper = setting->ED_Temper_BossChance;
 
 	if (Probability::Int(chanceTemper))
-		equipData->SetItemHealthPercentCapped(Random::Double(10001.0, 10001.0 + ((actorLevel + 10) * 100)) * 0.0001);
+		equipData->SetItemHealthPercentCapped(static_cast<float>(Random::Double(10001.0, 10001.0 + ((actorLevel + 10) * 100)) * 0.0001));
 }
 
 static void EnchantItem(FoundEquipData* equipData, RE::TESObjectREFR* ref, int actorLevel, bool isVendor = false, bool isBoss = false) {
