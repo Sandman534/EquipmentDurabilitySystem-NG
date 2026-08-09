@@ -29,7 +29,8 @@ class FoundEquipData {
 
 		// Process State
 		void ProcessItem();
-		bool CanProcess();
+		bool CanProcessData();
+		bool CanProcessObject();
 
 		// Status Checks
 		bool IsTempered();

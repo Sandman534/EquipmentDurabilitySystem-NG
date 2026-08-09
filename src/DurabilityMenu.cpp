@@ -192,17 +192,11 @@ void DurabilityMenu::UpdateItemData() {
 		stackData.SetNull();
 
 		// Process the form
-		if (eqD.baseForm && ((eqD.IsUnarmed() && setting->ED_Widget_ShowUnarmed) || !eqD.IsUnarmed())) {
-
-			// Only show the item if its below its break threshold
-			if (setting->ED_Widget_ShowOnlyBreaking && !eqD.IsBelowBreakingThreshold())
-				continue;
-
-			// Hide items that cannot be broken
-			if (setting->ED_Widget_ShowIndestructible && !eqD.CanBreak())
-				continue;
-
-
+		if (eqD.baseForm && 
+			(setting->ED_Widget_ShowUnarmed || !eqD.IsUnarmed()) &&
+			(!setting->ED_Widget_ShowOnlyBreaking || eqD.IsBelowBreakingThreshold()) &&
+			(setting->ED_Widget_ShowIndestructible || eqD.CanBreak())
+		) {
 			// Process the inventory through the stack
 			const I4Data::Items::ItemStack stack{ &eqD };
 			const auto& data = stack.GetData();

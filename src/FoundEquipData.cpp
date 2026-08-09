@@ -187,7 +187,7 @@ const char* FoundEquipData::GetItemName() {
 // ===========================
 // Item Process Functions
 // ===========================
-bool FoundEquipData::CanProcess() {
+bool FoundEquipData::CanProcessData() {
     if (!baseForm || !objectData || IsUnarmed()) return false;
 
     // Already has ExtraHealth
@@ -196,6 +196,12 @@ bool FoundEquipData::CanProcess() {
 
     // Is a quest item
     if (objectData->HasQuestObjectAlias()) return false;
+
+    return true;
+}
+
+bool FoundEquipData::CanProcessObject() {
+    if (!baseForm || IsUnarmed()) return false;
 
     // Is a Weapon
     if (auto* weapon = baseForm->As<RE::TESObjectWEAP>()) {

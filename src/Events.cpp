@@ -8,6 +8,11 @@
 #include <set>
 #include <array>
 
+enum class InventoryProcessMode {
+	kMarkOnly,
+	kDynamic
+};
+
 // =============================================================
 // Actor Hit Throttle
 // =============================================================
@@ -318,56 +323,6 @@ public:
 };
 
 // =============================================================
-// Inventory Transfer Handler
-// =============================================================
-static void AddHealthToTransferredItem(RE::FormID containerID, RE::FormID baseObjectID) {
-	auto* container = RE::TESForm::LookupByID<RE::TESObjectREFR>(containerID);
-	auto* baseObject = RE::TESForm::LookupByID<RE::TESBoundObject>(baseObjectID);
-	if (!container || !baseObject) return;
-
-	auto* inventoryChanges = container->GetInventoryChanges();
-	if (!inventoryChanges || !inventoryChanges->entryList) return;
-
-	for (auto* entry : *inventoryChanges->entryList) {
-		if (!entry || entry->GetObject() != baseObject) continue;
-		if (entry->extraLists) {
-			for (auto* extraList : *entry->extraLists) {
-				FoundEquipData equipData(baseObject, extraList);
-				if (!equipData.CanProcess()) continue;
-				equipData.ProcessItem();
-			}
-		}
-		return;
-	}
-}
-
-class ContainerChangedEventHandler : public RE::BSTEventSink<RE::TESContainerChangedEvent> {
-public:
-	static ContainerChangedEventHandler* GetSingleton() {
-		static ContainerChangedEventHandler singleton;
-		return &singleton;
-	}
-
-	RE::BSEventNotifyControl ProcessEvent(const RE::TESContainerChangedEvent* event, RE::BSTEventSource<RE::TESContainerChangedEvent>*) override {
-		if (!event || event->newContainer == 0 || event->itemCount <= 0)
-			return RE::BSEventNotifyControl::kContinue;
-
-		// Add extra health to the item if it does not have it
-		auto* setting = Settings::GetSingleton();
-		if (setting->ED_Temper_Enabled || setting->ED_Enchant_Enabled)
-			AddHealthToTransferredItem(event->newContainer, event->baseObj);
-
-		return RE::BSEventNotifyControl::kContinue;
-	}
-
-	static void Register() {
-		auto* eventHolder = RE::ScriptEventSourceHolder::GetSingleton();
-		eventHolder->AddEventSink(ContainerChangedEventHandler::GetSingleton());
-		logger::info("Handler Installed: Container Changed");
-	}
-};
-
-// =============================================================
 // Dynamic Tempering and Enchanting
 // =============================================================
 struct NearbyObjects {
@@ -508,21 +463,83 @@ static void EnchantItem(FoundEquipData* equipData, RE::TESObjectREFR* ref, int a
 		equipData->SetItemEnchantment(actorLevel, ref);
 }
 
-static void ProcessInventory(RE::TESObjectREFR* ref) {
+static void ProcessInventoryChanges(RE::InventoryChanges* inventoryChanges, RE::TESObjectREFR* owner, InventoryProcessMode mode, int level, bool isVendor, bool isBoss, RE::TESBoundObject* objectFilter = nullptr) {
+	if (!inventoryChanges || !inventoryChanges->entryList) return;
+
+	// Process the inventory
+	auto* setting = Settings::GetSingleton();
+	for (const auto& entry : *inventoryChanges->entryList) {
+		// Look for the matching object
+		if (!entry || !entry->object) continue;
+		if (objectFilter && entry->GetObject() != objectFilter) continue;
+
+		// Set the equipment data and determine if the object can be processed
+		FoundEquipData equipData(entry->GetObject());
+		if (!equipData.CanProcessObject()) continue;
+
+		// Process the item differently if it contains ExtraLists
+		if (entry->extraLists) {
+			for (auto* entryData : *entry->extraLists) {
+				if (!entryData) continue;
+
+				// Set the extradata and determine if we can continue processing the item
+				FoundEquipData item(entry->GetObject(), entryData);
+				if (!item.CanProcessData()) continue;
+
+				// If we are accessing the system through the dynamic update process
+				if (mode == InventoryProcessMode::kDynamic) {
+					if (setting->ED_Temper_Enabled && item.CanTemper() && !item.IsTempered())
+						TemperItem(&item, level, isVendor, isBoss);
+
+					if (setting->ED_Enchant_Enabled && item.CanEnchant() && !item.IsEnchanted())
+						EnchantItem(&item, owner, level, isVendor, isBoss);
+				}
+
+				// Finish processing the item
+				item.ProcessItem();
+			}
+
+		// Create the ExtraLists if the item currently doesn't have any
+		} else {
+			// Create the list and set the items count
+			auto* extraList = RE::calloc<RE::ExtraDataList>(1, 0x20);
+			if (!extraList) continue;
+			if (entry->countDelta > 1)
+				extraList->Add(new RE::ExtraCount(static_cast<std::int16_t>(entry->countDelta)));
+
+			// Set the list to the object and the found equipment
+			entry->AddExtraList(extraList);
+			equipData.objectData = extraList;
+
+			// If the item is a single stack, process it for dynamic tempering and enchanting
+			if (mode == InventoryProcessMode::kDynamic && entry->countDelta == 1) {
+				if (setting->ED_Temper_Enabled && equipData.CanTemper())
+					TemperItem(&equipData, level, isVendor, isBoss);
+
+				if (setting->ED_Enchant_Enabled && equipData.CanEnchant())
+					EnchantItem(&equipData, owner, level, isVendor, isBoss);
+			}
+
+			// Finish processing the item
+			equipData.ProcessItem();
+		}
+	}
+}
+
+static void ProcessInventory(RE::TESObjectREFR* ref, bool allowUnattached = false, bool forceVendor = false) {
 	if (!ref || ref->IsPlayerRef() || ref->IsPlayer()) return;
 
-    // Only process attached refs
+    // Background processing is limited to attached refs. Barter initialization may
+    // safely process a merchant container whose cell is not currently attached.
     auto* cell = ref->GetParentCell();
-    if (!cell || !cell->IsAttached()) return;
+    if (!cell || (!allowUnattached && !cell->IsAttached())) return;
 
 	// Guard: don't touch if the ref is currently linked to an active container menu (best-effort)
     auto* ui = RE::UI::GetSingleton();
-    if (ui && ui->IsMenuOpen(RE::BarterMenu::MENU_NAME)) return;
+    if (!allowUnattached && ui && ui->IsMenuOpen(RE::BarterMenu::MENU_NAME)) return;
 
 	// Get Utility Script
 	auto* utility = Utility::GetSingleton();
-	auto* setting = Settings::GetSingleton(); 
-
 	// Get the level of the Actor or the Player
 	int level = utility->GetPlayer()->GetLevel();
 	if (RE::Actor* actor = ref->As<RE::Actor>()) {
@@ -535,34 +552,59 @@ static void ProcessInventory(RE::TESObjectREFR* ref) {
 	if (!invChanges || !invChanges->entryList) return;
 
 	// Check for Vendor Chest or Boss Lair
-    const bool isVendor = utility->ObjectIsVendor(ref);
+    const bool isVendor = forceVendor || utility->ObjectIsVendor(ref);
     const bool isBoss = utility->LocationIsBoss(ref->extraList);
 
-	// Loop through all items in inventory
-	for (const auto& entry : *invChanges->entryList) {
-		if (!entry || !entry->object || !entry->extraLists) continue;
+	ProcessInventoryChanges(invChanges, ref, InventoryProcessMode::kDynamic, level, isVendor, isBoss);
+}
 
-		// Process Items with Extra Data
-		for (auto& entryData : *entry->extraLists) {
-			if (entryData) {
-				// Dont process what we've already processed
-				FoundEquipData equipData(entry->GetObject(), entryData);
-				if (!equipData.CanProcess()) continue;
+static void ProcessBarterInventory() {
+	if (!Settings::GetSingleton()->ED_Temper_Enabled && !Settings::GetSingleton()->ED_Enchant_Enabled)
+		return;
 
-				// Temper the Item
-				if (setting->ED_Temper_Enabled && equipData.CanTemper() && !equipData.IsTempered())
-					TemperItem(&equipData, level, isVendor, isBoss);
+	// Get the referenc eof the barter menu
+	auto targetHandle = RE::BarterMenu::GetTargetRefHandle();
+	auto targetPtr = RE::Actor::LookupByHandle(targetHandle);
+	auto* vendor = targetPtr.get();
+	if (!vendor) return;
 
-				// Enchant the Item
-				if (setting->ED_Enchant_Enabled && equipData.CanEnchant() && !equipData.IsEnchanted())
-					EnchantItem(&equipData, ref, level, isVendor, isBoss);
+	// Some merchants can sell items carried on the actor in addition to the
+	// contents of their faction's merchant container.
+	ProcessInventory(vendor, true, true);
 
-				// Process the Item so we dont run this again
-				equipData.ProcessItem();
-			}
-		}
+	// Get the actor to determine its vendor faction
+	auto* actorBase = vendor->GetActorBase();
+	if (!actorBase) return;
+
+	// Process the associated merchant container wherever it may be
+	std::unordered_set<RE::TESObjectREFR*> processedContainers;
+	for (const auto& factionRank : actorBase->factions) {
+		auto* faction = factionRank.faction;
+		if (!faction || !faction->IsVendor()) continue;
+
+		auto* merchantContainer = faction->vendorData.merchantContainer;
+		if (merchantContainer && processedContainers.insert(merchantContainer).second)
+			ProcessInventory(merchantContainer, true, true);
 	}
 }
+
+struct BarterMenuHook {
+	static RE::UI_MESSAGE_RESULTS ProcessMessage(RE::BarterMenu* menu, RE::UIMessage& message) {
+		// Process what would be in the vendors barter window before we finish processing the opening
+		if (message.type == RE::UI_MESSAGE_TYPE::kShow && Settings::GetSingleton()->isDynamicEnabled())
+			ProcessBarterInventory();
+
+		return _ProcessMessage(menu, message);
+	}
+
+	static void Install() {
+		REL::Relocation<std::uintptr_t> vtable{ RE::VTABLE_BarterMenu[0] };
+		_ProcessMessage = vtable.write_vfunc(0x4, ProcessMessage);
+		logger::info("Hook Installed: Barter Menu");
+	}
+
+	inline static REL::Relocation<decltype(ProcessMessage)> _ProcessMessage;
+};
 
 static void DynamicTemperEnchant() {
 	// Do not process player owned locations
@@ -578,6 +620,46 @@ static void DynamicTemperEnchant() {
 	for (RE::Actor* npc : nearby.npcs)
 		ProcessInventory(npc);
 }
+
+// =============================================================
+// Inventory Transfer Handler
+// =============================================================
+static void AddHealthToTransferredItem(RE::FormID containerID, RE::FormID baseObjectID) {
+	auto* container = RE::TESForm::LookupByID<RE::TESObjectREFR>(containerID);
+	auto* baseObject = RE::TESForm::LookupByID<RE::TESBoundObject>(baseObjectID);
+	if (!container || !baseObject) return;
+
+	auto* inventoryChanges = container->GetInventoryChanges();
+	if (!inventoryChanges || !inventoryChanges->entryList) return;
+
+	ProcessInventoryChanges(inventoryChanges, container, InventoryProcessMode::kMarkOnly, 0, false, false, baseObject);
+}
+
+class ContainerChangedEventHandler : public RE::BSTEventSink<RE::TESContainerChangedEvent> {
+public:
+	static ContainerChangedEventHandler* GetSingleton() {
+		static ContainerChangedEventHandler singleton;
+		return &singleton;
+	}
+
+	RE::BSEventNotifyControl ProcessEvent(const RE::TESContainerChangedEvent* event, RE::BSTEventSource<RE::TESContainerChangedEvent>*) override {
+		auto* setting = Settings::GetSingleton();
+		if (!event || event->newContainer == 0 || event->itemCount <= 0)
+			return RE::BSEventNotifyControl::kContinue;
+
+		// Add extra health to the item if it does not have it
+		if (setting->isDynamicEnabled())
+			AddHealthToTransferredItem(event->newContainer, event->baseObj);
+
+		return RE::BSEventNotifyControl::kContinue;
+	}
+
+	static void Register() {
+		auto* eventHolder = RE::ScriptEventSourceHolder::GetSingleton();
+		eventHolder->AddEventSink(ContainerChangedEventHandler::GetSingleton());
+		logger::info("Handler Installed: Container Changed");
+	}
+};
 
 // =============================================================
 // Break System Handler
@@ -628,15 +710,20 @@ namespace Events {
 	inline static REL::Relocation<std::uintptr_t> EquipObject_Hook{ REL::RelocationID(37938, 38894), REL::Relocate(0xE5, 0x170) };
 
 	void Init(void) {
+		// Event Overrides
 		HitEventHandler::Register();
 		ContainerChangedEventHandler::Register();
-		
-		// Install hooks
+		BarterMenuHook::Install();
+
+		// Update Hook
 		auto& trampoline = SKSE::GetTrampoline();
 		_OnUpdate = trampoline.write_call<5>(On_Update_Hook.address(), OnUpdate);
 		logger::info("Hook Installed: On Update");
+
+		// OnEquip Hook
 		_EquipObject = trampoline.write_call<5>(EquipObject_Hook.address(), EquipObject);
 		logger::info("Hook Installed: On Equip");
+		
 
 	}
 }

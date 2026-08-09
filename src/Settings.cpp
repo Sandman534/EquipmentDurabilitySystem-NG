@@ -405,6 +405,10 @@ double Settings::GetBreakChance(RE::TESForm* form, RE::Actor* a_actor) {
 	return ED_Break_Armor;
 }
 
+bool Settings::isDynamicEnabled() {
+	return ED_Temper_Enabled || ED_Enchant_Enabled;
+}
+
 // Enchant List Functions
 std::vector<GameData::Enchantment>* Settings::GetEnchantmentList(EquipmentType type) {
 	// Select correct vector based on part

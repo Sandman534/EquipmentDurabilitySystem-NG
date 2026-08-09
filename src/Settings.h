@@ -144,6 +144,7 @@ public:
 	// Checks
 	bool IsVendorContainer(RE::TESObjectREFR* form);
 	bool HasNoBreakForms(int formid);
+	bool isDynamicEnabled();
 
 	// Public Functions
 	double GetDegradationRate(RE::TESForm* forms, RE::Actor* a_actor = nullptr);
