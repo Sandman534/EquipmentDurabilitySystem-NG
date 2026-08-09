@@ -39,6 +39,7 @@ class FoundEquipData {
 		bool IsUnarmed();
 		bool IsBelowBreakingThreshold();
 		bool CanBreak();
+		bool CanBreakOrIsBroken();
 		bool CanTemper();
 		bool CanEnchant();
 

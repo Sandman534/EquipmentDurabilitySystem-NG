@@ -273,10 +273,10 @@ namespace EDUI {
 
 				TableNextRow();
 				TableSetColumnIndex(0); 
-				if (SliderInt("##Widget_XPosition", &Settings->ED_Widget_PosX, 0, 100, "%d%%"))
+				if (SliderFloat("##Widget_XPosition", &Settings->ED_Widget_PosX, 0.0f, 100.0f, "%.1f%%"))
 					hudChanged = UpdateMenu(true);
 				TableSetColumnIndex(1); 
-				if (SliderInt("##Widget_YPosition", &Settings->ED_Widget_PosY, 0, 100, "%d%%"))
+				if (SliderFloat("##Widget_YPosition", &Settings->ED_Widget_PosY, 0.0f, 100.0f, "%.1f%%"))
 					hudChanged = UpdateMenu(true);
 				
 				EndTable();
@@ -327,6 +327,7 @@ namespace EDUI {
 				TableSetColumnIndex(1); 
 				if (Checkbox(Translate("HUD.Poison"), &Settings->ED_Widget_ShowPoisonName))
 					hudChanged = UpdateMenu(true);
+
 				TableNextRow();
 				TableSetColumnIndex(0); 
 				if (Checkbox(Translate("HUD.Health"), &Settings->ED_Widget_ShowHealth))
@@ -334,6 +335,7 @@ namespace EDUI {
 				TableSetColumnIndex(1);
 				if (Checkbox(Translate("HUD.Armor"), &Settings->ED_Widget_ShowArmorName))
 					hudChanged = UpdateMenu(true);
+
 				TableNextRow();
 				TableSetColumnIndex(0);
 				if (Checkbox(Translate("HUD.Shout"), &Settings->ED_Widget_ShowShout))
@@ -341,11 +343,20 @@ namespace EDUI {
 				TableSetColumnIndex(1);
 				if (Checkbox(Translate("HUD.Weapon"), &Settings->ED_Widget_ShowWeaponName))
 					hudChanged = UpdateMenu(true);
+
 				TableNextRow();
 				TableSetColumnIndex(0);
 				if (Checkbox(Translate("HUD.Unarmed"), &Settings->ED_Widget_ShowUnarmed))
 					hudChanged = UpdateMenu(true);
 				TableSetColumnIndex(1);
+				if (Checkbox(Translate("HUD.Indestructible"), &Settings->ED_Widget_HideIndestructible))
+					hudChanged = UpdateMenu(true);
+
+				TableNextRow();
+				TableSetColumnIndex(0);
+				if (Checkbox(Translate("HUD.Breaking"), &Settings->ED_Widget_ShowOnlyBreaking))
+					hudChanged = UpdateMenu(true);
+				TableSetColumnIndex(1);	
 				Text("");
 
 				EndTable();

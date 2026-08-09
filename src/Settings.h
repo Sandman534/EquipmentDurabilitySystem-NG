@@ -96,8 +96,8 @@ public:
 	// Widget Position and Color
 	int ED_Widget_Display{ 1 };
 	int ED_Widget_Layout{ 0 };
-	int ED_Widget_PosX{ 3 };
-	int ED_Widget_PosY{ 73 };
+	float ED_Widget_PosX{ 3.0f };
+	float ED_Widget_PosY{ 73.0f };
 	int ED_Widget_Scale{ 100 };
 	std::uint32_t ED_Color_Unbreakable{ 0xFFFFFF };
 	std::uint32_t ED_Color_Broken{ 0xFFD700 };
@@ -115,7 +115,7 @@ public:
 	bool ED_Widget_ShowHealth{ true };
 	bool ED_Widget_ShowUnarmed{ true };
 	bool ED_Widget_ShowOnlyBreaking{ false };
-	bool ED_Widget_ShowIndestructible{ true };
+	bool ED_Widget_HideIndestructible{ false };
 
 	// Temper Names
 	std::string ED_Names_Broken{ "Broken" };

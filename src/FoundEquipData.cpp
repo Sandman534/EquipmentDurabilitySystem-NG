@@ -281,6 +281,10 @@ bool FoundEquipData::CanBreak() {
     return true;
 }
 
+bool FoundEquipData::CanBreakOrIsBroken() {
+    return CanBreak() || IsBroken();
+}
+
 bool FoundEquipData::CanTemper() {
     if (!baseForm) return false;
     return Utility::GetSingleton()->TemperableForms.contains(baseForm->formID);

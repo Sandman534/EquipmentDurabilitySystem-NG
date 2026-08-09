@@ -195,7 +195,7 @@ void DurabilityMenu::UpdateItemData() {
 		if (eqD.baseForm && 
 			(setting->ED_Widget_ShowUnarmed || !eqD.IsUnarmed()) &&
 			(!setting->ED_Widget_ShowOnlyBreaking || eqD.IsBelowBreakingThreshold()) &&
-			(setting->ED_Widget_ShowIndestructible || eqD.CanBreak())
+			(!setting->ED_Widget_HideIndestructible || eqD.CanTemper())
 		) {
 			// Process the inventory through the stack
 			const I4Data::Items::ItemStack stack{ &eqD };
