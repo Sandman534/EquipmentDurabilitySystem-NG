@@ -463,7 +463,7 @@ double Settings::MaterialRate(std::span<RE::BGSKeyword*> keywords) {
 
 	// If Material Multiplier is on
 	for (RE::BGSKeyword* keyword : keywords) {
-		if (!keyword) continue;
+		if (!keyword || keyword->IsDynamicForm()) continue;
 		RE::FormID tmp = keyword->GetFormID();
 		if (auto it = materialMap.find(tmp); it != materialMap.end()) {
 			Rates += MaterialRates.at(it->second);
