@@ -254,6 +254,27 @@ bool FoundEquipData::IsUnarmed() {
 	return baseForm->formID == 0x0001F4;
 }
 
+bool FoundEquipData::CanTemper() {
+    if (!baseForm || IsUnarmed()) return false;
+
+    // Do not effect Non-Playable items
+    if (!baseForm->GetPlayable())
+        return false;
+
+    // Look for Template Weapon
+    if (auto* weapon = baseForm->As<RE::TESObjectWEAP>())
+        if (auto* tempweap = weapon->templateWeapon)
+            return Utility::GetSingleton()->TemperableForms.contains(tempweap->formID);
+
+    // Look for Template Armor
+    if (auto* armor = baseForm->As<RE::TESObjectARMO>())
+        if (auto* temparmo = armor->templateArmor)
+            return Utility::GetSingleton()->TemperableForms.contains(temparmo->formID);
+
+    // Look for the base object
+    return Utility::GetSingleton()->TemperableForms.contains(baseForm->formID);
+}
+
 bool FoundEquipData::CanBreak() {
 	// Run various checks to see if the item is breakable
     if (!baseForm || !objectData)
@@ -264,8 +285,8 @@ bool FoundEquipData::CanBreak() {
     if (settings->ED_BreakDisabled || IsBroken() || IsUnarmed())
         return false;
 
-    // No break form list, or is a quest item
-    if (settings->HasNoBreakForms(baseForm->formID) || objectData->HasQuestObjectAlias())
+    // Non-Playable or Quest Items
+    if (!baseForm->GetPlayable() || objectData->HasQuestObjectAlias())
         return false;
 
     // Determine if the object is breakable based on other factors
@@ -281,36 +302,30 @@ bool FoundEquipData::CanBreak() {
     return true;
 }
 
-bool FoundEquipData::CanBreakOrIsBroken() {
-    return CanBreak() || IsBroken();
-}
-
-bool FoundEquipData::CanTemper() {
-    if (!baseForm) return false;
-    return Utility::GetSingleton()->TemperableForms.contains(baseForm->formID);
-}
-
 bool FoundEquipData::CanEnchant() {
     if (!baseForm) return false;
-    auto* utility = Utility::GetSingleton();
+    auto* foundKeyword = Utility::GetSingleton()->keywordMagicDisallow;
+
+    // Do not effect Non-Playable items
+    if (!baseForm->GetPlayable())
+        return false;
 
     // Check for Weapon
     if (auto* weapon = baseForm->As<RE::TESObjectWEAP>())
-        return !weapon->HasKeyword(utility->keywordMagicDisallow);
+        return !weapon->HasKeyword(foundKeyword);
 
     // Check for Armor
     if (auto* armor = baseForm->As<RE::TESObjectARMO>())
-        return !armor->HasKeyword(utility->keywordMagicDisallow);
+        return !armor->HasKeyword(foundKeyword);
 
     return false;
 }
 
 bool FoundEquipData::IsBelowBreakingThreshold() {
-    if (!CanBreak()) return false;
-    auto* setting = Settings::GetSingleton();
+    if (!CanBreak() || !CanTemper()) return false;
 
     // Check for Weapon
-    if (GetItemHealthForWidget() <= setting->ED_BreakThreshold)
+    if (GetItemHealthForWidget() <= Settings::GetSingleton()->ED_BreakThreshold)
         return true;
 
     return false;

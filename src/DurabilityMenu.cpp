@@ -125,6 +125,32 @@ void DurabilityMenu::UpdatePosition() {
 	}
 }
 
+FoundEquipData DurabilityMenu::GetHand(RE::InventoryChanges* a_changes, bool a_lefthand) {
+	// Initial Variables
+	auto utility = Utility::GetSingleton();
+	auto* setting = Settings::GetSingleton();
+	FoundEquipData eqD;
+
+	RE::TESForm* itemHand = utility->GetPlayer()->GetEquippedObject(a_lefthand);
+	// If the item is a weapon, get it
+	if (itemHand && itemHand->IsWeapon())
+		eqD = FindEquippedWeapon(a_changes, itemHand, a_lefthand);
+	
+	// If the tiem is a spell, check to see if the setting is enabled
+	else if (itemHand && itemHand->Is(RE::FormType::Spell)) {
+		if (setting->ED_Widget_ShowSpells) eqD = FoundEquipData(itemHand);
+
+	// Non-Spell, Non-Weapon items
+	} else if (itemHand)
+		eqD = FoundEquipData(itemHand);
+
+	// If no item, show unarmed
+	else
+		eqD = FoundEquipData(utility->Unarmed);
+
+	return eqD;
+}
+
 void DurabilityMenu::UpdateItemData() {
 	auto utility = Utility::GetSingleton();
 	if (!uiMovie || !uiMovie->GetVisible()) return;
@@ -149,29 +175,14 @@ void DurabilityMenu::UpdateItemData() {
 		else
 			eqDs.push_back(FindEquippedArmor(exChanges, RE::BGSBipedObjectForm::BipedObjectSlot::kHair));
 
+		// Body, Hands and Feet
 		eqDs.push_back(FindEquippedArmor(exChanges, RE::BGSBipedObjectForm::BipedObjectSlot::kBody));
 		eqDs.push_back(FindEquippedArmor(exChanges, RE::BGSBipedObjectForm::BipedObjectSlot::kHands));
 		eqDs.push_back(FindEquippedArmor(exChanges, RE::BGSBipedObjectForm::BipedObjectSlot::kFeet));
 
-		// Add Left Hand
-		RE::TESForm* left = utility->GetPlayer()->GetEquippedObject(true);
-		if (left && left->IsWeapon())
-			eqDs.push_back(FindEquippedWeapon(exChanges, left, true));
-		else if (left && left->IsArmor() && left->As<RE::TESObjectARMO>()->HasPartOf(RE::BGSBipedObjectForm::BipedObjectSlot::kShield))
-			eqDs.push_back(FindEquippedArmor(exChanges, RE::BGSBipedObjectForm::BipedObjectSlot::kShield));
-		else if (left)
-			eqDs.push_back(FoundEquipData(left));
-		else
-			eqDs.push_back(FoundEquipData(utility->Unarmed));
-
-		// Add Right Hand
-		RE::TESForm* right = utility->GetPlayer()->GetEquippedObject(false);
-		if (right && right->IsWeapon())
-			eqDs.push_back(FindEquippedWeapon(exChanges, right, false));
-		else if (right)
-			eqDs.push_back(FoundEquipData(right));
-		else
-			eqDs.push_back(FoundEquipData(utility->Unarmed));
+		// Add Left and Right Hand
+		eqDs.push_back(GetHand(exChanges, true));
+		eqDs.push_back(GetHand(exChanges, false));
 
 		// Add Power
 		eqDs.push_back(FoundEquipData(utility->GetPlayer()->GetActorRuntimeData().selectedPower));
@@ -179,6 +190,7 @@ void DurabilityMenu::UpdateItemData() {
 
 	// Set up for 7 items, 5 values each + stack data
 	int i = 0;
+	int index = 0;
 	RE::GFxValue args[35];
 
 	// Loop through the found equipment data
@@ -190,6 +202,19 @@ void DurabilityMenu::UpdateItemData() {
 		std::uint32_t iconCustomColor = setting->ED_Color_Unbreakable;
 		RE::GFxValue stackData;
 		stackData.SetNull();
+
+		//If we are hiding a slot entirely, move on
+		if ((!setting->ED_Widget_ShowHead && index == 0) ||
+			(!setting->ED_Widget_ShowBody && index == 1) ||
+			(!setting->ED_Widget_ShowHands && index == 2) ||
+			(!setting->ED_Widget_ShowFeet && index == 3) ||
+			(!setting->ED_Widget_ShowLeftHand && index == 4) ||
+			(!setting->ED_Widget_ShowRightHand && index == 5) ||
+			(!setting->ED_Widget_ShowShout && index == 6)
+		) {
+			index++;
+			continue;
+		}
 
 		// Process the form
 		if (eqD.baseForm && 
@@ -212,9 +237,8 @@ void DurabilityMenu::UpdateItemData() {
 
 				// Get Health Value and Color
 				if (eqD.CanTemper()) {
-					using std::max;
 					iconValue = eqD.GetItemHealthForWidget();
-					if (setting->GetBreakChance(eqD.baseForm) != 0.0 && iconValue <= setting->ED_BreakThreshold && eqD.CanBreak())
+					if (setting->GetBreakChance(eqD.baseForm) != 0.0 && eqD.IsBelowBreakingThreshold())
 						iconCustomColor = setting->ED_Color_Broken;
 				}
 			} else
@@ -223,6 +247,28 @@ void DurabilityMenu::UpdateItemData() {
 			// Create the stack data
 			if (eqD.baseForm) stackData = stack.BuildDataObject(uiMovie.get());
 		}
+
+		// Add our values to the argument list
+		args[i].SetString(iconLabel);
+		args[i+1].SetString(iconText);
+		args[i+2].SetNumber(iconValue);
+		args[i+3].SetNumber(iconCustomColor);
+		args[i+4] = stackData;
+
+		i += 5;
+		index++;
+	}
+
+	// We do not have a full stack, fill in the blanks
+	int slotsLeft = (35 - i) / 5;
+	for (int j = 0; j < slotsLeft; j++) {
+		// Place holders before inserting into the menu arguments
+		const char* iconLabel = "none";
+		const char* iconText = "";
+		double iconValue = -1;
+		std::uint32_t iconCustomColor = setting->ED_Color_Unbreakable;
+		RE::GFxValue stackData;
+		stackData.SetNull();
 
 		// Add our values to the argument list
 		args[i].SetString(iconLabel);

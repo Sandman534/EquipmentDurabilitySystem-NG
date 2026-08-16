@@ -47,6 +47,7 @@ public:
 
 	void AdvanceMovie(float a_interval, std::uint32_t a_currentTime) override;
 
+	FoundEquipData GetHand(RE::InventoryChanges* a_changes, bool a_lefthand);
 	void MenuState();
 	void ShowMenu();
 	void HideMenu();

@@ -100,13 +100,21 @@ void Settings::ForEachINIOption(Settings& settings, Func&& option) {
 	option(settings.ED_Widget_ToggleDuration, "Widget", "ToggleDuration");
 	option(settings.ED_Widget_Reverse, "Widget", "Reverse");
 	option(settings.ED_Widget_ShowPoisonName, "Widget", "ShowPoisonName");
-	option(settings.ED_Widget_ShowShout, "Widget", "ShowShout");
 	option(settings.ED_Widget_ShowWeaponName, "Widget", "ShowWeaponName");
 	option(settings.ED_Widget_ShowArmorName, "Widget", "ShowArmorName");
 	option(settings.ED_Widget_ShowHealth, "Widget", "ShowHealth");
 	option(settings.ED_Widget_ShowUnarmed, "Widget", "ShowUnarmed");
+	option(settings.ED_Widget_ShowSpells, "Widget", "ShowSpells");
 	option(settings.ED_Widget_ShowOnlyBreaking, "Widget", "ShowOnlyBreaking");
 	option(settings.ED_Widget_HideIndestructible, "Widget", "HideIndestructible");
+
+	option(settings.ED_Widget_ShowHead, "Widget", "ShowHead");
+	option(settings.ED_Widget_ShowBody, "Widget", "ShowBody");
+	option(settings.ED_Widget_ShowHands, "Widget", "ShowHands");
+	option(settings.ED_Widget_ShowFeet, "Widget", "ShowFeet");
+	option(settings.ED_Widget_ShowLeftHand, "Widget", "ShowLeftHand");
+	option(settings.ED_Widget_ShowRightHand, "Widget", "ShowRightHand");
+	option(settings.ED_Widget_ShowShout, "Widget", "ShowShout");
 
 	// Temper Name Settings
 	option(settings.ED_Names_Style, "Temper Names", "DisplayStyle");
@@ -162,7 +170,6 @@ void Settings::LoadINI() {
 	};
 
 	// Process the rest of the lists
-	ProcessNoBreakForms();
 	ProcessEnchantingForms();
 	ProcessMaterialForms();
 	SetVendorList();
@@ -198,34 +205,56 @@ void Settings::SaveINI() {
 	iniSettings.SaveFile(setting_path);
 }
 
-void Settings::ProcessNoBreakForms() {
-	CSimpleIniA ini;
-	ini.SetUnicode();
-	ini.SetMultiKey(true);
-	ini.LoadFile(list_path);
+void Settings::EnchantmentBodyPart() {
+	auto* dataHandler = RE::TESDataHandler::GetSingleton();
 
-	// Get all keys, and return if there are none
-	CSimpleIniA::TNamesDepend keys;
-	ini.GetAllValues("BreakList", "BreakEntry", keys);
-	if (keys.empty()) return;
-
-	// Split the string and map accordingly
-	for (auto& kv : keys) {
-		// 0 - ESP Name, 1 - FormID
-		std::vector<std::string> parts = SplitString(kv.pItem);
-
-		// Guard against invalid entries
-		if (parts.size() < 2) {
-			logger::warn("Invalid break entry: {}", kv.pItem);
+	// Weapon Enchanting
+	for (auto* form : dataHandler->GetFormArray(RE::FormType::Weapon)) {
+		auto* weapon = form ? form->As<RE::TESObjectWEAP>() : nullptr;
+		if (!weapon || !weapon->formEnchanting)
 			continue;
-		}
 
-		// Process the no break form
-		if (auto* form = RE::TESDataHandler::GetSingleton()->LookupForm(RE::FormID(std::stoull(parts[1], nullptr, 0)), parts[0]))
-			noBreakForms.insert(form->formID);
+		auto it = configuredEnchantments.find(weapon->formEnchanting);
+		if (it != configuredEnchantments.end())
+			AddUnique(enchantWeapon, it->second);
 	}
 
-	logger::info("Loaded: {} No Break Forms", noBreakForms.size());
+	// Armor Enchanting
+	for (auto* form : dataHandler->GetFormArray(RE::FormType::Armor)) {
+		auto* armor = form ? form->As<RE::TESObjectARMO>() : nullptr;
+		if (!armor || !armor->formEnchanting)
+			continue;
+
+		auto it = configuredEnchantments.find(armor->formEnchanting);
+		if (it == configuredEnchantments.end())
+			continue;
+
+		const auto& enchantment = it->second;
+
+		auto hasSlot = [&](auto... slots){ return (... || armor->HasPartOf(slots)); };
+
+        if (hasSlot(RE::BGSBipedObjectForm::BipedObjectSlot::kBody, RE::BGSBipedObjectForm::BipedObjectSlot::kTail))
+			AddUnique(enchantBody, enchantment);
+
+        else if (hasSlot(RE::BGSBipedObjectForm::BipedObjectSlot::kHead, RE::BGSBipedObjectForm::BipedObjectSlot::kHair, RE::BGSBipedObjectForm::BipedObjectSlot::kLongHair)) 
+            AddUnique(enchantHead, enchantment);
+
+        else if (hasSlot(RE::BGSBipedObjectForm::BipedObjectSlot::kHands, RE::BGSBipedObjectForm::BipedObjectSlot::kForearms))
+            AddUnique(enchantHand, enchantment);
+
+        else if (hasSlot(RE::BGSBipedObjectForm::BipedObjectSlot::kFeet, RE::BGSBipedObjectForm::BipedObjectSlot::kCalves))
+            AddUnique(enchantFoot, enchantment);
+
+        else if (hasSlot(RE::BGSBipedObjectForm::BipedObjectSlot::kShield)) 
+            AddUnique(enchantShield, enchantment);
+	}
+}
+
+void Settings::AddUnique(std::vector<GameData::Enchantment>& list, const GameData::Enchantment& entry) {
+	const auto found = std::ranges::find(list, entry.enchantment, &GameData::Enchantment::enchantment);
+
+    if (found == list.end())
+        list.push_back(entry);
 }
 
 void Settings::ProcessEnchantingForms() {
@@ -246,7 +275,7 @@ void Settings::ProcessEnchantingForms() {
 
 		// Guard against invalid entries
 		if (parts.size() < 5) {
-			logger::warn("Invalid material entry: {}", kv.pItem);
+			logger::warn("Invalid Enchantment entry: {}", kv.pItem);
 			continue;
 		}
 
@@ -263,6 +292,9 @@ void Settings::ProcessEnchantingForms() {
 			newEnchantment.enchantment = enchantItem;
 			newEnchantment.tier = std::stoi(parts[3]);
 			newEnchantment.suffix = parts[4];
+
+			// Add the enchantment to the map for part mapping later
+			configuredEnchantments.emplace(enchantItem, newEnchantment);
 
 			// Split body parts by comma in case of multiple entries
 			std::vector<std::string> bodyParts = SplitString(parts[2], ",");
@@ -282,12 +314,55 @@ void Settings::ProcessEnchantingForms() {
 		}
 	}
 
+	// Load body parts based on modded game
+	EnchantmentBodyPart();
+
+	LogUnassignedEnchantments();
+
+	// Display loaded items
 	logger::info("Loaded: {} Weapon Enchantments", enchantWeapon.size());
 	logger::info("Loaded: {} Head Enchantments", enchantHead.size());
 	logger::info("Loaded: {} Body Enchantments", enchantBody.size());
 	logger::info("Loaded: {} Hand Enchantments", enchantHand.size());
 	logger::info("Loaded: {} Foot Enchantments", enchantFoot.size());
 	logger::info("Loaded: {} Shield Enchantments", enchantShield.size());
+}
+
+void Settings::LogUnassignedEnchantments() {
+    std::unordered_set<RE::EnchantmentItem*> assigned;
+
+    auto collect = [&](const auto& list) {
+        for (const auto& entry : list) {
+            if (entry.enchantment)
+                assigned.insert(entry.enchantment);
+        }
+    };
+
+    collect(enchantWeapon);
+    collect(enchantHead);
+    collect(enchantBody);
+    collect(enchantHand);
+    collect(enchantFoot);
+    collect(enchantShield);
+
+    std::size_t missingCount = 0;
+
+    for (const auto& [enchantment, data] : configuredEnchantments) {
+        if (!assigned.contains(enchantment)) {
+            ++missingCount;
+
+            logger::warn(
+                "Enchantment was not assigned to an equipment type: "
+                "{:08X} ({})",
+                enchantment ? enchantment->formID : 0,
+                data.suffix);
+        }
+    }
+
+    logger::info(
+        "Assigned {} of {} configured enchantments",
+        configuredEnchantments.size() - missingCount,
+        configuredEnchantments.size());
 }
 
 void Settings::ProcessMaterialForms() {
@@ -402,7 +477,7 @@ double Settings::GetBreakChance(RE::TESForm* form, RE::Actor* a_actor) {
 		else if (armor->HasKeyword(utility->keywordClothing)) return ED_Break_Clothing * matMulti * skillMulti;
 	}
 
-	return ED_Break_Armor;
+	return ED_Break_Armor * skillMulti;
 }
 
 bool Settings::isDynamicEnabled() {
@@ -422,11 +497,6 @@ std::vector<GameData::Enchantment>* Settings::GetEnchantmentList(EquipmentType t
     }
 
 	return nullptr;
-}
-
-// Break Form Functions
-bool Settings::HasNoBreakForms(int formid) {
-	return noBreakForms.contains(formid);
 }
 
 // Vendor Container Functions

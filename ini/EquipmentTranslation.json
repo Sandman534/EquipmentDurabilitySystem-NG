@@ -96,8 +96,16 @@
 	"HUD.Breaking": "Show Only Breaking",
 	"HUD.Scale": "Scale",
 	"HUD.Layout": "Orientation",
-	"HUD.Options": "Visibilty Settings",
-	
+	"HUD.Options": "HUD Visibilty",
+	"HUD.Slots": "Slot Visibility",
+	"HUD.Head": "Show Head",
+	"HUD.Body": "Show Body",
+	"HUD.Hands": "Show Hands",
+	"HUD.Feet": "Show Feet",
+	"HUD.LeftHand": "Show Left Hand",
+	"HUD.RightHand": "Show Right Hand",
+	"HUD.Spells": "Show Equipped Spells",
+
 	"HUDDisplay.Never": "Never",
 	"HUDDisplay.Always": "Always",
 	"HUDDisplay.WeaponDrawn": "Weapon Drawn",
@@ -123,5 +131,8 @@
 	"Temper.Custom": "Custom Names",
 	"Temper.Level": "Level %02d:",
 	"Temper.Add": "Add Entry",
-	"Temper.New": "New Entry"
+	"Temper.New": "New Entry",
+	
+	"Notification.Break": "{} is broken and cannot be equipped",
+	"Notification.Broken": "Your {} has broken"
 }

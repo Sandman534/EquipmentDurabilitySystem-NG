@@ -21,6 +21,7 @@ namespace EDUI {
     void __stdcall RenderTemper();
 
     // Additional Functions
+    bool VisibileEntry(const char* label1, bool* value1, const char* label2 = nullptr,  bool* value2 = nullptr);
 	int GetStyleIndex(const std::string& value);
     bool MaterialEntry(const char* label, int& value);
     bool DegradeEntry(const char* label, int& degradeValue, int& breakValue);

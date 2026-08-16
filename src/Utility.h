@@ -56,7 +56,8 @@ public:
     // Form Checks
     bool ActorIsNotBeast(RE::Actor* actor);
     bool ObjectIsVendor(RE::TESObjectREFR* RefObject);
-    bool LocationIsBoss(RE::ExtraDataList& ExtraList);
+    bool ObjectIsBoss(RE::TESObjectREFR* RefObject);
+    bool HasLocationRefType(RE::TESObjectREFR* ref, const RE::BGSLocationRefType* wantedType);
 
     // UI Functions
     void ShowNotification(std::string msg, bool messageBox = false, const char* a_soundToPlay = 0);

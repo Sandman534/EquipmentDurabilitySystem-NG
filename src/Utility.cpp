@@ -95,18 +95,43 @@ bool Utility::ActorIsNotBeast(RE::Actor* actor) {
     return actor->GetRace() != raceWerewolf && actor->GetRace() != raceVampireLord && !isLich;
 }
 
-bool Utility::ObjectIsVendor (RE::TESObjectREFR* RefObject) {
+bool Utility::ObjectIsVendor(RE::TESObjectREFR* RefObject) {
     return RefObject->GetBaseObject() && 
         RefObject->GetBaseObject()->formType == RE::FormType::Container && 
         Settings::GetSingleton()->IsVendorContainer(RefObject);
 }
 
-bool Utility::LocationIsBoss (RE::ExtraDataList& ExtraList) {
-    RE::ExtraLocationRefType* xRefType = nullptr;
-    if (ExtraList.HasType(RE::ExtraDataType::kLocationRefType))
-        xRefType = static_cast<RE::ExtraLocationRefType*>(ExtraList.GetByType(RE::ExtraDataType::kLocationRefType));
+bool Utility::ObjectIsBoss(RE::TESObjectREFR* RefObject) {
+    if (!RefObject) return false;
 
-    return xRefType && (xRefType->locRefType == locationBoss || xRefType->locRefType == locationBossContainer);
+    auto* base = RefObject->GetBaseObject();
+    if (!base) return false;
+
+    if (base->Is(RE::FormType::ActorCharacter))
+        return HasLocationRefType(RefObject, locationBoss);
+
+    if (base->Is(RE::FormType::Container))
+        return HasLocationRefType(RefObject, locationBossContainer);
+
+    return false;
+}
+
+bool Utility::HasLocationRefType(RE::TESObjectREFR* ref, const RE::BGSLocationRefType* wantedType) {
+    if (!ref || !wantedType)
+        return false;
+
+    for (const auto& extra : ref->extraList) {
+        if (extra.GetType() != RE::ExtraDataType::kLocationRefType)
+            continue;
+
+        const auto& locationType =
+            static_cast<const RE::ExtraLocationRefType&>(extra);
+
+        if (locationType.locRefType == wantedType)
+            return true;
+    }
+
+    return false;
 }
 
 void Utility::ShowNotification(std::string msg, bool messageBox, const char* a_soundToPlay) {

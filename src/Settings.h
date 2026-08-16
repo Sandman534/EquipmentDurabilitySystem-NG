@@ -83,15 +83,15 @@ public:
 
 	// Dynamic Temper
 	bool ED_Temper_Enabled{ true };
-	int ED_Temper_Chance{ 40 };
-	int ED_Temper_VendorChance{ 50 };
-	int ED_Temper_BossChance{ 80 };
+	int ED_Temper_Chance{ 10 };
+	int ED_Temper_VendorChance{ 15 };
+	int ED_Temper_BossChance{ 25 };
 
 	// Dynamic Enchanting
 	bool ED_Enchant_Enabled{ true };
-	int ED_Enchant_Chance{ 10 };
-	int ED_Enchant_VendorChance{ 15 };
-	int ED_Enchant_BossChance{ 20 };
+	int ED_Enchant_Chance{ 3 };
+	int ED_Enchant_VendorChance{ 6 };
+	int ED_Enchant_BossChance{ 12 };
 
 	// Widget Position and Color
 	int ED_Widget_Display{ 1 };
@@ -109,13 +109,21 @@ public:
 	// Widget Layout Options
 	bool ED_Widget_Reverse{ false };
 	bool ED_Widget_ShowPoisonName{ true };
-	bool ED_Widget_ShowShout{ true };
 	bool ED_Widget_ShowWeaponName{ true };
 	bool ED_Widget_ShowArmorName{ true };
 	bool ED_Widget_ShowHealth{ true };
 	bool ED_Widget_ShowUnarmed{ true };
+	bool ED_Widget_ShowSpells{ true };
 	bool ED_Widget_ShowOnlyBreaking{ false };
 	bool ED_Widget_HideIndestructible{ false };
+
+	bool ED_Widget_ShowHead{ true };
+	bool ED_Widget_ShowBody{ true };
+	bool ED_Widget_ShowHands{ true };
+	bool ED_Widget_ShowFeet{ true };
+	bool ED_Widget_ShowLeftHand{ true };
+	bool ED_Widget_ShowRightHand{ true };
+	bool ED_Widget_ShowShout{ true };
 
 	// Temper Names
 	std::string ED_Names_Broken{ "Broken" };
@@ -131,7 +139,6 @@ public:
 	// Processing
 	void LoadINI();
 	void SaveINI();
-	void ProcessNoBreakForms();
 	void ProcessEnchantingForms();
 	void ProcessMaterialForms();
 
@@ -143,7 +150,6 @@ public:
 
 	// Checks
 	bool IsVendorContainer(RE::TESObjectREFR* form);
-	bool HasNoBreakForms(int formid);
 	bool isDynamicEnabled();
 
 	// Public Functions
@@ -159,16 +165,19 @@ private:
 	template <class Func>
 	void ForEachINIOption(Settings& settings, Func&& option);
 
-	// No Break Forms
-	std::unordered_set<int> noBreakForms;
-
 	// Enchantment Lists
+	std::unordered_map<RE::EnchantmentItem*, GameData::Enchantment> configuredEnchantments;
 	std::vector<GameData::Enchantment> enchantWeapon;
 	std::vector<GameData::Enchantment> enchantBody;
 	std::vector<GameData::Enchantment> enchantHead;
 	std::vector<GameData::Enchantment> enchantHand;
 	std::vector<GameData::Enchantment> enchantFoot;
 	std::vector<GameData::Enchantment> enchantShield;
+
+	// Process the body parts
+	void EnchantmentBodyPart();
+	void AddUnique(std::vector<GameData::Enchantment>& list, const GameData::Enchantment& entry);
+	void LogUnassignedEnchantments();
 
 	// Material Multipliers
 	std::unordered_map<GameData::Material, double> MaterialRates;

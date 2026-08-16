@@ -62,20 +62,19 @@ static void TemperDecay(FoundEquipData* eqD, RE::Actor* actor, bool powerAttack)
 	auto utility = Utility::GetSingleton();
 	auto setting = Settings::GetSingleton();
 
-	if (setting->ED_DegradationDisabled) return;
-	if (!eqD->baseForm || !AddActor(actor)) return;
-	if (eqD->baseForm == utility->Unarmed) return;
+	// Check for system enabled; The item is not unarmed; If the actor is not throttled
+	if (setting->ED_DegradationDisabled || !eqD->CanTemper() || !AddActor(actor)) return;
 
 	// Get current health percent
 	float CurrentHealth = eqD->GetItemHealthPercent();
 	float BreakThreshold = (setting->ED_BreakThreshold / 1000.0f);
 	
 	// --- Break Chance ---
-	if ((CurrentHealth - Degredation::kMinHealth) <= BreakThreshold) {
+	if ((CurrentHealth - Degredation::kMinHealth) <= BreakThreshold && eqD->CanBreak()) {
 		auto chance = setting->GetBreakChance(eqD->baseForm, actor);
 
 		// Apply modifiers
-		if (chance != 0.0 && eqD->CanBreak()) {
+		if (chance != 0.0) {
 
 			// Increased Durability
 			if (setting->ED_IncreasedDurability && CurrentHealth > Degredation::kMinHealth) {
@@ -448,6 +447,7 @@ static void TemperItem(FoundEquipData* equipData, int actorLevel, bool isVendor 
 
 	if (Probability::Int(chanceTemper))
 		equipData->SetItemHealthPercentCapped(static_cast<float>(Random::Double(10001.0, 10001.0 + ((actorLevel + 10) * 100)) * 0.0001));
+
 }
 
 static void EnchantItem(FoundEquipData* equipData, RE::TESObjectREFR* ref, int actorLevel, bool isVendor = false, bool isBoss = false) {
@@ -461,6 +461,7 @@ static void EnchantItem(FoundEquipData* equipData, RE::TESObjectREFR* ref, int a
 
 	if (Probability::Int(chanceEnchant))
 		equipData->SetItemEnchantment(actorLevel, ref);
+
 }
 
 static void ProcessInventoryChanges(RE::InventoryChanges* inventoryChanges, RE::TESObjectREFR* owner, InventoryProcessMode mode, int level, bool isVendor, bool isBoss, RE::TESBoundObject* objectFilter = nullptr) {
@@ -481,13 +482,14 @@ static void ProcessInventoryChanges(RE::InventoryChanges* inventoryChanges, RE::
 		if (entry->extraLists) {
 			for (auto* entryData : *entry->extraLists) {
 				if (!entryData) continue;
+				if (entry->countDelta > 1) continue;
 
 				// Set the extradata and determine if we can continue processing the item
 				FoundEquipData item(entry->GetObject(), entryData);
 				if (!item.CanProcessData()) continue;
 
 				// If we are accessing the system through the dynamic update process
-				if (mode == InventoryProcessMode::kDynamic) {
+				if (mode == InventoryProcessMode::kDynamic && entry->countDelta == 1) {
 					if (setting->ED_Temper_Enabled && item.CanTemper() && !item.IsTempered())
 						TemperItem(&item, level, isVendor, isBoss);
 
@@ -553,19 +555,31 @@ static void ProcessInventory(RE::TESObjectREFR* ref, bool allowUnattached = fals
 
 	// Check for Vendor Chest or Boss Lair
     const bool isVendor = forceVendor || utility->ObjectIsVendor(ref);
-    const bool isBoss = utility->LocationIsBoss(ref->extraList);
+    const bool isBoss = utility->ObjectIsBoss(ref);
 
 	ProcessInventoryChanges(invChanges, ref, InventoryProcessMode::kDynamic, level, isVendor, isBoss);
 }
 
+// =============================================================
+// Vendor Handling
+// =============================================================
 static void ProcessBarterInventory() {
 	if (!Settings::GetSingleton()->ED_Temper_Enabled && !Settings::GetSingleton()->ED_Enchant_Enabled)
 		return;
 
-	// Get the referenc eof the barter menu
+	// Prefer BarterMenu's target when available. During kShow the menu has not
+	// initialized that handle yet, so resolve the active dialogue speaker instead.
 	auto targetHandle = RE::BarterMenu::GetTargetRefHandle();
 	auto targetPtr = RE::Actor::LookupByHandle(targetHandle);
 	auto* vendor = targetPtr.get();
+	RE::NiPointer<RE::TESObjectREFR> speakerPtr;
+	if (!vendor) {
+		auto* topicManager = RE::MenuTopicManager::GetSingleton();
+		if (topicManager) {
+			speakerPtr = topicManager->speaker.get();
+			vendor = speakerPtr ? speakerPtr->As<RE::Actor>() : nullptr;
+		}
+	}
 	if (!vendor) return;
 
 	// Some merchants can sell items carried on the actor in addition to the
@@ -583,14 +597,14 @@ static void ProcessBarterInventory() {
 		if (!faction || !faction->IsVendor()) continue;
 
 		auto* merchantContainer = faction->vendorData.merchantContainer;
-		if (merchantContainer && processedContainers.insert(merchantContainer).second)
+		if (merchantContainer && processedContainers.insert(merchantContainer).second) {
 			ProcessInventory(merchantContainer, true, true);
+		}
 	}
 }
 
 struct BarterMenuHook {
 	static RE::UI_MESSAGE_RESULTS ProcessMessage(RE::BarterMenu* menu, RE::UIMessage& message) {
-		// Process what would be in the vendors barter window before we finish processing the opening
 		if (message.type == RE::UI_MESSAGE_TYPE::kShow && Settings::GetSingleton()->isDynamicEnabled())
 			ProcessBarterInventory();
 

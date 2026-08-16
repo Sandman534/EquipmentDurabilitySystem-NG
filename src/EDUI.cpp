@@ -314,51 +314,31 @@ namespace EDUI {
 			}
 		}
 
+		// Show Slots
+		if (CollapsingHeader(Translate("HUD.Slots"), ImGuiTreeNodeFlags_DefaultOpen)) {
+			if (BeginTable("##Show_Body", 2, ImGuiTableFlags_NoBordersInBody)) {
+				TableSetupColumn("", ImGuiTableColumnFlags_NoHeaderLabel);
+				TableSetupColumn("", ImGuiTableColumnFlags_NoHeaderLabel);
+				TableHeadersRow();
+				VisibileEntry(Translate("HUD.Head"), &Settings->ED_Widget_ShowHead, Translate("HUD.Body"), &Settings->ED_Widget_ShowBody);
+				VisibileEntry(Translate("HUD.Hands"), &Settings->ED_Widget_ShowHands, Translate("HUD.Feet"), &Settings->ED_Widget_ShowFeet);
+				VisibileEntry(Translate("HUD.LeftHand"), &Settings->ED_Widget_ShowLeftHand, Translate("HUD.RightHand"), &Settings->ED_Widget_ShowRightHand);
+				VisibileEntry(Translate("HUD.Shout"), &Settings->ED_Widget_ShowShout);
+				EndTable();
+			}
+		}
+
+		// Show and Hide Fields
 		if (CollapsingHeader(Translate("HUD.Options"), ImGuiTreeNodeFlags_DefaultOpen)) {
-			// All of the Show/Hide Options
 			if (BeginTable("##Show_Hide", 2, ImGuiTableFlags_NoBordersInBody)) {
 				TableSetupColumn("", ImGuiTableColumnFlags_NoHeaderLabel);
 				TableSetupColumn("", ImGuiTableColumnFlags_NoHeaderLabel);
 				TableHeadersRow();
-
-				TableSetColumnIndex(0); 
-				if (Checkbox(Translate("HUD.Reverse"), &Settings->ED_Widget_Reverse))
-					hudChanged = UpdateMenu(true);
-				TableSetColumnIndex(1); 
-				if (Checkbox(Translate("HUD.Poison"), &Settings->ED_Widget_ShowPoisonName))
-					hudChanged = UpdateMenu(true);
-
-				TableNextRow();
-				TableSetColumnIndex(0); 
-				if (Checkbox(Translate("HUD.Health"), &Settings->ED_Widget_ShowHealth))
-					hudChanged = UpdateMenu(true);
-				TableSetColumnIndex(1);
-				if (Checkbox(Translate("HUD.Armor"), &Settings->ED_Widget_ShowArmorName))
-					hudChanged = UpdateMenu(true);
-
-				TableNextRow();
-				TableSetColumnIndex(0);
-				if (Checkbox(Translate("HUD.Shout"), &Settings->ED_Widget_ShowShout))
-					hudChanged = UpdateMenu(true);
-				TableSetColumnIndex(1);
-				if (Checkbox(Translate("HUD.Weapon"), &Settings->ED_Widget_ShowWeaponName))
-					hudChanged = UpdateMenu(true);
-
-				TableNextRow();
-				TableSetColumnIndex(0);
-				if (Checkbox(Translate("HUD.Unarmed"), &Settings->ED_Widget_ShowUnarmed))
-					hudChanged = UpdateMenu(true);
-				TableSetColumnIndex(1);
-				if (Checkbox(Translate("HUD.Indestructible"), &Settings->ED_Widget_HideIndestructible))
-					hudChanged = UpdateMenu(true);
-
-				TableNextRow();
-				TableSetColumnIndex(0);
-				if (Checkbox(Translate("HUD.Breaking"), &Settings->ED_Widget_ShowOnlyBreaking))
-					hudChanged = UpdateMenu(true);
-				TableSetColumnIndex(1);	
-				Text("");
-
+				VisibileEntry(Translate("HUD.Reverse"), &Settings->ED_Widget_Reverse, Translate("HUD.Poison"), &Settings->ED_Widget_ShowPoisonName);
+				VisibileEntry(Translate("HUD.Health"), &Settings->ED_Widget_ShowHealth, Translate("HUD.Armor"), &Settings->ED_Widget_ShowArmorName);
+				VisibileEntry(Translate("HUD.Unarmed"), &Settings->ED_Widget_ShowUnarmed, Translate("HUD.Weapon"), &Settings->ED_Widget_ShowWeaponName);
+				VisibileEntry(Translate("HUD.Indestructible"), &Settings->ED_Widget_HideIndestructible, Translate("HUD.Breaking"), &Settings->ED_Widget_ShowOnlyBreaking);
+				VisibileEntry(Translate("HUD.Spells"), &Settings->ED_Widget_ShowSpells);
 				EndTable();
 			}
 		}
@@ -508,6 +488,29 @@ namespace EDUI {
 
 		if (temperChanged)
 			Settings->SaveINI();
+	}
+
+	bool VisibileEntry(const char* label1, bool* value1, const char* label2,  bool* value2) {
+		bool visibleChanged = false;
+
+		// Column 1
+		TableNextRow();
+		TableSetColumnIndex(0); 
+		if (label1)
+			if (Checkbox(label1, value1)) 
+				visibleChanged = UpdateMenu(true);
+		else
+			Text("");
+
+		// Column 2
+		TableSetColumnIndex(1);
+		if (label2)
+			if (Checkbox(label2, value2)) 
+				visibleChanged = UpdateMenu(true);
+		else
+			Text("");
+
+		return visibleChanged;
 	}
 
 	int GetStyleIndex(const std::string& value) {
