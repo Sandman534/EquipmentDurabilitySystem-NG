@@ -185,13 +185,14 @@ static void DecayBlockingEquipment(RE::Actor* actor, RE::InventoryChanges* chang
 	}
 
 	// Left Hand Parry
-	RE::TESForm* leftHand = actor->GetEquippedObject(false);
+	RE::TESForm* leftHand = actor->GetEquippedObject(true);
 	if (leftHand) {
 		if (auto* leftWeapon = leftHand->As<RE::TESObjectWEAP>()) {
 			if (!leftWeapon || leftWeapon->IsBound()) return;
 
-			FoundEquipData weaponData = FindEquippedWeapon(changes, leftHand, false);
+			FoundEquipData weaponData = FindEquippedWeapon(changes, leftHand, true);
 			TemperDecay(&weaponData, actor, powerAttack);
+			return;
 		}
 	}
 

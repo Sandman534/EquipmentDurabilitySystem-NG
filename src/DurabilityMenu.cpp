@@ -138,10 +138,15 @@ FoundEquipData DurabilityMenu::GetHand(RE::InventoryChanges* a_changes, bool a_l
 	
 	// If the tiem is a spell, check to see if the setting is enabled
 	else if (itemHand && itemHand->Is(RE::FormType::Spell)) {
-		if (setting->ED_Widget_ShowSpells) eqD = FoundEquipData(itemHand);
+		if (setting->ED_Widget_ShowSpells)
+			eqD = FoundEquipData(itemHand);
+
+	// If the item is a shield
+	} else if (itemHand->IsArmor())
+		eqD = FindEquippedArmor(a_changes, RE::BGSBipedObjectForm::BipedObjectSlot::kShield);
 
 	// Non-Spell, Non-Weapon items
-	} else if (itemHand)
+	else if (itemHand)
 		eqD = FoundEquipData(itemHand);
 
 	// If no item, show unarmed
