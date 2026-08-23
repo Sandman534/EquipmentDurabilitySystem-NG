@@ -8,8 +8,6 @@
 # folders
 build/
 vs*/
-lib/
-view/
 
 # files
 *.zip

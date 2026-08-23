@@ -38,7 +38,7 @@ void FoundEquipData::CreateName() {
 float FoundEquipData::GetItemHealthForWidget() {
     auto objectHealth = GetItemHealthPercent();
     if (objectHealth < Degredation::kBrokenHealth) return 0.0f;
-    return static_cast<float>(max(std::round((Degredation::TruncateToDecimals(objectHealth,3) - Degredation::kMinHealth) * 1000.0), 0.0));
+    return static_cast<float>(std::max(std::round((Degredation::TruncateToDecimals(objectHealth,3) - Degredation::kMinHealth) * 1000.0), 0.0));
 }
 
 float FoundEquipData::GetItemHealthPercent() {
@@ -156,14 +156,11 @@ void FoundEquipData::SetItemEnchantment(int playerLevel, RE::TESObjectREFR* ref)
 		objectEnchantment->charge = chargeValue;
 		objectData->Add(objectEnchantment);
 
-        // If the weapon is being held by an actor, set a charge value
-		if (RE::Actor* a_actor = ref->As<RE::Actor>(); a_actor && baseForm->IsWeapon()) {
-			float RandomEnchant = static_cast<float>(Random::Int(0,chargeValue));
-			if (objectData->HasType<RE::ExtraWornLeft>())
-                a_actor->AsActorValueOwner()->ModActorValue(RE::ActorValue::kLeftItemCharge, RandomEnchant);
-			else if (objectData->HasType<RE::ExtraWorn>())
-                a_actor->AsActorValueOwner()->ModActorValue(RE::ActorValue::kRightItemCharge, RandomEnchant);
-		}
+        // Set charge value
+        auto* extraCharge = static_cast<RE::ExtraCharge*>(RE::ExtraCharge::Create(sizeof(RE::ExtraCharge), RE::VTABLE_ExtraCharge[0].address()));
+        new RE::ExtraCharge();
+        extraCharge->charge = static_cast<float>(Random::Int(0, chargeValue));
+        objectData->Add(extraCharge);
 
         // --- Step 8: Rename the object ---
         objectName = std::string(baseForm->GetName()) + " " + chosen.suffix;

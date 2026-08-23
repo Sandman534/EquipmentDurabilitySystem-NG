@@ -1,19 +1,22 @@
 [submodule "lib/commonlibsse-ng"]
 	path = lib/commonlibsse-ng
-	url = https://github.com/alandtse/CommonLibVR.git
+	url = https://github.com/alandtse/CommonLibSSE-NG.git
 	branch = ng
-[submodule "json"]
-	path = json
-	url = https://github.com/nlohmann/json.git
-[submodule "fmt"]
-	path = fmt
+[submodule "extern/fmt"]
+	path = extern/fmt
 	url = https://github.com/fmtlib/fmt.git
-[submodule "simpleini"]
-	path = simpleini
-	url = https://github.com/brofield/simpleini
-[submodule "xbyak"]
-	path = xbyak
+[submodule "extern/simpleini"]
+	path = extern/simpleini
+	url = https://github.com/brofield/simpleini.git
+[submodule "extern/clib-util"]
+	path = extern/clib-util
+	url = https://github.com/powerof3/CLibUtil.git
+[submodule "extern/xbyak"]
+	path = extern/xbyak
 	url = https://github.com/herumi/xbyak.git
-[submodule "sksemenuframework"]
-	path = sksemenuframework
-	url = https://github.com/QTR-Modding/SKSE-Menu-Framework-3
+[submodule "extern/json"]
+	path = extern/json
+	url = https://github.com/nlohmann/json.git
+[submodule "extern/sksemenuframework"]
+	path = extern/sksemenuframework
+	url = https://github.com/QTR-Modding/SKSE-Menu-Framework-3.git

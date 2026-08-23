@@ -35,6 +35,7 @@ if has_config('skyrim_vr') and (has_config('skyrim_se') or has_config('skyrim_ae
 end
 
 add_rules("plugin.compile_commands.autoupdate", {outputdir = ".vscode"})
+
 target('EquipmentDurabilitySystem-NG')
     add_deps('commonlibsse-ng')
 
@@ -58,14 +59,14 @@ target('EquipmentDurabilitySystem-NG')
     add_headerfiles('src/**.h')
 
     add_includedirs(
-        'src',
-        '$(projectdir)',
-        '$(projectdir)/ClibUtil',
-        '$(projectdir)/include',
-        '$(projectdir)/xbyak',
-        '$(projectdir)/simpleini',
-        '$(projectdir)/fmt',
-		'$(projectdir)/json/include'
+			'src',
+			'include',
+			'$(projectdir)',
+			'$(projectdir)/extern/clib-util/include/CLIBUtil',
+			'$(projectdir)/extern/xbyak',
+			'$(projectdir)/extern/simpleini',
+			'$(projectdir)/extern/json/include',
+			'$(projectdir)/extern/sksemenuframework/resources'
     )
 
     set_pcxxheader('src/pch.h')

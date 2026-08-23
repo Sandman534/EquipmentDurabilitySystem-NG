@@ -135,8 +135,8 @@ bool Utility::HasLocationRefType(RE::TESObjectREFR* ref, const RE::BGSLocationRe
 }
 
 void Utility::ShowNotification(std::string msg, bool messageBox, const char* a_soundToPlay) {
-    if (messageBox) RE::DebugMessageBox(msg.c_str());
-    else RE::DebugNotification(msg.c_str(), a_soundToPlay);
+    if (messageBox) RE::SendHUDMessage::ShowHUDMessage(msg.c_str());
+    else RE::SendHUDMessage::ShowHUDMessage(msg.c_str(), a_soundToPlay);
 }
 
 bool Utility::MenuShouldHide(RE::UI* ui) {

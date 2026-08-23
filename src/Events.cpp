@@ -184,14 +184,27 @@ static void DecayBlockingEquipment(RE::Actor* actor, RE::InventoryChanges* chang
 		return;
 	}
 
+	// Left Hand Parry
+	RE::TESForm* leftHand = actor->GetEquippedObject(false);
+	if (leftHand) {
+		if (auto* leftWeapon = leftHand->As<RE::TESObjectWEAP>()) {
+			if (!leftWeapon || leftWeapon->IsBound()) return;
+
+			FoundEquipData weaponData = FindEquippedWeapon(changes, leftHand, false);
+			TemperDecay(&weaponData, actor, powerAttack);
+		}
+	}
+
+	// Right Hand Parry
 	RE::TESForm* rightHand = actor->GetEquippedObject(false);
-	if (!rightHand) return;
+	if (rightHand) {
+		if (auto* rightWeapon = rightHand->As<RE::TESObjectWEAP>()) {
+			if (!rightWeapon || rightWeapon->IsBound()) return;
 
-	auto* weapon = rightHand->As<RE::TESObjectWEAP>();
-	if (!weapon || weapon->IsBound()) return;
-
-	FoundEquipData weaponData = FindEquippedWeapon(changes, rightHand, false);
-	TemperDecay(&weaponData, actor, powerAttack);
+			FoundEquipData weaponData = FindEquippedWeapon(changes, rightHand, false);
+			TemperDecay(&weaponData, actor, powerAttack);
+		}
+	}
 }
 
 static void DecayRandomArmorPiece(RE::Actor* actor, RE::InventoryChanges* changes, bool powerAttack) {

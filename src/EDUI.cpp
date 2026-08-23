@@ -320,10 +320,14 @@ namespace EDUI {
 				TableSetupColumn("", ImGuiTableColumnFlags_NoHeaderLabel);
 				TableSetupColumn("", ImGuiTableColumnFlags_NoHeaderLabel);
 				TableHeadersRow();
-				VisibileEntry(Translate("HUD.Head"), &Settings->ED_Widget_ShowHead, Translate("HUD.Body"), &Settings->ED_Widget_ShowBody);
-				VisibileEntry(Translate("HUD.Hands"), &Settings->ED_Widget_ShowHands, Translate("HUD.Feet"), &Settings->ED_Widget_ShowFeet);
-				VisibileEntry(Translate("HUD.LeftHand"), &Settings->ED_Widget_ShowLeftHand, Translate("HUD.RightHand"), &Settings->ED_Widget_ShowRightHand);
-				VisibileEntry(Translate("HUD.Shout"), &Settings->ED_Widget_ShowShout);
+				if (VisibileEntry(Translate("HUD.Head"), &Settings->ED_Widget_ShowHead, Translate("HUD.Body"), &Settings->ED_Widget_ShowBody))
+					hudChanged = true;
+				if (VisibileEntry(Translate("HUD.Hands"), &Settings->ED_Widget_ShowHands, Translate("HUD.Feet"), &Settings->ED_Widget_ShowFeet))
+					hudChanged = true;
+				if (VisibileEntry(Translate("HUD.LeftHand"), &Settings->ED_Widget_ShowLeftHand, Translate("HUD.RightHand"), &Settings->ED_Widget_ShowRightHand))
+					hudChanged = true;
+				if (VisibileEntry(Translate("HUD.Shout"), &Settings->ED_Widget_ShowShout))
+					hudChanged = true;
 				EndTable();
 			}
 		}
@@ -334,11 +338,16 @@ namespace EDUI {
 				TableSetupColumn("", ImGuiTableColumnFlags_NoHeaderLabel);
 				TableSetupColumn("", ImGuiTableColumnFlags_NoHeaderLabel);
 				TableHeadersRow();
-				VisibileEntry(Translate("HUD.Reverse"), &Settings->ED_Widget_Reverse, Translate("HUD.Poison"), &Settings->ED_Widget_ShowPoisonName);
-				VisibileEntry(Translate("HUD.Health"), &Settings->ED_Widget_ShowHealth, Translate("HUD.Armor"), &Settings->ED_Widget_ShowArmorName);
-				VisibileEntry(Translate("HUD.Unarmed"), &Settings->ED_Widget_ShowUnarmed, Translate("HUD.Weapon"), &Settings->ED_Widget_ShowWeaponName);
-				VisibileEntry(Translate("HUD.Indestructible"), &Settings->ED_Widget_HideIndestructible, Translate("HUD.Breaking"), &Settings->ED_Widget_ShowOnlyBreaking);
-				VisibileEntry(Translate("HUD.Spells"), &Settings->ED_Widget_ShowSpells);
+				if (VisibileEntry(Translate("HUD.Reverse"), &Settings->ED_Widget_Reverse, Translate("HUD.Poison"), &Settings->ED_Widget_ShowPoisonName))
+					hudChanged = true;
+				if (VisibileEntry(Translate("HUD.Health"), &Settings->ED_Widget_ShowHealth, Translate("HUD.Armor"), &Settings->ED_Widget_ShowArmorName))
+					hudChanged = true;
+				if (VisibileEntry(Translate("HUD.Unarmed"), &Settings->ED_Widget_ShowUnarmed, Translate("HUD.Weapon"), &Settings->ED_Widget_ShowWeaponName))
+					hudChanged = true;
+				if (VisibileEntry(Translate("HUD.Indestructible"), &Settings->ED_Widget_HideIndestructible, Translate("HUD.Breaking"), &Settings->ED_Widget_ShowOnlyBreaking))
+					hudChanged = true;
+				if (VisibileEntry(Translate("HUD.Spells"), &Settings->ED_Widget_ShowSpells))
+					hudChanged = true;
 				EndTable();
 			}
 		}

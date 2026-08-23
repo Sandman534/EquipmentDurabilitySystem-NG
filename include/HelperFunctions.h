@@ -9,7 +9,7 @@ namespace HelperFunctions
 {
 	inline int FixCode(RE::INPUT_DEVICE a_device, uint32_t a_scan_code) {
 		if (a_device == RE::INPUT_DEVICE::kMouse)
-			a_scan_code += 257;
+			a_scan_code += 256;
 		else if (a_device == RE::INPUT_DEVICE::kGamepad) {
 			RE::BSWin32GamepadDevice::Key gamepadKey = static_cast<RE::BSWin32GamepadDevice::Key>(a_scan_code);
 			switch (gamepadKey) {

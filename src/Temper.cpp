@@ -84,7 +84,7 @@ const char* TemperManager::GetTemperFactor(float a_factor, bool a_isWeapon) {
 
 	// If Object Health is the selected style, return the health
 	if (Settings::GetSingleton()->ED_Names_Style == 6) {
-		const auto objectHealth = static_cast<std::int64_t>(max(std::round((Degredation::TruncateToDecimals(a_factor,3) - Degredation::kMinHealth) * 1000.0), 0.0));
+		const auto objectHealth = static_cast<std::int64_t>(std::max(std::round((Degredation::TruncateToDecimals(a_factor,3) - Degredation::kMinHealth) * 1000.0), 0.0));
 		thread_local std::string healthText = std::to_string(objectHealth);
 		return healthText.c_str();
 	}
