@@ -46,11 +46,13 @@ public:
     }
 
 	void AdvanceMovie(float a_interval, std::uint32_t a_currentTime) override;
+	void PostCreate() override;
+	RE::UI_MESSAGE_RESULTS ProcessMessage(RE::UIMessage& a_message) override;
 
 	FoundEquipData GetHand(RE::InventoryChanges* a_changes, bool a_lefthand);
 	void MenuState();
+	void ToggleHotkey();
 	void ShowMenu();
 	void HideMenu();
 	void UpdatePosition();
-	void ResetTimer() { startTime = std::chrono::steady_clock::now(); };
 };

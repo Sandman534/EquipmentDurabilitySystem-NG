@@ -24,7 +24,26 @@ DurabilityMenu::DurabilityMenu() {
 	auto scaleformManager = RE::BSScaleformManager::GetSingleton();
 	if (scaleformManager->LoadMovie(this, uiMovie, MENU_NAME, RE::GFxMovieView::ScaleModeType::kNoScale)) {
 		UpdatePosition();
+		// The UI manager creates this always-open menu with a show message. Start
+		// hidden so non-Always modes cannot render for a frame before PostCreate.
+		uiMovie->SetVisible(false);
 	}
+}
+
+void DurabilityMenu::PostCreate() {
+	RE::IMenu::PostCreate();
+
+	if (const auto* player = RE::PlayerCharacter::GetSingleton())
+		sheathActivated = player->AsActorState()->IsWeaponDrawn();
+
+	MenuState();
+}
+
+RE::UI_MESSAGE_RESULTS DurabilityMenu::ProcessMessage(RE::UIMessage& a_message) {
+	const auto result = RE::IMenu::ProcessMessage(a_message);
+	if (a_message.type == RE::UI_MESSAGE_TYPE::kShow)
+		MenuState();
+	return result;
 }
 
 void DurabilityMenu::AdvanceMovie(float a_interval, std::uint32_t a_currentTime) {
@@ -46,7 +65,7 @@ void DurabilityMenu::AdvanceMovie(float a_interval, std::uint32_t a_currentTime)
 
 	// Hotkey Timer
 	auto settings = Settings::GetSingleton();
-	if (settings->ED_Widget_Display == 3 && uiMovie->GetVisible() && hotkeyActivated && settings->ED_Widget_ToggleDuration > 0.0) {
+	if (settings->ED_Widget_Display == 3 && uiMovie->GetVisible() && hotkeyActivated && settings->ED_Widget_ToggleDuration > 0) {
 		auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - startTime).count();
 		if (elapsed >= settings->ED_Widget_ToggleDuration) {
 			hotkeyActivated = false;
@@ -75,36 +94,27 @@ void DurabilityMenu::MenuState() {
 
 	if (shouldShow)
 		ShowMenu();
-	else if (!shouldShow)
+	else
 		HideMenu();
+}
+
+void DurabilityMenu::ToggleHotkey() {
+	hotkeyActivated = !hotkeyActivated;
 	if (hotkeyActivated)
 		startTime = std::chrono::steady_clock::now();
+	MenuState();
 }
 
 void DurabilityMenu::ShowMenu() {
-	auto hud = RE::UI::GetSingleton()->GetMenu("DurabilityMenu");
-	if (hud) {
-		// Fully hide it for the engine
-		RE::UIMessage msg(MENU_NAME,RE::UI_MESSAGE_TYPE::kShow);
-		hud->ProcessMessage(msg);
-
-		// Hide the movie visually
-		if (hud->uiMovie)
-			hud->uiMovie->SetVisible(true);
-	}
+	if (uiMovie)
+		uiMovie->SetVisible(true);
 }
 
 void DurabilityMenu::HideMenu() {
-	auto hud = RE::UI::GetSingleton()->GetMenu(MENU_NAME);
-	if (hud) {
-		// Fully hide it for the engine
-		RE::UIMessage msg(MENU_NAME,RE::UI_MESSAGE_TYPE::kHide);
-		hud->ProcessMessage(msg); 
-
-		// Hide the movie visually
-		if (hud->uiMovie)
-			hud->uiMovie->SetVisible(false);
-	}
+	// Keep this kAlwaysOpen menu alive and only hide its own Scaleform movie.
+	// Sending kHide through IMenu can alter the surrounding HUD/menu stack.
+	if (uiMovie)
+		uiMovie->SetVisible(false);
 }
 
 void DurabilityMenu::UpdatePosition() {
@@ -133,24 +143,25 @@ FoundEquipData DurabilityMenu::GetHand(RE::InventoryChanges* a_changes, bool a_l
 
 	RE::TESForm* itemHand = utility->GetPlayer()->GetEquippedObject(a_lefthand);
 	// If the item is a weapon, get it
-	if (itemHand && itemHand->IsWeapon())
-		eqD = FindEquippedWeapon(a_changes, itemHand, a_lefthand);
-	
-	// If the tiem is a spell, check to see if the setting is enabled
-	else if (itemHand && itemHand->Is(RE::FormType::Spell)) {
-		if (setting->ED_Widget_ShowSpells)
+	if (itemHand) {
+		// Weapon
+		if (itemHand->IsWeapon())
+			eqD = FindEquippedWeapon(a_changes, itemHand, a_lefthand);
+
+		// Spell
+		else if (itemHand->Is(RE::FormType::Spell)) {
+			if (setting->ED_Widget_ShowSpells) eqD = FoundEquipData(itemHand);
+
+		// Sheild
+		} else if (itemHand->IsArmor())
+			eqD = FindEquippedArmor(a_changes, RE::BGSBipedObjectForm::BipedObjectSlot::kShield);
+		
+		// Any other equipped item
+		else
 			eqD = FoundEquipData(itemHand);
 
-	// If the item is a shield
-	} else if (itemHand->IsArmor())
-		eqD = FindEquippedArmor(a_changes, RE::BGSBipedObjectForm::BipedObjectSlot::kShield);
-
-	// Non-Spell, Non-Weapon items
-	else if (itemHand)
-		eqD = FoundEquipData(itemHand);
-
-	// If no item, show unarmed
-	else
+	// If no item, show unarmed		
+	} else
 		eqD = FoundEquipData(utility->Unarmed);
 
 	return eqD;
@@ -309,7 +320,7 @@ public:
 
 		// Depending on whats going on we will display or hide the menu
 		if (a_event->menuName == RE::LoadingMenu::MENU_NAME && !a_event->opening)
-			RE::UIMessageQueue::GetSingleton()->AddMessage(DurabilityMenu::MENU_NAME,RE::UI_MESSAGE_TYPE::kShow,nullptr);
+			durability->MenuState();
 		else if (Utility::GetSingleton()->MenuShouldHide(RE::UI::GetSingleton()) && a_event->opening)
 			durability->HideMenu();
 		else if (!Utility::GetSingleton()->MenuShouldHide(RE::UI::GetSingleton()) && !a_event->opening)
@@ -349,19 +360,17 @@ class MenuInputHandler : public RE::BSTEventSink<RE::InputEvent*> {
 			for (auto event = *a_event; event; event = event->next) {
 				if (event->eventType == RE::INPUT_EVENT_TYPE::kButton) {
 					const auto button = static_cast<RE::ButtonEvent*>(event);
-					if (!button || (button->IsPressed() && !button->IsDown())) continue;
+					if (!button || !button->IsDown()) continue;
 
 					auto device = button->device.get();
 					auto scan_code = HelperFunctions::FixCode(device, button->GetIDCode());
 
-					if ((device == RE::INPUT_DEVICE::kKeyboard || device == RE::INPUT_DEVICE::kGamepad) && !button->IsUp()) {
+					if (device == RE::INPUT_DEVICE::kKeyboard || device == RE::INPUT_DEVICE::kGamepad) {
 						auto durability = DurabilityMenu::GetSingleton();
-						if (durability && scan_code == Settings::GetSingleton()->ED_Widget_ToggleKeyCode) {
-							if (!durability->hotkeyActivated)
-								durability->hotkeyActivated = true;
-							else
-								durability->hotkeyActivated = false;
-							durability->MenuState();	
+						auto settings = Settings::GetSingleton();
+						if (durability && settings->ED_Widget_Display == 3 &&
+							scan_code == settings->ED_Widget_ToggleKeyCode) {
+							durability->ToggleHotkey();
 						}
 					}
 				}
