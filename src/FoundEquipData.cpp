@@ -149,28 +149,39 @@ void FoundEquipData::SetItemEnchantment(int playerLevel, RE::TESObjectREFR* ref)
 	}
 
 	// --- Step 7: Apply the enchantment to the object ---
-	if (!objectData->GetByType(RE::ExtraDataType::kEnchantment)) {
-        // Set the objects enchantment
-        auto* objectEnchantment = static_cast<RE::ExtraEnchantment*>(RE::ExtraEnchantment::Create(sizeof(RE::ExtraEnchantment), RE::VTABLE_ExtraEnchantment[0].address()));
-		objectEnchantment->enchantment = chosen.enchantment;
-		objectEnchantment->charge = chargeValue;
-		objectData->Add(objectEnchantment);
+	if (objectData->HasType<RE::ExtraEnchantment>()) return;
+    objectData->SetEnchantment(chosen.enchantment, chargeValue, false);
 
-        // Set charge value
-        auto* extraCharge = static_cast<RE::ExtraCharge*>(RE::ExtraCharge::Create(sizeof(RE::ExtraCharge), RE::VTABLE_ExtraCharge[0].address()));
-        new RE::ExtraCharge();
-        extraCharge->charge = static_cast<float>(Random::Int(0, chargeValue));
+    // --- Step 8: Set Initial Charge ---
+    auto* extraCharge = objectData->GetByType<RE::ExtraCharge>();
+    if (!extraCharge) {
+        extraCharge = RE::BSExtraData::Create<RE::ExtraCharge>();
+        if (!extraCharge) return;
+        extraCharge->charge = static_cast<float>(Random::Int(1, static_cast<int>(chargeValue)));
         objectData->Add(extraCharge);
+    } else
+        extraCharge->charge = static_cast<float>(Random::Int(1, static_cast<int>(chargeValue)));
 
-        // --- Step 8: Rename the object ---
-        objectName = std::string(baseForm->GetName()) + " " + chosen.suffix;
-        auto* xTextData = static_cast<RE::ExtraTextDisplayData*>(objectData->GetByType(RE::ExtraDataType::kTextDisplayData));
-        if (!xTextData) {
-			xTextData = static_cast<RE::ExtraTextDisplayData*>(RE::ExtraTextDisplayData::Create(sizeof(RE::ExtraTextDisplayData), RE::VTABLE_ExtraTextDisplayData[0].address()));
-            objectData->Add(xTextData);
+    // --- Step 9: Rename the object ---
+    objectName = std::string(baseForm->GetName()) + " " + chosen.suffix;
+    auto* xTextData = static_cast<RE::ExtraTextDisplayData*>(objectData->GetByType(RE::ExtraDataType::kTextDisplayData));
+    if (!xTextData) {
+        xTextData = static_cast<RE::ExtraTextDisplayData*>(RE::ExtraTextDisplayData::Create(sizeof(RE::ExtraTextDisplayData), RE::VTABLE_ExtraTextDisplayData[0].address()));
+        objectData->Add(xTextData);
+    }
+    xTextData->SetName(objectName.c_str());
+
+    // --- Step 10: Set charge level of equipped object ---
+    if (auto* actor = ref ? ref->As<RE::Actor>() : nullptr) {
+        auto* actorValueOwner = actor->AsActorValueOwner();
+        if (actorValueOwner) {
+            if (objectData->HasType<RE::ExtraWorn>())
+                actorValueOwner->SetActorValue(RE::ActorValue::kRightItemCharge, extraCharge->charge);
+
+            if (objectData->HasType<RE::ExtraWornLeft>())
+                actorValueOwner->SetActorValue(RE::ActorValue::kLeftItemCharge, extraCharge->charge);
         }
-        xTextData->SetName(objectName.c_str());
-	}
+    }
 }
 
 const char* FoundEquipData::GetItemName() {

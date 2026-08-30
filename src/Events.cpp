@@ -4,29 +4,151 @@
 #include "Settings.h"
 #include "Utility.h"
 #include "Translation.h"
+#include <algorithm>
+#include <mutex>
 #include <unordered_set>
+#include <vector>
 #include <set>
 #include <array>
 
-enum class InventoryProcessMode {
-	kMarkOnly,
-	kDynamic
-};
-
 // =============================================================
-// Actor Hit Throttle
+// Processed Inventory Cache
 // =============================================================
-std::unordered_set<RE::Actor*> actorList;
-std::mutex actorLock;
+namespace {
+	constexpr auto kSerializationID = 'EDSN';
+	constexpr auto kProcessedReferencesRecord = 'PREF';
+	constexpr std::uint32_t kProcessedReferencesVersion = 1;
+	constexpr std::uint32_t kMaximumSerializedReferences = 50'000'000;
 
-static bool AddActor(RE::Actor* actor) {
-    std::lock_guard<std::mutex> guard(actorLock);
-    return actorList.insert(actor).second;
-}
+	class ProcessedReferenceCache {
+	public:
+		static ProcessedReferenceCache& GetSingleton() {
+			static ProcessedReferenceCache singleton;
+			return singleton;
+		}
 
-static void ClearActor() {
-    std::lock_guard<std::mutex> guard(actorLock);
-    actorList.clear();
+		bool Contains(RE::FormID formID) const {
+			std::lock_guard guard(lock);
+			return persistentProcessed.contains(formID);
+		}
+
+		void Insert(RE::FormID formID) {
+			std::lock_guard guard(lock);
+			persistentProcessed.insert(formID);
+		}
+
+		bool CanProcess(RE::FormID formID) {
+			std::lock_guard guard(lock);
+			if (persistentProcessed.contains(formID))
+				return false;
+			
+			persistentProcessed.insert(formID);
+			return true;
+		}
+
+		void Invalidate(const RE::TESObjectREFR* ref) {
+			if (!ref) return;
+
+			std::lock_guard guard(lock);
+			persistentProcessed.erase(ref->GetFormID());
+		}
+
+		void Save(SKSE::SerializationInterface* serialization) {
+			std::lock_guard guard(lock);
+
+			std::vector<RE::FormID> serialized;
+			serialized.reserve(persistentProcessed.size());
+			for (const auto formID : persistentProcessed) {
+				if (formID < 0xFF000000) serialized.push_back(formID);
+			}
+			std::ranges::sort(serialized);
+
+			if (!serialization->OpenRecord(kProcessedReferencesRecord, kProcessedReferencesVersion)) {
+				logger::error("Failed to open processed-reference serialization record");
+				return;
+			}
+
+			const auto count = static_cast<std::uint32_t>(serialized.size());
+			if (!serialization->WriteRecordData(count)) {
+				logger::error("Failed to write processed-reference count");
+				return;
+			}
+
+			if (count > 0 && !serialization->WriteRecordData(
+					serialized.data(), count * static_cast<std::uint32_t>(sizeof(RE::FormID)))) {
+				logger::error("Failed to write processed-reference data");
+				return;
+			}
+
+			logger::info("Saved {} processed references ({} dynamic references omitted)", count, persistentProcessed.size() - serialized.size());
+		}
+
+		void Load(SKSE::SerializationInterface* serialization) {
+			Revert();
+
+			std::uint32_t type = 0;
+			std::uint32_t version = 0;
+			std::uint32_t length = 0;
+			while (serialization->GetNextRecordInfo(type, version, length)) {
+				if (type != kProcessedReferencesRecord) continue;
+				if (version != kProcessedReferencesVersion) {
+					logger::warn("Ignoring unsupported processed-reference record version {}", version);
+					continue;
+				}
+
+				std::uint32_t count = 0;
+				if (serialization->ReadRecordData(count) != sizeof(count) ||
+					count > kMaximumSerializedReferences ||
+					length != sizeof(count) + count * sizeof(RE::FormID)) {
+					logger::error("Ignoring invalid processed-reference record");
+					continue;
+				}
+
+				std::vector<RE::FormID> saved(count);
+				const auto byteCount = count * static_cast<std::uint32_t>(sizeof(RE::FormID));
+				if (byteCount > 0 && serialization->ReadRecordData(saved.data(), byteCount) != byteCount) {
+					logger::error("Failed to read processed-reference data");
+					continue;
+				}
+
+				std::unordered_set<RE::FormID> resolved;
+				resolved.reserve(saved.size());
+				for (const auto savedID : saved) {
+					RE::FormID resolvedID = 0;
+					if (serialization->ResolveFormID(savedID, resolvedID) && resolvedID < 0xFF000000) {
+						resolved.insert(resolvedID);
+					}
+				}
+
+				{
+					std::lock_guard guard(lock);
+					persistentProcessed = std::move(resolved);
+				}
+				logger::info("Loaded {} of {} processed references", persistentProcessed.size(), count);
+			}
+		}
+
+		void Revert() {
+			std::lock_guard guard(lock);
+			persistentProcessed.clear();
+		}
+
+	private:
+		std::unordered_set<RE::FormID> persistentProcessed;
+		mutable std::mutex lock;
+	};
+
+	void SaveProcessedReferences(SKSE::SerializationInterface* serialization) {
+		ProcessedReferenceCache::GetSingleton().Save(serialization);
+	}
+
+	void LoadProcessedReferences(SKSE::SerializationInterface* serialization) {
+		ProcessedReferenceCache::GetSingleton().Load(serialization);
+	}
+
+	void RevertProcessedReferences(SKSE::SerializationInterface*) {
+		ProcessedReferenceCache::GetSingleton().Revert();
+	}
 }
 
 // =============================================================
@@ -63,7 +185,8 @@ static void TemperDecay(FoundEquipData* eqD, RE::Actor* actor, bool powerAttack)
 	auto setting = Settings::GetSingleton();
 
 	// Check for system enabled; The item is not unarmed; If the actor is not throttled
-	if (setting->ED_DegradationDisabled || !eqD->CanTemper() || !AddActor(actor)) return;
+	// if (setting->ED_DegradationDisabled || !eqD->CanTemper() || !AddActor(actor)) return;
+	if (setting->ED_DegradationDisabled || !eqD->CanTemper()) return;
 
 	// Get current health percent
 	float CurrentHealth = eqD->GetItemHealthPercent();
@@ -336,234 +459,235 @@ public:
 };
 
 // =============================================================
-// Dynamic Tempering and Enchanting
+// Dynamic Processing
 // =============================================================
-struct NearbyObjects {
-    std::vector<RE::TESObjectREFR*> containers;
-    std::vector<RE::Actor*> npcs;
-    std::vector<RE::TESObjectREFR*> equipment; // world references that are weapons/armor
-};
+static bool PlayerOwnedLocation() {
+	auto* player = RE::PlayerCharacter::GetSingleton();
+	auto* utility = Utility::GetSingleton();
 
-static bool IsPlayerIndoors(RE::Actor* player)
-{
-    if (!player) return false;
+	// No Player
+    if (!player)
+		return false;
+
+	// No Cell
     auto cell = player->GetParentCell();
-    if (!cell) return false;
-    return cell->IsInteriorCell();
-}
+    if (!cell)
+		return false;
 
-static bool IsPlayerOwned(RE::Actor* player) {
-    if (!player) return false;
-    auto cell = player->GetParentCell();
-    if (!cell) return false;
-
-	// Get owners and verify if the player is the owner
+	// Cell Owner and Owner Faction
     auto ownerActor = cell->GetActorOwner();
 	auto ownerFaction = cell->GetFactionOwner();
-	if ((ownerActor && ownerActor == player->GetActorBase()) || (ownerFaction && ownerFaction == Utility::GetSingleton()->playerFaction)) return true;
-	
+	if ((ownerActor && ownerActor == player->GetActorBase()) || (ownerFaction && ownerFaction == utility->playerFaction))
+		return true;
+
+	// Not Palyer Owned
 	return false;
 }
 
-static void ProcessReference(RE::TESObjectREFR* ref, NearbyObjects& result) {
-	if (!ref) return;
-
-    auto* base = ref->GetBaseObject();
-    if (!base) return;
-
-    const RE::FormID id = ref->GetFormID();
-    if (!id) return;
-
-	// Containers
-	if (base->formType == RE::FormType::Container)
-		result.containers.push_back(ref);
-	
-	// Actors
-	if (auto actor = ref->As<RE::Actor>())
-		result.npcs.push_back(actor);
-}
-
-NearbyObjects GetNearbyObjects(RE::Actor* player) {
-    NearbyObjects result;
-
-	// Dont process player owned cells
-    if (!player || IsPlayerOwned(player)) return result;
-
-	// Set the radius based on if the player is inside or outside
-    float radius = IsPlayerIndoors(player) ? 2000.0f : 7000.0f; // 20m indoors, 70m outdoors
-    RE::NiPoint3 origin = player->GetPosition();
-	
-	// Processing function
-    auto processRecord = [&](RE::TESObjectREFR* a_ref) {
-        if (!a_ref || a_ref->IsDisabled() || a_ref->IsDeleted()) 
-            return RE::BSContainer::ForEachResult::kContinue;
-
-        ProcessReference(a_ref, result);
-        return RE::BSContainer::ForEachResult::kContinue;
-    };
-
-    // Path 1: interior cell fast-path
-    if (auto* playerCell = player->GetParentCell(); playerCell && playerCell->IsAttached()) {
-        playerCell->ForEachReferenceInRange(origin, radius, processRecord);
-        return result;
-    }
-
-	// Path 2: exterior grid walk
-	auto* tes = RE::TES::GetSingleton();
-	if (const auto gridLength = tes->gridCells ? tes->gridCells->length : 0; gridLength > 0) {
-
-		// Build AABB
-		const float searchMaxY = origin.y + radius;
-		const float searchMinY = origin.y - radius;
-		const float searchMaxX = origin.x + radius;
-		const float searchMinX = origin.x - radius;
-
-		// Walk through the grid
-		for (std::uint32_t x = 0; x < gridLength; ++x) {
-			for (std::uint32_t y = 0; y < gridLength; ++y) {
-				auto* cell = tes->gridCells->GetCell(x, y);
-            	if (!cell || !cell->IsAttached()) continue;
-
-				auto* coords = cell->GetCoordinates();
-				if (!coords) continue;
-
-				// Each exterior cell is 4096 units wide
-				const float cellX = coords->worldX;
-				const float cellY = coords->worldY;
-				if (cellX + 4096.0f < searchMinX || cellX > searchMaxX) continue;
-				if (cellY + 4096.0f < searchMinY || cellY > searchMaxY) continue;
-
-				// Process the record
-				cell->ForEachReferenceInRange(origin, radius, processRecord);
-			}
-		}
-		return result;
-	} 
-
-	// Path 3: fallback — neither path above was taken
-	tes->ForEachReference([&](RE::TESObjectREFR* a_ref) {
-		ProcessReference(a_ref, result);
-		return RE::BSContainer::ForEachResult::kContinue;
-	});
-
-	return result;
-}
-
-static void TemperItem(FoundEquipData* equipData, int actorLevel, bool isVendor = false, bool isBoss = false) {
+static bool RollTemper(bool isVendor, bool isBoss) {
 	auto* setting = Settings::GetSingleton(); 
-
-	// Set the temper chance based on if we are in a boss location or if this is a vendor container
 	int chanceTemper = setting->ED_Temper_Chance;
 	if (isVendor)
 		chanceTemper = setting->ED_Temper_VendorChance;
 	else if (isBoss)
 		chanceTemper = setting->ED_Temper_BossChance;
-
-	if (Probability::Int(chanceTemper))
-		equipData->SetItemHealthPercentCapped(static_cast<float>(Random::Double(10001.0, 10001.0 + ((actorLevel + 10) * 100)) * 0.0001));
-
+	return Probability::Int(chanceTemper);
 }
 
-static void EnchantItem(FoundEquipData* equipData, RE::TESObjectREFR* ref, int actorLevel, bool isVendor = false, bool isBoss = false) {
-	auto* setting = Settings::GetSingleton(); 
+static void TemperItem(FoundEquipData* equipData, int actorLevel) {
+	equipData->SetItemHealthPercentCapped(static_cast<float>(Random::Double(10001.0, 10001.0 + ((actorLevel + 10) * 100)) * 0.0001));
+}
 
+static bool RollEnchant(bool isVendor, bool isBoss) {
+	auto* setting = Settings::GetSingleton(); 
 	int chanceEnchant = setting->ED_Enchant_Chance;
 	if (isVendor)
 		chanceEnchant = setting->ED_Enchant_VendorChance;
 	else if (isBoss)
 		chanceEnchant = setting->ED_Enchant_BossChance;
-
-	if (Probability::Int(chanceEnchant))
-		equipData->SetItemEnchantment(actorLevel, ref);
-
+	return Probability::Int(chanceEnchant);
 }
 
-static void ProcessInventoryChanges(RE::InventoryChanges* inventoryChanges, RE::TESObjectREFR* owner, InventoryProcessMode mode, int level, bool isVendor, bool isBoss, RE::TESBoundObject* objectFilter = nullptr) {
+static void EnchantItem(FoundEquipData* equipData, RE::TESObjectREFR* ref, int actorLevel) {
+	equipData->SetItemEnchantment(actorLevel, ref);
+}
+
+static RE::ExtraDataList* ConstructExtraDataList(void* a_this) {
+	using func_t = decltype(&ConstructExtraDataList);
+	REL::Relocation<func_t> func{RELOCATION_ID(11437, 11583)};
+	return func(a_this);
+}
+
+RE::ExtraDataList* CreateNewList() {
+    const auto memoryManager = RE::MemoryManager::GetSingleton();
+    const auto alloc = memoryManager->Allocate(0x20, 0, false);
+    return ConstructExtraDataList(alloc);
+}
+
+static RE::ExtraDataList* CloneExtraDataList(RE::TESBoundObject* object, RE::ExtraDataList* sourceList) {
+	if (!object || !sourceList) return nullptr;
+
+	RE::InventoryEntryData source(object, sourceList->GetCount());
+	source.AddExtraList(sourceList);
+
+	RE::InventoryEntryData copy;
+	copy.DeepCopy(source);
+	if (!copy.extraLists || copy.extraLists->begin() == copy.extraLists->end()) return nullptr;
+
+	return *copy.extraLists->begin();
+}
+
+static void ProcessInventoryChanges(RE::InventoryChanges* inventoryChanges, RE::TESObjectREFR* owner, int level, bool isVendor, bool isBoss) {
 	if (!inventoryChanges || !inventoryChanges->entryList) return;
 
 	// Process the inventory
 	auto* setting = Settings::GetSingleton();
+	bool inventoryModified = false;
+
 	for (const auto& entry : *inventoryChanges->entryList) {
-		// Look for the matching object
+		// Make sure we have an object
 		if (!entry || !entry->object) continue;
-		if (objectFilter && entry->GetObject() != objectFilter) continue;
 
 		// Set the equipment data and determine if the object can be processed
 		FoundEquipData equipData(entry->GetObject());
 		if (!equipData.CanProcessObject()) continue;
 
-		// Process the item differently if it contains ExtraLists
+		// Return the total amount of this item in inventory. ExtraDataLists represent subsets of this total.
+		const auto totalCount = inventoryChanges->GetCount(entry->GetObject(), [](const RE::InventoryEntryData*) { return true; });
+		if (totalCount <= 0) continue;
+		std::int32_t explicitCount = 0;
+
+		// Process all items with lists. Use a snapshot to prevent wonkiness
 		if (entry->extraLists) {
-			for (auto* entryData : *entry->extraLists) {
-				if (!entryData) continue;
-				if (entry->countDelta > 1) continue;
+			// Snapshot the Lists
+			std::vector<RE::ExtraDataList*> extraLists;
+			for (auto* entryData : *entry->extraLists)
+				if (entryData) extraLists.push_back(entryData);
 
-				// Set the extradata and determine if we can continue processing the item
-				FoundEquipData item(entry->GetObject(), entryData);
-				if (!item.CanProcessData()) continue;
+			// Process the lists
+			for (auto* entryData : extraLists) {
+				const auto entryDataCount = (std::max)(entryData->GetCount(), 0);
+				explicitCount += entryDataCount;
 
-				// If we are accessing the system through the dynamic update process
-				if (mode == InventoryProcessMode::kDynamic && entry->countDelta == 1) {
-					if (setting->ED_Temper_Enabled && item.CanTemper() && !item.IsTempered())
-						TemperItem(&item, level, isVendor, isBoss);
+				FoundEquipData stack(entry->GetObject(), entryData);
+				if (!stack.CanProcessData()) continue;
 
-					if (setting->ED_Enchant_Enabled && item.CanEnchant() && !item.IsEnchanted())
-						EnchantItem(&item, owner, level, isVendor, isBoss);
+				// If we have more than one item
+				if (entryDataCount > 1) {
+					struct ItemRoll { bool temper; bool enchant; };
+					std::vector<ItemRoll> successfulRolls;
+					successfulRolls.reserve(static_cast<std::size_t>(entryDataCount));
+
+					// determine rolls for the entire stack
+					for (std::int32_t i = 0; i < entryDataCount; ++i) {
+						const bool temper = setting->ED_Temper_Enabled && stack.CanTemper() &&
+							!stack.IsTempered() && RollTemper(isVendor, isBoss);
+						const bool enchant = setting->ED_Enchant_Enabled && stack.CanEnchant() &&
+							!stack.IsEnchanted() && RollEnchant(isVendor, isBoss);
+						if (temper || enchant) successfulRolls.push_back({ temper, enchant });
+					}
+
+					// If no rolls were successful
+					if (successfulRolls.empty()) continue;
+
+					// Apply roll value function
+					auto applyRoll = [&](RE::ExtraDataList* itemList, const ItemRoll& roll) {
+						FoundEquipData item(entry->GetObject(), itemList);
+						if (roll.temper) TemperItem(&item, level);
+						if (roll.enchant) EnchantItem(&item, owner, level);
+					};
+
+					// Prepare for clonming
+					std::vector<RE::ExtraDataList*> modifiedItems;
+					const bool modifyOriginal = successfulRolls.size() == static_cast<std::size_t>(entryDataCount);
+					const auto cloneCount = successfulRolls.size() - (modifyOriginal ? 1 : 0);
+					modifiedItems.reserve(cloneCount);
+
+					// Clone the ExtraData from the stack before we apply modifications
+					for (std::size_t i = 0; i < cloneCount; ++i) {
+						auto* clone = CloneExtraDataList(entry->GetObject(), entryData);
+						if (!clone) continue;
+						clone->SetCount(1);
+						applyRoll(clone, successfulRolls[i]);
+						modifiedItems.push_back(clone);
+					}
+
+					// Take the clones and apply the roll modifiers
+					const bool allClonesCreated = modifiedItems.size() == cloneCount;
+					if (modifyOriginal && allClonesCreated) {
+						entryData->SetCount(1);
+						applyRoll(entryData, successfulRolls.back());
+					} else
+						entryData->SetCount(static_cast<std::uint16_t>(entryDataCount - modifiedItems.size()));
+
+					// Add the new extralist
+					for (auto* itemList : modifiedItems) entry->AddExtraList(itemList);
+					inventoryModified = inventoryModified || (modifyOriginal && allClonesCreated) || !modifiedItems.empty();
+					continue;
 				}
 
-				// Finish processing the item
-				item.ProcessItem();
+				// Temper or Enchant singular items
+				if (setting->ED_Temper_Enabled && stack.CanTemper() && !stack.IsTempered() && RollTemper(isVendor, isBoss))
+					TemperItem(&stack, level);
+
+				if (setting->ED_Enchant_Enabled && stack.CanEnchant() && !stack.IsEnchanted() && RollEnchant(isVendor, isBoss))
+					EnchantItem(&stack, owner, level);
+
+				// We need to track that the inventory was modified
+				inventoryModified = true;
 			}
-
-		// Create the ExtraLists if the item currently doesn't have any
-		} else {
-			// Create the list and set the items count
-			auto* extraList = RE::calloc<RE::ExtraDataList>(1, 0x20);
-			if (!extraList) continue;
-			if (entry->countDelta > 1)
-				extraList->Add(new RE::ExtraCount(static_cast<std::int16_t>(entry->countDelta)));
-
-			// Set the list to the object and the found equipment
-			entry->AddExtraList(extraList);
-			equipData.objectData = extraList;
-
-			// If the item is a single stack, process it for dynamic tempering and enchanting
-			if (mode == InventoryProcessMode::kDynamic && entry->countDelta == 1) {
-				if (setting->ED_Temper_Enabled && equipData.CanTemper())
-					TemperItem(&equipData, level, isVendor, isBoss);
-
-				if (setting->ED_Enchant_Enabled && equipData.CanEnchant())
-					EnchantItem(&equipData, owner, level, isVendor, isBoss);
-			}
-
-			// Finish processing the item
-			equipData.ProcessItem();
 		}
+
+		// Anything not accounted for by an ExtraDataList is an implicit/plain
+		// item. Give each remaining item its own list and process it separately.
+		const auto implicitCount = (std::max)(totalCount - explicitCount, 0);
+		for (std::int32_t i = 0; i < implicitCount; ++i) {
+			auto* extraList = CreateNewList();
+			if (!extraList) continue;
+
+			// Without ExtraCount, this list represents exactly one item.
+			entry->AddExtraList(extraList);
+			FoundEquipData item(entry->GetObject(), extraList);
+
+			if (setting->ED_Temper_Enabled && item.CanTemper() && RollTemper(isVendor, isBoss))
+				TemperItem(&item, level);
+
+			if (setting->ED_Enchant_Enabled && item.CanEnchant() && RollEnchant(isVendor, isBoss))
+				EnchantItem(&item, owner, level);
+
+			item.ProcessItem();
+			inventoryModified = true;
+		}
+	}
+
+	// Send the inventory update to the reference
+	if (inventoryModified) {
+		inventoryChanges->changed = true;
+		RE::SendUIMessage::SendInventoryUpdateMessage(owner, nullptr);
 	}
 }
 
-static void ProcessInventory(RE::TESObjectREFR* ref, bool allowUnattached = false, bool forceVendor = false) {
+static void ProcessInventory(RE::TESObjectREFR* ref, bool forceVendor = false, bool bypassCache = false) {
 	if (!ref || ref->IsPlayerRef() || ref->IsPlayer()) return;
 
-    // Background processing is limited to attached refs. Barter initialization may
-    // safely process a merchant container whose cell is not currently attached.
-    auto* cell = ref->GetParentCell();
-    if (!cell || (!allowUnattached && !cell->IsAttached())) return;
-
-	// Guard: don't touch if the ref is currently linked to an active container menu (best-effort)
-    auto* ui = RE::UI::GetSingleton();
-    if (!allowUnattached && ui && ui->IsMenuOpen(RE::BarterMenu::MENU_NAME)) return;
-
-	// Get Utility Script
+	// Get Utility and Player
 	auto* utility = Utility::GetSingleton();
-	// Get the level of the Actor or the Player
-	int level = utility->GetPlayer()->GetLevel();
+	auto* player = RE::PlayerCharacter::GetSingleton();
+	if (!player) return;
+
+	// Processing level
+	int level = player->GetLevel();
 	if (RE::Actor* actor = ref->As<RE::Actor>()) {
 		if (actor->IsPlayerTeammate()) return;
 		else level = actor->GetLevel();
 	}
 
-	// Get the inventory changes, return if there are none
+	// Check the process cache to see if we've already processed this NPC
+	auto& cache = ProcessedReferenceCache::GetSingleton();
+	const auto formID = ref->GetFormID();
+	if (!cache.CanProcess(formID) && !bypassCache) return;
+
+	// Check for inventory
 	RE::InventoryChanges* invChanges = ref->GetInventoryChanges();
 	if (!invChanges || !invChanges->entryList) return;
 
@@ -571,56 +695,82 @@ static void ProcessInventory(RE::TESObjectREFR* ref, bool allowUnattached = fals
     const bool isVendor = forceVendor || utility->ObjectIsVendor(ref);
     const bool isBoss = utility->ObjectIsBoss(ref);
 
-	ProcessInventoryChanges(invChanges, ref, InventoryProcessMode::kDynamic, level, isVendor, isBoss);
+	ProcessInventoryChanges(invChanges, ref, level, isVendor, isBoss);
 }
 
 // =============================================================
-// Vendor Handling
+// Dynamic Special Processing
 // =============================================================
-static void ProcessBarterInventory() {
-	if (!Settings::GetSingleton()->ED_Temper_Enabled && !Settings::GetSingleton()->ED_Enchant_Enabled)
-		return;
+// Process vendor inventories immediately after Skyrim regenerates them
+struct InventoryResetHook {
+	static void ResetReference(RE::TESObjectREFR* ref, bool leveledOnly) {
+		_ResetReference(ref, leveledOnly);
 
-	// Prefer BarterMenu's target when available. During kShow the menu has not
-	// initialized that handle yet, so resolve the active dialogue speaker instead.
-	auto targetHandle = RE::BarterMenu::GetTargetRefHandle();
-	auto targetPtr = RE::Actor::LookupByHandle(targetHandle);
-	auto* vendor = targetPtr.get();
-	RE::NiPointer<RE::TESObjectREFR> speakerPtr;
-	if (!vendor) {
-		auto* topicManager = RE::MenuTopicManager::GetSingleton();
-		if (topicManager) {
-			speakerPtr = topicManager->speaker.get();
-			vendor = speakerPtr ? speakerPtr->As<RE::Actor>() : nullptr;
+		if (!processing && ref) {
+			auto* base = ref->GetBaseObject();
+			if (!base || !base->Is(RE::FormType::Container)) return;
+
+			processing = true;
+			if (Settings::GetSingleton()->isDynamicEnabled())
+				ProcessInventory(ref, false, true);
+			processing = false;
 		}
 	}
-	if (!vendor) return;
 
-	// Some merchants can sell items carried on the actor in addition to the
-	// contents of their faction's merchant container.
-	ProcessInventory(vendor, true, true);
+	static void ResetActor(RE::Actor* actor, bool leveledOnly) {
+		_ResetActor(actor, leveledOnly);
 
-	// Get the actor to determine its vendor faction
-	auto* actorBase = vendor->GetActorBase();
-	if (!actorBase) return;
-
-	// Process the associated merchant container wherever it may be
-	std::unordered_set<RE::TESObjectREFR*> processedContainers;
-	for (const auto& factionRank : actorBase->factions) {
-		auto* faction = factionRank.faction;
-		if (!faction || !faction->IsVendor()) continue;
-
-		auto* merchantContainer = faction->vendorData.merchantContainer;
-		if (merchantContainer && processedContainers.insert(merchantContainer).second) {
-			ProcessInventory(merchantContainer, true, true);
+		if (!processing && actor && !actor->IsPlayerRef()) {
+			processing = true;
+			if (Settings::GetSingleton()->isDynamicEnabled())
+				ProcessInventory(actor, false, true);
+			processing = false;
 		}
 	}
-}
+
+	static void Install() {
+		constexpr std::size_t resetInventoryIndex = 0x8A;
+
+		REL::Relocation<std::uintptr_t> referenceVtable{ RE::VTABLE_TESObjectREFR[0] };
+		_ResetReference = referenceVtable.write_vfunc(resetInventoryIndex, ResetReference);
+
+		REL::Relocation<std::uintptr_t> actorVtable{ RE::VTABLE_Actor[0] };
+		_ResetActor = actorVtable.write_vfunc(resetInventoryIndex, ResetActor);
+
+		logger::info("Hook Installed: Inventory Reset");
+	}
+
+	inline static thread_local bool processing = false;
+	inline static REL::Relocation<decltype(ResetReference)> _ResetReference;
+	inline static REL::Relocation<decltype(ResetActor)> _ResetActor;
+};
 
 struct BarterMenuHook {
 	static RE::UI_MESSAGE_RESULTS ProcessMessage(RE::BarterMenu* menu, RE::UIMessage& message) {
-		if (message.type == RE::UI_MESSAGE_TYPE::kShow && Settings::GetSingleton()->isDynamicEnabled())
-			ProcessBarterInventory();
+
+		if (message.type == RE::UI_MESSAGE_TYPE::kShow && Settings::GetSingleton()->isDynamicEnabled()) {
+			// Prefer BarterMenu's target
+			auto targetHandle = menu->GetTargetRefHandle();
+			auto targetPtr = RE::Actor::LookupByHandle(targetHandle);
+			auto* vendor = targetPtr.get();
+			if (!vendor) {
+
+				// Get the actor to determine its vendor faction
+				auto* actorBase = vendor->GetActorBase();
+				if (!actorBase) {
+
+					// Process the associated merchant container wherever it may be
+					for (const auto& factionRank : actorBase->factions) {
+						auto* faction = factionRank.faction;
+						if (!faction || !faction->IsVendor()) continue;
+
+						auto* merchantContainer = faction->vendorData.merchantContainer;
+						if (merchantContainer)
+							ProcessInventory(merchantContainer, true, true);
+					}
+				}
+			}
+		}
 
 		return _ProcessMessage(menu, message);
 	}
@@ -634,58 +784,86 @@ struct BarterMenuHook {
 	inline static REL::Relocation<decltype(ProcessMessage)> _ProcessMessage;
 };
 
-static void DynamicTemperEnchant() {
-	// Do not process player owned locations
-	auto* player = Utility::GetSingleton()->GetPlayer();
-	if (player && IsPlayerOwned(player)) return;
-
-	// Get nearby NPCs and Containers
-	NearbyObjects nearby = GetNearbyObjects(player);
-
-	// Process Containers, Actors and Equipment
-	for (RE::TESObjectREFR* container : nearby.containers)
-		ProcessInventory(container);
-	for (RE::Actor* npc : nearby.npcs)
-		ProcessInventory(npc);
-}
-
 // =============================================================
-// Inventory Transfer Handler
+// Dynamic Container/NPC Attach
 // =============================================================
-static void AddHealthToTransferredItem(RE::FormID containerID, RE::FormID baseObjectID) {
-	auto* container = RE::TESForm::LookupByID<RE::TESObjectREFR>(containerID);
-	auto* baseObject = RE::TESForm::LookupByID<RE::TESBoundObject>(baseObjectID);
-	if (!container || !baseObject) return;
-
-	auto* inventoryChanges = container->GetInventoryChanges();
-	if (!inventoryChanges || !inventoryChanges->entryList) return;
-
-	ProcessInventoryChanges(inventoryChanges, container, InventoryProcessMode::kMarkOnly, 0, false, false, baseObject);
-}
-
-class ContainerChangedEventHandler : public RE::BSTEventSink<RE::TESContainerChangedEvent> {
+// Process on record attach
+class ReferenceAttachEventHandler : public RE::BSTEventSink<RE::TESCellAttachDetachEvent> {
 public:
-	static ContainerChangedEventHandler* GetSingleton() {
-		static ContainerChangedEventHandler singleton;
+	static ReferenceAttachEventHandler* GetSingleton() {
+		static ReferenceAttachEventHandler singleton;
 		return &singleton;
 	}
 
-	RE::BSEventNotifyControl ProcessEvent(const RE::TESContainerChangedEvent* event, RE::BSTEventSource<RE::TESContainerChangedEvent>*) override {
-		auto* setting = Settings::GetSingleton();
-		if (!event || event->newContainer == 0 || event->itemCount <= 0)
+	RE::BSEventNotifyControl ProcessEvent(const RE::TESCellAttachDetachEvent* event, RE::BSTEventSource<RE::TESCellAttachDetachEvent>*) override {		
+		// Check for event or player owned location
+		if (!event || !event->attached || !event->reference || PlayerOwnedLocation() || !Settings::GetSingleton()->isDynamicEnabled())
 			return RE::BSEventNotifyControl::kContinue;
 
-		// Add extra health to the item if it does not have it
-		if (setting->isDynamicEnabled())
-			AddHealthToTransferredItem(event->newContainer, event->baseObj);
+
+		// Get the FormID of the object, and queue it for processing
+		const auto formID = event->reference->GetFormID();
+		SKSE::GetTaskInterface()->AddTask([formID]() {
+			// Resolve the reference
+			auto* ref = RE::TESForm::LookupByID<RE::TESObjectREFR>(formID);
+			if (!ref || ref->IsPlayerRef()) return;
+
+			auto* base = ref->GetBaseObject();
+			if (!base) return;
+
+			if (ref->As<RE::Actor>() || base->Is(RE::FormType::Container))
+				ProcessInventory(ref);
+		});
 
 		return RE::BSEventNotifyControl::kContinue;
 	}
 
 	static void Register() {
-		auto* eventHolder = RE::ScriptEventSourceHolder::GetSingleton();
-		eventHolder->AddEventSink(ContainerChangedEventHandler::GetSingleton());
-		logger::info("Handler Installed: Container Changed");
+		auto* source = RE::ScriptEventSourceHolder::GetSingleton();
+
+		if (source) {
+			source->AddEventSink(GetSingleton());
+			logger::info("Handler Installed: Reference Attach");
+		}
+	}
+};
+
+// Backup in case the container does not get attached
+class ObjectLoadedEventHandler : public RE::BSTEventSink<RE::TESObjectLoadedEvent> {
+public:
+	static ObjectLoadedEventHandler* GetSingleton() {
+		static ObjectLoadedEventHandler singleton;
+		return &singleton;
+	}
+
+	RE::BSEventNotifyControl ProcessEvent(const RE::TESObjectLoadedEvent* event, RE::BSTEventSource<RE::TESObjectLoadedEvent>*) override {	
+		if (!event || !event->loaded || PlayerOwnedLocation() || !Settings::GetSingleton()->isDynamicEnabled())
+			return RE::BSEventNotifyControl::kContinue;
+		
+		// Get the FormID of the object, and queue it for processing
+		const auto formID = event->formID;
+		SKSE::GetTaskInterface()->AddTask([formID]() {
+			auto* ref = RE::TESForm::LookupByID<RE::TESObjectREFR>(formID);
+			if (!ref || ref->IsPlayerRef()) return;
+
+			auto* base = ref->GetBaseObject();
+			if (!base) return;
+
+			if (ref->As<RE::Actor>() || base->Is(RE::FormType::Container))
+				ProcessInventory(ref);
+		});
+
+		return RE::BSEventNotifyControl::kContinue;
+	}
+
+	static void Register()
+	{
+		auto* eventSource = RE::ScriptEventSourceHolder::GetSingleton();
+
+		if (eventSource) {
+			eventSource->AddEventSink(GetSingleton());
+			logger::info("Handler Installed: Object Loaded");
+		}
 	}
 };
 
@@ -709,46 +887,34 @@ static void EquipObject(RE::ActorEquipManager* a_manager, RE::Actor* a_actor, RE
 	return _EquipObject(a_manager, a_actor, a_object, a_objectEquipParams);
 }
 
-// =============================================================
-// Update Hook
-// =============================================================
-static std::int32_t OnUpdate() {
-	if (!RE::UI::GetSingleton()->GameIsPaused()) {
-
-		// Clear out the actor list
-		ClearActor();
-
-		// Run the dynamic system every second
-		if (g_deltaTime > 0) {
-			lastTime += g_deltaTime;
-			if (lastTime >= 1.0f) {
-				if (Settings::GetSingleton()->ED_Temper_Enabled || Settings::GetSingleton()->ED_Enchant_Enabled) {
-					DynamicTemperEnchant();
-				}
-				lastTime -= 1.0f;
-			}
+namespace Events {
+	void RegisterSerialization() {
+		auto* serialization = SKSE::GetSerializationInterface();
+		if (!serialization) {
+			logger::critical("Failed to acquire SKSE serialization interface");
+			return;
 		}
+
+		serialization->SetUniqueID(kSerializationID);
+		serialization->SetSaveCallback(SaveProcessedReferences);
+		serialization->SetLoadCallback(LoadProcessedReferences);
+		serialization->SetRevertCallback(RevertProcessedReferences);
+		logger::info("Registered processed-reference serialization");
 	}
 
-	return _OnUpdate();
-}
-
-namespace Events {
-	inline static REL::Relocation<std::uintptr_t> On_Update_Hook{ REL::RelocationID(35565, 36564), REL::Relocate(0x748, 0xC26) };
+	// inline static REL::Relocation<std::uintptr_t> On_Update_Hook{ REL::RelocationID(35565, 36564), REL::Relocate(0x748, 0xC26) };
 	inline static REL::Relocation<std::uintptr_t> EquipObject_Hook{ REL::RelocationID(37938, 38894), REL::Relocate(0xE5, 0x170) };
 
 	void Init(void) {
 		// Event Overrides
 		HitEventHandler::Register();
-		ContainerChangedEventHandler::Register();
+		InventoryResetHook::Install();
 		BarterMenuHook::Install();
-
-		// Update Hook
-		auto& trampoline = SKSE::GetTrampoline();
-		_OnUpdate = trampoline.write_call<5>(On_Update_Hook.address(), OnUpdate);
-		logger::info("Hook Installed: On Update");
+		ObjectLoadedEventHandler::Register();
+		ReferenceAttachEventHandler::Register();
 
 		// OnEquip Hook
+		auto& trampoline = SKSE::GetTrampoline();
 		_EquipObject = trampoline.write_call<5>(EquipObject_Hook.address(), EquipObject);
 		logger::info("Hook Installed: On Equip");
 		

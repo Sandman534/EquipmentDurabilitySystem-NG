@@ -54,6 +54,7 @@ extern "C" DLLEXPORT bool SKSEAPI SKSEPlugin_Load(const SKSE::LoadInterface* a_s
 	 
 	SKSE::Init(a_skse);
 	SKSE::AllocTrampoline(256);
+	Events::RegisterSerialization();
 	g_messaging->RegisterListener("SKSE", SKSEMessageHandler);
 
 	// Register UI integration
