@@ -3,8 +3,6 @@
 #include "Utility.h"
 #include "Settings.h"
 
-#include <cstdint>
-
 // ===========================
 // Item Name Functions
 // ===========================
@@ -447,25 +445,42 @@ EquipmentType FoundEquipData::GetEquipmentType() {
 // ===========================
 // Static FoundEquipData
 // ===========================
-FoundEquipData FindEquippedWeapon(RE::InventoryChanges* a_Changes, RE::TESForm* a_Form, bool a_LeftHand) {
+FoundEquipData FindEquippedWeapon(RE::InventoryChanges* a_Changes, RE::Actor* a_actor, RE::TESForm* a_Form, bool a_LeftHand) {
 	FoundEquipData equipData(Utility::GetSingleton()->Unarmed);
 
-	if (!a_Changes || !a_Changes->entryList)
-		return equipData;
+    // Get Inventory Records
+    if (!a_Changes || !a_Changes->entryList || !a_actor || !a_Form) return equipData;
 
+    // Get Both equipped hands
+    auto* rightForm  = a_actor->GetEquippedObject(false);
+    auto* leftForm = a_actor->GetEquippedObject(true);
+
+    // Setup variables to search forms
+    bool matching_forms = rightForm == leftForm;
+    auto wornType = a_LeftHand ? RE::ExtraDataType::kWornLeft : RE::ExtraDataType::kWorn;
+
+    // Determine which weapon record to use
 	for (const auto& entry : *a_Changes->entryList) {
 		if (!entry || entry->GetObject() != a_Form || !entry->extraLists)
 			continue;
 
+        // Identical base forms require the requested hand's worn marker. If
+        // the forms differ, accept either marker on the uniquely matched form.
 		auto extraIt = std::find_if(entry->extraLists->begin(), entry->extraLists->end(), [&](const RE::ExtraDataList* pExtra) {
-			return pExtra && pExtra->HasType(a_LeftHand ? RE::ExtraDataType::kWornLeft : RE::ExtraDataType::kWorn);
+			if (!pExtra) return false;
+
+			if (matching_forms)
+                return pExtra->HasType(wornType);
+
+			return pExtra->HasType(RE::ExtraDataType::kWornLeft) || pExtra->HasType(RE::ExtraDataType::kWorn);
 		});
 
+        // Set the data
 		if (extraIt != entry->extraLists->end()) {
 			equipData.baseForm = entry->GetObject();
             equipData.refForm = entry->GetObject();
 			equipData.objectData = *extraIt;
-			break;  // found first match, done
+			return equipData;
 		}
 	}
 
@@ -475,8 +490,10 @@ FoundEquipData FindEquippedWeapon(RE::InventoryChanges* a_Changes, RE::TESForm* 
 FoundEquipData FindEquippedArmor(RE::InventoryChanges* a_Changes, RE::BGSBipedObjectForm::BipedObjectSlot a_SlotMask) {
     FoundEquipData equipData;
 
+    // Check Inventory Records
     if (!a_Changes || !a_Changes->entryList) return equipData;
 
+    // Determine which of the armor records to use
     for (const auto& entry : *a_Changes->entryList) {
         if (!entry || !entry->extraLists) continue;
 
@@ -488,10 +505,10 @@ FoundEquipData FindEquippedArmor(RE::InventoryChanges* a_Changes, RE::BGSBipedOb
 		});
 
         if (extraIt != entry->extraLists->end()) {
-            equipData.baseForm = armor;
+            equipData.baseForm = entry->GetObject();
             equipData.refForm = entry->GetObject();
             equipData.objectData = *extraIt;
-            break; // found first valid equipped armor
+            return equipData;
         }
 	}
 

@@ -50,5 +50,5 @@ class FoundEquipData {
 };
 
 // Additional Equipment functions
-FoundEquipData FindEquippedWeapon(RE::InventoryChanges* a_Changes, RE::TESForm* a_Form, bool a_LeftHand);
+FoundEquipData FindEquippedWeapon(RE::InventoryChanges* a_Changes, RE::Actor* a_actor, RE::TESForm* a_Form, bool a_LeftHand);
 FoundEquipData FindEquippedArmor(RE::InventoryChanges* a_Changes, RE::BGSBipedObjectForm::BipedObjectSlot a_SlotMask);

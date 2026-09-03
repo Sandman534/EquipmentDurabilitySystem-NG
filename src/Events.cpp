@@ -1,6 +1,7 @@
 ﻿#undef GetObject
 #include "Events.h"
 #include "FoundEquipData.h"
+#include "DurabilityMenu.h"
 #include "Settings.h"
 #include "Utility.h"
 #include "Translation.h"
@@ -150,6 +151,122 @@ namespace {
 		ProcessedReferenceCache::GetSingleton().Revert();
 	}
 }
+
+// =============================================================
+// Player Animations
+// =============================================================
+struct PlayerAttackState {
+	std::mutex mutex;
+	std::deque<bool> pendingHands;
+	std::uint32_t hitFrameCount{ 0 };
+	bool parryAttackPending{ false };
+	std::chrono::steady_clock::time_point lastBlockStop;
+	std::chrono::steady_clock::time_point lastEventTime;
+};
+
+struct PlayerGraphEventHook {
+	static inline PlayerAttackState playerAttackState;
+
+	static RE::BSEventNotifyControl ProcessEvent(RE::BSTEventSink<RE::BSAnimationGraphEvent> *a_sink, RE::BSAnimationGraphEvent *a_event, RE::BSTEventSource<RE::BSAnimationGraphEvent> *a_eventSource) {
+		if (!a_event)
+			return _ProcessEvent(a_sink, a_event, a_eventSource);
+
+		// On weapon draw, display menu
+		if (a_event->tag == "weaponDraw" || a_event->tag == "weaponSheathe") {
+			if (auto durability = DurabilityMenu::GetSingleton()) {
+				if (a_event->tag == "weaponDraw") durability->sheathActivated = true;
+				else if (a_event->tag == "weaponSheathe") durability->sheathActivated = false;
+				durability->MenuState();
+			}
+		}
+
+		// Left Swing
+		if (a_event->tag == "weaponLeftSwing") {
+			std::scoped_lock lock{ playerAttackState.mutex };
+			playerAttackState.pendingHands.clear();
+			playerAttackState.pendingHands.push_back(true);
+			playerAttackState.hitFrameCount = 0;
+			playerAttackState.lastEventTime = std::chrono::steady_clock::now();
+		}
+
+		// Right Swing
+		else if (a_event->tag == "weaponSwing") {
+			std::scoped_lock lock{ playerAttackState.mutex };
+			const auto now = std::chrono::steady_clock::now();
+			playerAttackState.pendingHands.clear();
+			playerAttackState.pendingHands.push_back(false);
+			playerAttackState.hitFrameCount = 0;
+			playerAttackState.lastEventTime = now;
+			playerAttackState.parryAttackPending = now - playerAttackState.lastBlockStop < std::chrono::milliseconds(100);
+		}
+
+		// Two hit events in a row
+		else if (a_event->tag == "HitFrame") {
+			std::scoped_lock lock{ playerAttackState.mutex };
+			++playerAttackState.hitFrameCount;
+
+			// A normal dual-wield attack emits one left swing followed by two
+			// hit frames. Queue the right hand for its second hit.
+			if (playerAttackState.hitFrameCount == 2 &&
+				playerAttackState.pendingHands.size() == 1 &&
+				playerAttackState.pendingHands.front()) {
+				playerAttackState.pendingHands.push_back(false);
+			}
+		}
+
+		// Attempt to detect a Dual Wield Left Hand Bash
+		else if (a_event->tag == "tailCombatIdle") {
+			std::scoped_lock lock{ playerAttackState.mutex };
+			playerAttackState.lastBlockStop = std::chrono::steady_clock::now();
+			playerAttackState.parryAttackPending = false;
+		}
+
+		else if (a_event->tag == "bashExit" || a_event->tag == "bashStop" || a_event->tag == "attackStop") {
+			std::scoped_lock lock{ playerAttackState.mutex };
+			playerAttackState.parryAttackPending = false;
+		}
+
+		return _ProcessEvent(a_sink, a_event, a_eventSource);
+	}
+
+	static void Install() {
+        REL::Relocation<uintptr_t> AnimEventVtbl_PC{RE::VTABLE_PlayerCharacter[2]};
+        _ProcessEvent = AnimEventVtbl_PC.write_vfunc(0x1, ProcessEvent);
+		SKSE::log::info("Hook Installed: Player Graph Event");
+	}
+
+	static bool ConsumeAttackHand() {
+		std::scoped_lock lock{ playerAttackState.mutex };
+
+		if (std::chrono::steady_clock::now() - playerAttackState.lastEventTime > std::chrono::seconds(2)) {
+			playerAttackState.pendingHands.clear();
+			return false;
+		}
+
+		if (playerAttackState.pendingHands.empty())
+			return false;
+
+		const bool leftHand = playerAttackState.pendingHands.front();
+		playerAttackState.pendingHands.pop_front();
+		return leftHand;
+	}
+
+	static bool ConsumeParryAttack() {
+		std::scoped_lock lock{ playerAttackState.mutex };
+
+		if (!playerAttackState.parryAttackPending ||
+			std::chrono::steady_clock::now() - playerAttackState.lastBlockStop > std::chrono::milliseconds(500)) {
+			playerAttackState.parryAttackPending = false;
+			return false;
+		}
+
+		playerAttackState.parryAttackPending = false;
+		return true;
+	}
+
+	inline static thread_local bool processing = false;
+	static inline REL::Relocation<decltype(ProcessEvent)> _ProcessEvent;
+};
 
 // =============================================================
 // Temper / Decay Functions
@@ -313,7 +430,7 @@ static void DecayBlockingEquipment(RE::Actor* actor, RE::InventoryChanges* chang
 		if (auto* leftWeapon = leftHand->As<RE::TESObjectWEAP>()) {
 			if (!leftWeapon || leftWeapon->IsBound()) return;
 
-			FoundEquipData weaponData = FindEquippedWeapon(changes, leftHand, true);
+			FoundEquipData weaponData = FindEquippedWeapon(changes, actor, leftHand, true);
 			TemperDecay(&weaponData, actor, powerAttack);
 			return;
 		}
@@ -325,7 +442,7 @@ static void DecayBlockingEquipment(RE::Actor* actor, RE::InventoryChanges* chang
 		if (auto* rightWeapon = rightHand->As<RE::TESObjectWEAP>()) {
 			if (!rightWeapon || rightWeapon->IsBound()) return;
 
-			FoundEquipData weaponData = FindEquippedWeapon(changes, rightHand, false);
+			FoundEquipData weaponData = FindEquippedWeapon(changes, actor, rightHand, false);
 			TemperDecay(&weaponData, actor, powerAttack);
 		}
 	}
@@ -358,33 +475,6 @@ static void DecayRandomArmorPiece(RE::Actor* actor, RE::InventoryChanges* change
 	}
 }
 
-static bool IsLeftHandAttack(RE::Actor* actor) {
-	bool leftHandAttack = false;
-	return actor->GetGraphVariableBool("bLeftHandAttack", leftHandAttack) && leftHandAttack;
-}
-
-static void DecayAttackingWeapon(RE::Actor* actor, RE::InventoryChanges* changes, RE::TESForm* form, bool powerAttack) {
-	auto* weapon = form->As<RE::TESObjectWEAP>();
-	if (!weapon || weapon->IsStaff() || weapon->IsBound()) return;
-
-	const bool equippedRight = form == actor->GetEquippedObject(false);
-	const bool equippedLeft = form == actor->GetEquippedObject(true);
-
-	if (!equippedRight && !equippedLeft) return;
-
-	const bool useLeftHand = equippedLeft && (!equippedRight || IsLeftHandAttack(actor));
-	FoundEquipData weaponData = FindEquippedWeapon(changes, form, useLeftHand);
-	TemperDecay(&weaponData, actor, powerAttack);
-}
-
-static void DecayAttackingShield(RE::Actor* actor, RE::InventoryChanges* changes, RE::TESForm* form, bool powerAttack) {
-	auto* armor = form->As<RE::TESObjectARMO>();
-	if (!armor || !armor->HasPartOf(RE::BGSBipedObjectForm::BipedObjectSlot::kShield)) return;
-
-	FoundEquipData shield = FindEquippedArmor(changes, RE::BGSBipedObjectForm::BipedObjectSlot::kShield);
-	TemperDecay(&shield, actor, powerAttack);
-}
-
 static void ProcessDefenderHit(const RE::TESHitEvent* event, bool powerAttack) {
 	if (!event->target || event->target->formType != RE::FormType::ActorCharacter) return;
 
@@ -411,20 +501,42 @@ static void ProcessAttackerHit(const RE::TESHitEvent* event, bool powerAttack) {
 	RE::Actor* actor = event->cause->As<RE::Actor>();
 	if (!ShouldProcessActor(actor)) return;
 
-	RE::InventoryChanges* changes = actor->GetInventoryChanges();
-	if (!changes) return;
-
+	// Get the form of the weapon
 	RE::TESForm* form = RE::TESForm::LookupByID(event->source);
-	if (!form) return;
 
-	if (form->IsWeapon()) {
-		DecayAttackingWeapon(actor, changes, form, powerAttack);
-		return;
+	//====================================
+	// Shield Bash
+	//====================================
+	if (event->flags.any(RE::TESHitEvent::Flag::kBashAttack)) {
+		RE::InventoryChanges* changes = actor->GetInventoryChanges();
+		if (!changes) return;
+
+		// TESHitEvent::source can be Unarmed for a shield bash, so resolve
+		// the equipped shield directly rather than relying on the event form.
+		FoundEquipData shield = FindEquippedArmor(changes, RE::BGSBipedObjectForm::BipedObjectSlot::kShield);
+		if (shield.baseForm) {
+			TemperDecay(&shield, actor, powerAttack);
+			return;
+		}
 	}
 
-	if (form->IsArmor()) {
-		DecayAttackingShield(actor, changes, form, powerAttack);
+	//====================================
+	// Handle Weapon Attack
+	//====================================
+	// Get left hand based on graph variable
+	bool attackHand = false;
+	actor->GetGraphVariableBool("bLeftHandAttack", attackHand);
+
+	// Use the more sure option for players
+	if (actor->IsPlayerRef()) {
+		attackHand = PlayerGraphEventHook::ConsumeAttackHand();
+		if (!attackHand)
+			attackHand = PlayerGraphEventHook::ConsumeParryAttack();
 	}
+
+	// Find the item and process the hit
+	FoundEquipData weaponData = FindEquippedWeapon(actor->GetInventoryChanges(), actor, form, attackHand);
+	TemperDecay(&weaponData, actor, powerAttack);
 }
 
 class HitEventHandler : public RE::BSTEventSink<RE::TESHitEvent> {
@@ -439,11 +551,8 @@ public:
 		if (Settings::GetSingleton()->ED_DegradationDisabled) return RE::BSEventNotifyControl::kContinue;
 
 		// Determine power attack
-		const bool powerAttack =
-			a_event->flags.any(RE::TESHitEvent::Flag::kPowerAttack) ||
-			(a_event->cause &&
-				a_event->cause->formType == RE::FormType::ActorCharacter &&
-				a_event->cause->As<RE::Actor>()->IsPowerAttacking());
+		bool isPowerAttacking = a_event->cause && a_event->cause->formType == RE::FormType::ActorCharacter && a_event->cause->As<RE::Actor>()->IsPowerAttacking();
+		bool powerAttack = a_event->flags.any(RE::TESHitEvent::Flag::kPowerAttack) || isPowerAttacking;
 
 		ProcessDefenderHit(a_event, powerAttack);
 		ProcessAttackerHit(a_event, powerAttack);
@@ -912,12 +1021,12 @@ namespace Events {
 		BarterMenuHook::Install();
 		ObjectLoadedEventHandler::Register();
 		ReferenceAttachEventHandler::Register();
+		PlayerGraphEventHook::Install();
 
 		// OnEquip Hook
 		auto& trampoline = SKSE::GetTrampoline();
 		_EquipObject = trampoline.write_call<5>(EquipObject_Hook.address(), EquipObject);
 		logger::info("Hook Installed: On Equip");
-		
 
 	}
 }

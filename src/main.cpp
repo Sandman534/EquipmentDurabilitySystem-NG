@@ -23,7 +23,6 @@ static void SKSEMessageHandler(SKSE::MessagingInterface::Message* message)
 		Events::Init();
 		Menu::Init();
 		TemperManager::Init();
-		PlayerGraphEventHook::Install();
 		EDTranslation::Install();
 		EDUI::Register();
 		// Account for other plugins hat might add new temper recipes

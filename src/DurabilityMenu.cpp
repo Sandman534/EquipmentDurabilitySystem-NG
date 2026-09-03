@@ -36,13 +36,13 @@ void DurabilityMenu::PostCreate() {
 	if (const auto* player = RE::PlayerCharacter::GetSingleton())
 		sheathActivated = player->AsActorState()->IsWeaponDrawn();
 
-	MenuState();
+	RestoreMenu();
 }
 
 RE::UI_MESSAGE_RESULTS DurabilityMenu::ProcessMessage(RE::UIMessage& a_message) {
 	const auto result = RE::IMenu::ProcessMessage(a_message);
 	if (a_message.type == RE::UI_MESSAGE_TYPE::kShow)
-		MenuState();
+		RestoreMenu();
 	return result;
 }
 
@@ -79,6 +79,32 @@ void DurabilityMenu::AdvanceMovie(float a_interval, std::uint32_t a_currentTime)
 
 void DurabilityMenu::MenuState() {
 	auto settings = Settings::GetSingleton();
+	bool shouldShow = !Utility::GetSingleton()->MenuShouldHide(RE::UI::GetSingleton());
+	switch (settings->ED_Widget_Display) {
+		case 1:
+			break;
+		case 2:
+			shouldShow = shouldShow && sheathActivated;
+			break;
+		case 3:
+			shouldShow = shouldShow && hotkeyActivated;
+			break;
+		default:
+			shouldShow = false;
+			break;
+	}
+
+	if (shouldShow)
+		ShowMenu();
+	else
+		HideMenu();
+}
+
+void DurabilityMenu::RestoreMenu() {
+	// Loading and cell transitions temporarily suppress the entire UI. Do not
+	// include that transient global state here: prepare this movie according to
+	// its display mode so it is already visible when Skyrim restores the HUD.
+	auto* settings = Settings::GetSingleton();
 	bool shouldShow = false;
 	switch (settings->ED_Widget_Display) {
 		case 1:
@@ -89,6 +115,8 @@ void DurabilityMenu::MenuState() {
 			break;
 		case 3:
 			shouldShow = hotkeyActivated;
+			break;
+		default:
 			break;
 	}
 
@@ -146,7 +174,7 @@ FoundEquipData DurabilityMenu::GetHand(RE::InventoryChanges* a_changes, bool a_l
 	if (itemHand) {
 		// Weapon
 		if (itemHand->IsWeapon())
-			eqD = FindEquippedWeapon(a_changes, itemHand, a_lefthand);
+			eqD = FindEquippedWeapon(a_changes, utility->GetPlayer(), itemHand, a_lefthand);
 
 		// Spell
 		else if (itemHand->Is(RE::FormType::Spell)) {
@@ -315,16 +343,26 @@ public:
 		if (!a_event) return RE::BSEventNotifyControl::kContinue;
 		if (a_event->menuName == DurabilityMenu::MENU_NAME || a_event->menuName == "LootMenu") return RE::BSEventNotifyControl::kContinue;
 			
-		auto durability = DurabilityMenu::GetSingleton();
-		if (!durability) return RE::BSEventNotifyControl::kContinue;
-
-		// Depending on whats going on we will display or hide the menu
-		if (a_event->menuName == RE::LoadingMenu::MENU_NAME && !a_event->opening)
-			durability->MenuState();
-		else if (Utility::GetSingleton()->MenuShouldHide(RE::UI::GetSingleton()) && a_event->opening)
-			durability->HideMenu();
-		else if (!Utility::GetSingleton()->MenuShouldHide(RE::UI::GetSingleton()) && !a_event->opening)
-			durability->MenuState();
+		// Loading/cell transitions globally suppress the UI. Restore this movie's
+		// desired state without treating the temporarily unavailable HUD as a
+		// reason to persistently hide the movie.
+		if (a_event->menuName == RE::LoadingMenu::MENU_NAME && !a_event->opening) {
+			Menu::Reopen();
+		}
+		else if (a_event->menuName == RE::HUDMenu::MENU_NAME && a_event->opening) {
+			SKSE::GetTaskInterface()->AddTask([] {
+				if (auto* menu = DurabilityMenu::GetSingleton())
+					menu->RestoreMenu();
+				else
+					Menu::Reopen();
+			});
+		}
+		else if (auto* durability = DurabilityMenu::GetSingleton()) {
+			if (Utility::GetSingleton()->MenuShouldHide(RE::UI::GetSingleton()) && a_event->opening)
+				durability->HideMenu();
+			else if (!Utility::GetSingleton()->MenuShouldHide(RE::UI::GetSingleton()) && !a_event->opening)
+				durability->MenuState();
+		}
 
 		// Continue
         return RE::BSEventNotifyControl::kContinue;
@@ -334,6 +372,29 @@ public:
 		RE::UI *eventHolder = RE::UI::GetSingleton();
         eventHolder->AddEventSink(MenuListener::GetSingleton());
 		logger::info("Handler Installed: Menu OpenClose");
+	}
+};
+
+class PlayerCellAttachListener : public RE::BSTEventSink<RE::TESCellAttachDetachEvent> {
+public:
+	static PlayerCellAttachListener* GetSingleton() {
+		static PlayerCellAttachListener singleton;
+		return &singleton;
+	}
+
+	RE::BSEventNotifyControl ProcessEvent(const RE::TESCellAttachDetachEvent* a_event,
+		RE::BSTEventSource<RE::TESCellAttachDetachEvent>*) override {
+		if (a_event && a_event->attached && a_event->reference && a_event->reference->IsPlayerRef()) {
+			SKSE::GetTaskInterface()->AddTask([] { Menu::Reopen(); });
+		}
+		return RE::BSEventNotifyControl::kContinue;
+	}
+
+	static void Register() {
+		if (auto* source = RE::ScriptEventSourceHolder::GetSingleton()) {
+			source->AddEventSink(GetSingleton());
+			logger::info("Handler Installed: Player Cell Attach");
+		}
 	}
 };
 
@@ -387,21 +448,22 @@ class MenuInputHandler : public RE::BSTEventSink<RE::InputEvent*> {
     }
 };
 
-RE::BSEventNotifyControl PlayerGraphEventHook::ProcessEvent(RE::BSTEventSink<RE::BSAnimationGraphEvent> *a_sink, RE::BSAnimationGraphEvent *a_event, RE::BSTEventSource<RE::BSAnimationGraphEvent> *a_eventSource) {
-	if (a_event->tag == "weaponDraw" || a_event->tag == "weaponSheathe") {
-		if (auto durability = DurabilityMenu::GetSingleton()) {
-			if (a_event->tag == "weaponDraw") durability->sheathActivated = true;
-			else if (a_event->tag == "weaponSheathe") durability->sheathActivated = false;
-			durability->MenuState();
-		}
-	}
-    return _ProcessEvent(a_sink, a_event, a_eventSource);
-}
-
 namespace Menu {
 	void Init(void) {
 		MenuInputHandler::Register();
 		MenuListener::Register();
+		PlayerCellAttachListener::Register();
+	}
+
+	void Reopen(void) {
+		auto* queue = RE::UIMessageQueue::GetSingleton();
+		if (!queue)
+			return;
+
+		// A cell transition can leave the registered menu object alive while its
+		// movie is no longer on the render stack. Recreate both the IMenu and SWF.
+		queue->AddMessage(DurabilityMenu::MENU_NAME, RE::UI_MESSAGE_TYPE::kHide, nullptr);
+		queue->AddMessage(DurabilityMenu::MENU_NAME, RE::UI_MESSAGE_TYPE::kShow, nullptr);
 	}
 
 	void MenuInit(void) {
