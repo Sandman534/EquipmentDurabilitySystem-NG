@@ -9,20 +9,17 @@ namespace UIIntegration
         constexpr const char* kColumn = "edHealthColumn";
         constexpr const char* kLayout = "_root.Menu_mc.inventoryLists.itemList.layout";
 
-        RE::GFxValue Object(RE::GFxMovie* movie)
-        {
+        RE::GFxValue Object(RE::GFxMovie* movie) {
             RE::GFxValue value;
             movie->CreateObject(&value);
             return value;
         }
 
-        bool Member(const RE::GFxValue& parent, const char* name, RE::GFxValue& value)
-        {
+        bool Member(const RE::GFxValue& parent, const char* name, RE::GFxValue& value) {
             return parent.IsObject() && parent.GetMember(name, &value) && value.IsObject();
         }
 
-        RE::GFxValue MakeState(RE::GFxMovie* movie, bool descending)
-        {
+        RE::GFxValue MakeState(RE::GFxMovie* movie, bool descending) {
             auto state = Object(movie);
             auto label = Object(movie);
             label.SetMember("text", "HLTH");
@@ -45,8 +42,7 @@ namespace UIIntegration
             return state;
         }
 
-        bool InsertColumn(RE::GFxValue& columns, const char* after, bool& changed)
-        {
+        bool InsertColumn(RE::GFxValue& columns, const char* after, bool& changed) {
             auto insertion = columns.GetArraySize();
             for (std::uint32_t i = 0; i < columns.GetArraySize(); ++i) {
                 RE::GFxValue name;
@@ -61,10 +57,8 @@ namespace UIIntegration
             return true;
         }
 
-        class HealthColumnPoll final : public RE::GFxFunctionHandler
-        {
-            void Call(Params& params) override
-            {
+        class HealthColumnPoll final : public RE::GFxFunctionHandler {
+            void Call(Params& params) override {
                 auto& scope = *params.thisPtr;
                 RE::GFxValue attempts;
                 if (!scope.GetMember("attempts", &attempts) || !attempts.IsNumber()) return;
@@ -164,8 +158,7 @@ namespace UIIntegration
         }
     }
 
-    void SetHealthColumnVisible(bool visible)
-    {
+    void SetHealthColumnVisible(bool visible) {
         Settings::GetSingleton()->ED_SkyUI_ShowHealth = visible;
         // Resolve the current movie inside the task; the inventory may close before it runs.
         if (auto* tasks = SKSE::GetTaskInterface()) {
@@ -202,8 +195,7 @@ namespace UIIntegration
         a_object->SetMember("edHealth", equipData.GetItemHealthForWidget());
     }
 
-    void Register()
-    {
+    void Register() {
         if (auto* scaleform = SKSE::GetScaleformInterface()) {
             scaleform->Register(ExtendItemData);
             if (!scaleform->Register(InitializeHealthColumn, "EDSHealthColumn"))

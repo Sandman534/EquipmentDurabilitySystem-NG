@@ -285,7 +285,18 @@ static void BreakEquipment(FoundEquipData* eqD, RE::Actor* actor) {
 
 	// Unequip or Remove the broken weapon
 	if (setting->ED_RemoveEquipment) {
-		actor->RemoveItem(eqD->refForm, 1, RE::ITEM_REMOVE_REASON::kRemove, eqD->objectData, nullptr, 0, 0);
+		const auto handle = actor->GetHandle();
+		const auto formID = eqD->refForm->GetFormID();
+
+		// Move the item removal to a task to account for any un-going processes
+		SKSE::GetTaskInterface()->AddTask([handle, formID]() {
+			auto actor = handle.get();
+			auto* item = RE::TESForm::LookupByID<RE::TESBoundObject>(formID);
+
+			if (actor && item) {
+				actor->RemoveItem(item, 1, RE::ITEM_REMOVE_REASON::kRemove, nullptr, nullptr, 0, 0);
+			}
+		});
 	} else {
 		if (auto equipMgr = RE::ActorEquipManager::GetSingleton())
 			equipMgr->UnequipObject(actor, eqD->refForm, eqD->objectData, 1, nullptr, true, false, true, false, nullptr);
@@ -362,6 +373,8 @@ static void TemperDecay(FoundEquipData* eqD, RE::Actor* actor, bool powerAttack)
 
 	// Follower/NPC Multiplier
 	if (actor != utility->GetPlayer())
+		// Make sure that losses is floor is 0 before subtracting so we dont add
+		loss = std::max(loss, 0.0);
 		loss *= actor->IsPlayerTeammate() 
 			? 1.0 + (setting->ED_Degrade_FollowerMulti / 100.0)
 			: 1.0 + (setting->ED_Degrade_NPCMulti / 100.0);

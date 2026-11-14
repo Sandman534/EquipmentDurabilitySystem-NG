@@ -16,6 +16,9 @@ class DurabilityWidget {
 	private var debugTF:TextField;
 	private var reverse:Boolean = false;
 	private var layout:Number = 0;
+	private var positionX:Number = 0;
+	private var positionY:Number = 0;
+	private var entries:Array;
 
 	// Constructor
 	public function DurabilityWidget(swfRoot:MovieClip) {
@@ -37,8 +40,13 @@ class DurabilityWidget {
 		iconLoader = new MovieClipLoader();
 		iconLoader.addListener(this);
 		
+		entries = new Array();
+	}
+
+	// Grow the reusable holder pool only when the visible list needs it.
+	private function EnsureHolders(count:Number):Void {
 		// Store all the holders into 4 arrays
-		for (var i:Number = 0; i < 7; i++) {
+		for (var i:Number = iconHolders.length; i < count; i++) {
 			var mc_icon = org.casalib.util.MovieClipUtil.createEmptyMovieClip(widgetHolder, "icon" + String(i), widgetHolder.getNextHighestDepth(), {_x:0, _y:0});
 			iconLoader.loadClip(DEFAULT_ICON_SOURCE, mc_icon);
 			mc_icon._visible = true;
@@ -69,15 +77,22 @@ class DurabilityWidget {
 		a_icon.gotoAndStop(1);
 	}
 	
-	public function Setup(a_x:Number, a_y:Number, a_scale:Number, a_layout:Number, a_reverse:Boolean, a_shout:Boolean, a_armor:Boolean, a_weapon:Boolean, a_health:Boolean):Void {	
+	public function Setup(a_x:Number, a_y:Number, a_scale:Number, a_layout:Number, a_reverse:Boolean):Void {
+		positionX = a_x;
+		positionY = a_y;
 		scale = a_scale;
 		layout = (a_layout == 1) ? 1 : 0;
 		reverse = a_reverse;
 
+		LayoutEntries();
+	}
+
+	private function LayoutEntries():Void {
+		var a_scale:Number = scale;
 		// Base Values
 		var scaleFactor:Number = a_scale / 100;
-		var baseX:Number = Stage.width * a_x;
-		var baseY:Number = Stage.height * a_y;
+		var baseX:Number = Stage.width * positionX;
+		var baseY:Number = Stage.height * positionY;
 		var spacing:Number = 30 * scaleFactor;
 		var textOffset:Number = 15 * scaleFactor;
 		var iconXAdjustment:Number = -6 * scaleFactor;
@@ -95,7 +110,7 @@ class DurabilityWidget {
 		var verticalValueXAdjustment:Number = 4 * scaleFactor;
 
 		// Loop through all holders
-		for (var i:Number = 0; i < 7; i++) {
+		for (var i:Number = 0; i < iconHolders.length; i++) {
 			var iconX:Number = baseX;
 			var iconY:Number = baseY;
 			if (layout == 1) {
@@ -135,62 +150,35 @@ class DurabilityWidget {
 				}
 			}
 
-			// Shout Name Visibility
-			if (i == 6) {
-				iconHolders[i]._visible = a_shout;
-				textHolders[i]._visible = a_shout;
-				valueHolders[i]._visible = a_shout && a_health;
-			} else {
-				valueHolders[i]._visible = a_health;
-			}
-
-			// Weapon Name Visibility
-			if (i >= 4 && i <= 5) {
-				textHolders[i]._visible = a_weapon;
-			}
-
-			// Armor Name Visibility
-			if (i >= 0 && i <= 3) {
-				textHolders[i]._visible = a_armor;
-			}
+			var active:Boolean = i < entries.length;
+			iconHolders[i]._visible = active;
+			textHolders[i]._visible = active && entries[i].showName;
+			valueHolders[i]._visible = active && entries[i].showHealth;
 		}
 	}
 	
-	public function UpdateMenu(
-		a_icon: String, a_text: String, a_value: Number, a_color: Number, a_data: Object, 
-		b_icon: String, b_text: String, b_value: Number, b_color: Number, b_data: Object,
-		c_icon: String, c_text: String, c_value: Number, c_color: Number, c_data: Object,
-		d_icon: String, d_text: String, d_value: Number, d_color: Number, d_data: Object,
-		e_icon: String, e_text: String, e_value: Number, e_color: Number, e_data: Object,
-		f_icon: String, f_text: String, f_value: Number, f_color: Number, f_data: Object,
-		g_icon: String, g_text: String, g_value: Number, g_color: Number, g_data: Object
-	):Void
-	{
-		var a_icons = new Array(a_icon,b_icon,c_icon,d_icon,e_icon,f_icon,g_icon);
-		var a_texts = new Array(a_text,b_text,c_text,d_text,e_text,f_text,g_text);
-		var a_values = new Array(a_value,b_value,c_value,d_value,e_value,f_value,g_value);
-		var a_colors = new Array(a_color,b_color,c_color,d_color,e_color,f_color,g_color);
-		var itemData = new Array(a_data,b_data,c_data,d_data,e_data,f_data,g_data);
-	
-		if (a_icons.length != 7 || a_texts.length != 7 || a_values.length != 7 || a_colors.length != 7) {
-			return;
-		}		
-				
-		for (var i:Number = 0; i < 7; i++) {	
+	public function UpdateMenu(items:Array):Void {
+		if (items == undefined) return;
+		entries = items;
+		EnsureHolders(entries.length);
+		LayoutEntries();
+
+		for (var i:Number = 0; i < entries.length; i++) {
+			var entry:Object = entries[i];
 			//==============================================================
 			// Icon Preparation
 			//==============================================================
 			var newSource = DEFAULT_ICON_SOURCE;
-			var newIcon = a_icons[i];
-			var newColor = a_colors[i];
+			var newIcon = entry.icon;
+			var newColor = entry.color;
 			
 			// If we have item Data, otherwise populate with defaults
-			if(itemData[i]) {
+			if(entry.data) {
 				// Call i4 if it is installed
-				skse.plugins.InventoryInjector.ProcessEntry(itemData[i]);
+				skse.plugins.InventoryInjector.ProcessEntry(entry.data);
 			
-				newSource = itemData[i].iconSource ? itemData[i].iconSource : DEFAULT_ICON_SOURCE;
-				newIcon = itemData[i].iconLabel ? itemData[i].iconLabel : a_icons[i];
+				newSource = entry.data.iconSource ? entry.data.iconSource : DEFAULT_ICON_SOURCE;
+				newIcon = entry.data.iconLabel ? entry.data.iconLabel : entry.icon;
 			}
 			
 			// Fix the filename
@@ -224,8 +212,8 @@ class DurabilityWidget {
 			//==============================================================
 			// Item Names
 			//==============================================================				
-			textHolders[i].ins_.textColor = a_colors[i];
-			textHolders[i].ins_.text = a_texts[i];
+			textHolders[i].ins_.textColor = entry.color;
+			textHolders[i].ins_.text = entry.text;
 
 			if (layout == 1) {
 				textHolders[i].ins_._x = 0;
@@ -243,11 +231,11 @@ class DurabilityWidget {
 			//==============================================================
 			// Health Value
 			//==============================================================			
-			if (a_values[i] == -1) {
+			if (entry.value == -1) {
 				valueHolders[i].ins_.text = "";
 			} else {
-				valueHolders[i].ins_.textColor = a_colors[i];
-				valueHolders[i].ins_.text = a_values[i];
+				valueHolders[i].ins_.textColor = entry.color;
+				valueHolders[i].ins_.text = entry.value;
 			}
 
 			if (layout == 1) {

@@ -148,18 +148,13 @@ void DurabilityMenu::HideMenu() {
 void DurabilityMenu::UpdatePosition() {
 	if (uiMovie) {
 		auto* setting = Settings::GetSingleton();
-		RE::GFxValue args[9];
+		RE::GFxValue args[5];
 		args[0].SetNumber(setting->ED_Widget_PosX / 100.0);
 		args[1].SetNumber(setting->ED_Widget_PosY / 100.0);
 		args[2].SetNumber(setting->ED_Widget_Scale);
 		args[3].SetNumber(setting->ED_Widget_Layout);
 		args[4].SetBoolean(setting->ED_Widget_Reverse);
-		args[5].SetBoolean(setting->ED_Widget_ShowShout);
-		args[6].SetBoolean(setting->ED_Widget_ShowArmorName);
-		args[7].SetBoolean(setting->ED_Widget_ShowWeaponName);
-		args[8].SetBoolean(setting->ED_Widget_ShowHealth);
-
-		uiMovie->Invoke("_root.widget.Setup", nullptr, args, 9);
+		uiMovie->Invoke("_root.widget.Setup", nullptr, args, 5);
 	}
 }
 
@@ -232,10 +227,10 @@ void DurabilityMenu::UpdateItemData() {
 		eqDs.push_back(FoundEquipData(utility->GetPlayer()->GetActorRuntimeData().selectedPower));
 	}
 
-	// Set up for 7 items, 5 values each + stack data
-	int i = 0;
+	// Send only visible entries; slot identity stays in each entry.
 	int index = 0;
-	RE::GFxValue args[35];
+	RE::GFxValue entries;
+	uiMovie->CreateArray(&entries);
 
 	// Loop through the found equipment data
 	for (FoundEquipData& eqD : eqDs) {
@@ -260,12 +255,17 @@ void DurabilityMenu::UpdateItemData() {
 			continue;
 		}
 
+		// Hidden entries must not consume a position in the HUD.
+		if (!eqD.baseForm ||
+			(!setting->ED_Widget_ShowUnarmed && eqD.IsUnarmed()) ||
+			(setting->ED_Widget_ShowOnlyBreaking && !eqD.IsBelowBreakingThreshold()) ||
+			(setting->ED_Widget_HideIndestructible && !eqD.CanTemper())) {
+			index++;
+			continue;
+		}
+
 		// Process the form
-		if (eqD.baseForm && 
-			(setting->ED_Widget_ShowUnarmed || !eqD.IsUnarmed()) &&
-			(!setting->ED_Widget_ShowOnlyBreaking || eqD.IsBelowBreakingThreshold()) &&
-			(!setting->ED_Widget_HideIndestructible || eqD.CanTemper())
-		) {
+		{
 			// Process the inventory through the stack
 			const I4Data::Items::ItemStack stack{ &eqD };
 			const auto& data = stack.GetData();
@@ -292,40 +292,22 @@ void DurabilityMenu::UpdateItemData() {
 			if (eqD.baseForm) stackData = stack.BuildDataObject(uiMovie.get());
 		}
 
-		// Add our values to the argument list
-		args[i].SetString(iconLabel);
-		args[i+1].SetString(iconText);
-		args[i+2].SetNumber(iconValue);
-		args[i+3].SetNumber(iconCustomColor);
-		args[i+4] = stackData;
-
-		i += 5;
+		RE::GFxValue entry;
+		uiMovie->CreateObject(&entry);
+		entry.SetMember("slot", index);
+		entry.SetMember("icon", iconLabel);
+		entry.SetMember("text", iconText);
+		entry.SetMember("value", iconValue);
+		entry.SetMember("color", iconCustomColor);
+		entry.SetMember("data", stackData);
+		entry.SetMember("showName", index < 4 ? setting->ED_Widget_ShowArmorName :
+			(index < 6 ? setting->ED_Widget_ShowWeaponName : true));
+		entry.SetMember("showHealth", setting->ED_Widget_ShowHealth);
+		entries.PushBack(entry);
 		index++;
 	}
 
-	// We do not have a full stack, fill in the blanks
-	int slotsLeft = (35 - i) / 5;
-	for (int j = 0; j < slotsLeft; j++) {
-		// Place holders before inserting into the menu arguments
-		const char* iconLabel = "none";
-		const char* iconText = "";
-		double iconValue = -1;
-		std::uint32_t iconCustomColor = setting->ED_Color_Unbreakable;
-		RE::GFxValue stackData;
-		stackData.SetNull();
-
-		// Add our values to the argument list
-		args[i].SetString(iconLabel);
-		args[i+1].SetString(iconText);
-		args[i+2].SetNumber(iconValue);
-		args[i+3].SetNumber(iconCustomColor);
-		args[i+4] = stackData;
-
-		i += 5;
-	}
-
-	// Send the new data to the menu for processing
-	if (uiMovie) uiMovie->Invoke("_root.widget.UpdateMenu", nullptr, args, 35);
+	uiMovie->Invoke("_root.widget.UpdateMenu", nullptr, &entries, 1);
 }
 
 //===============================================
