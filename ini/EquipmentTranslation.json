@@ -84,6 +84,7 @@
 	"HUD.Reverse": "Reverse Hud Text",
 	"HUD.Poison": "Show Poison Name",
 	"HUD.Health": "Show Health",
+	"HUD.SkyUIHealth": "Show Health Column in SkyUI",
 	"HUD.Armor": "Show Armor Name",
 	"HUD.Shout": "Show Shout",
 	"HUD.Weapon": "Show Weapon Name",

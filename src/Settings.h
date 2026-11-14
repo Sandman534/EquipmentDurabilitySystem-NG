@@ -95,6 +95,7 @@ public:
 
 	// Widget Position and Color
 	int ED_Widget_Display{ 1 };
+	bool ED_SkyUI_ShowHealth{ true };
 	int ED_Widget_Layout{ 0 };
 	float ED_Widget_PosX{ 3.0f };
 	float ED_Widget_PosY{ 73.0f };

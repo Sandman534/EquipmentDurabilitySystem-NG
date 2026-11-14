@@ -1,5 +1,6 @@
 ﻿#include "EDUI.h"
 #include "Translation.h"
+#include "EDIntegration.h"
 
 using EDTranslation::Translate;
 
@@ -231,6 +232,11 @@ namespace EDUI {
 	void __stdcall RenderHUD() {
 		Settings* Settings = Settings::GetSingleton();
 		bool hudChanged = false;
+
+		if (Checkbox(Translate("HUD.SkyUIHealth"), &Settings->ED_SkyUI_ShowHealth)) {
+			UIIntegration::SetHealthColumnVisible(Settings->ED_SkyUI_ShowHealth);
+			hudChanged = true;
+		}
 
 		if (CollapsingHeader(Translate("HUD.Display"), ImGuiTreeNodeFlags_DefaultOpen)) {
 			// Display option for the Menu
