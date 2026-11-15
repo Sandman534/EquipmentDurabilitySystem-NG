@@ -1,5 +1,6 @@
 #include "Settings.h"
 #include "Utility.h"
+#include <charconv>
 
 // =============================================================
 // Settings
@@ -109,6 +110,7 @@ void Settings::ForEachINIOption(Settings& settings, Func&& option) {
 	option(settings.ED_Widget_ShowOnlyBreaking, "Widget", "ShowOnlyBreaking");
 	option(settings.ED_Widget_HideIndestructible, "Widget", "HideIndestructible");
 
+	// HUD Display
 	option(settings.ED_Widget_ShowHead, "Widget", "ShowHead");
 	option(settings.ED_Widget_ShowBody, "Widget", "ShowBody");
 	option(settings.ED_Widget_ShowHands, "Widget", "ShowHands");
@@ -124,6 +126,28 @@ void Settings::ForEachINIOption(Settings& settings, Func&& option) {
 Settings* Settings::GetSingleton() {
 	static Settings singleton;
 	return std::addressof(singleton);
+}
+
+const char* Settings::WidgetSlotTranslationKey(WidgetSlot slot) {
+	switch (slot) {
+		case WidgetSlot::Head: return "HUD.Order.Head";
+		case WidgetSlot::Body: return "HUD.Order.Body";
+		case WidgetSlot::Arms: return "HUD.Order.Arms";
+		case WidgetSlot::Foot: return "HUD.Order.Foot";
+		case WidgetSlot::LeftHand: return "HUD.Order.LeftHand";
+		case WidgetSlot::RightHand: return "HUD.Order.RightHand";
+		case WidgetSlot::Shout: return "HUD.Order.Shout";
+	}
+	return "HUD.Order";
+}
+
+std::string Settings::SerializeWidgetOrder() const {
+	std::string result;
+	for (const auto slot : WidgetOrder) {
+		if (!result.empty()) result += '|';
+		result += std::to_string(static_cast<int>(slot));
+	}
+	return result;
 }
 
 void Settings::LoadINI() {
@@ -149,6 +173,34 @@ void Settings::LoadINI() {
 
 	// Get the list of custom names
 	CustomNames = SplitString(ED_Names_CustomNames);
+
+	// Read pipe-separated enum values, keeping each known slot exactly once.
+	std::string currentOrder = SerializeWidgetOrder();
+	get_value(iniSettings, currentOrder, "Widget", "Order");
+
+	// Clear the widget order and create a new one
+	WidgetOrder.clear();
+	for (auto value : SplitString(currentOrder)) {
+		// Account for characters we do not expect
+		const auto first = value.find_first_not_of(" \t\r\n");
+		if (first == std::string::npos) continue;
+		value = value.substr(first, value.find_last_not_of(" \t\r\n") - first + 1);
+
+		// Map the slot to a widget slot
+		int id;
+		const auto [end, error] = std::from_chars(value.data(), value.data() + value.size(), id);
+		if (error != std::errc{} || end != value.data() + value.size()) continue;
+		const auto slot = static_cast<WidgetSlot>(id);
+		if (std::find(DefaultWidgetOrder.begin(), DefaultWidgetOrder.end(), slot) != DefaultWidgetOrder.end() &&
+			std::find(WidgetOrder.begin(), WidgetOrder.end(), slot) == WidgetOrder.end())
+			WidgetOrder.push_back(slot);
+	}
+
+	// If we are missing a widget slot, add it back
+	for (const auto slot : DefaultWidgetOrder) {
+		if (std::find(WidgetOrder.begin(), WidgetOrder.end(), slot) == WidgetOrder.end())
+			WidgetOrder.push_back(slot);
+	}
 
 	// Set the material map
 	MaterialRates = {
@@ -202,6 +254,7 @@ void Settings::SaveINI() {
 	// Special case, join strings before saving
 	ED_Names_CustomNames = JoinStrings(CustomNames);
 	set_value(iniSettings, ED_Names_CustomNames, "Temper Names", "CustomNames");
+	set_value(iniSettings, SerializeWidgetOrder(), "Widget", "Order");
 
 	iniSettings.SaveFile(setting_path);
 }

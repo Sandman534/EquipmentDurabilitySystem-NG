@@ -2,7 +2,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include "SimpleIni.h"
-#include "FoundEquipData.h"
+#include "EDData.h"
 
 // ===========================
 // Settings
@@ -106,6 +106,20 @@ public:
 	// Widget Hotkeys
 	int ED_Widget_ToggleKeyCode{ -1 };
 	int ED_Widget_ToggleDuration{ 0 };
+
+	// Values are stable slot IDs sent to Scaleform.
+	inline static const std::vector<WidgetSlot> DefaultWidgetOrder{
+		WidgetSlot::Head,
+		WidgetSlot::Body,
+		WidgetSlot::Arms,
+		WidgetSlot::Foot,
+		WidgetSlot::LeftHand,
+		WidgetSlot::RightHand,
+		WidgetSlot::Shout
+	};
+	std::vector<WidgetSlot> WidgetOrder{ DefaultWidgetOrder };
+	static const char* WidgetSlotTranslationKey(WidgetSlot slot);
+	std::string SerializeWidgetOrder() const;
 
 	// Widget Layout Options
 	bool ED_Widget_Reverse{ false };

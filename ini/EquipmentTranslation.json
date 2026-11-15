@@ -1,9 +1,18 @@
 {
+	"HUD.Order.Head": "Head",
+	"HUD.Order.Body": "Body",
+	"HUD.Order.Arms": "Arms",
+	"HUD.Order.Foot": "Foot",
+	"HUD.Order.LeftHand": "Left Hand",
+	"HUD.Order.RightHand": "Right Hand",
+	"HUD.Order.Shout": "Shout",
+	"HUD.Order": "Equipment Display Order",
 	"Settings.ModName": "Equipment Durability",
 	"Settings.WaitKey": "Press a key...",
 	"Settings.Reset": "Reset",
 	
 	"Degradation": "Degradation",
+	"Degradation.UIOptions": "Interface Options",
 	"Degradation.DegradationOptions": "Degradation Options",
 	"Degradation.Disable": "Disable Equipment Degradation",
 	"Degradation.Player": "Affect Player",

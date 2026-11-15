@@ -65,6 +65,13 @@ namespace EDUI {
 				changeRateOption = true;
 		}
 
+		if (CollapsingHeader(Translate("Degradation.UIOptions"), ImGuiTreeNodeFlags_DefaultOpen)) {
+			if (Checkbox(Translate("HUD.SkyUIHealth"), &Settings->ED_SkyUI_ShowHealth)) {
+				UIIntegration::SetHealthColumnVisible(Settings->ED_SkyUI_ShowHealth);
+				changeRateOption = true;
+			}
+		}
+
 		if (CollapsingHeader(Translate("Degradation.Durability"), ImGuiTreeNodeFlags_DefaultOpen)) {
 			if (BeginTable("##SystemRates", 3, ImGuiTableFlags_BordersV )) {
 				TableSetupColumn(Translate("Degradation.Category"));
@@ -233,11 +240,6 @@ namespace EDUI {
 		Settings* Settings = Settings::GetSingleton();
 		bool hudChanged = false;
 
-		if (Checkbox(Translate("HUD.SkyUIHealth"), &Settings->ED_SkyUI_ShowHealth)) {
-			UIIntegration::SetHealthColumnVisible(Settings->ED_SkyUI_ShowHealth);
-			hudChanged = true;
-		}
-
 		if (CollapsingHeader(Translate("HUD.Display"), ImGuiTreeNodeFlags_DefaultOpen)) {
 			// Display option for the Menu
 			ShowHeaderText(Translate("HUD.DisplayType"));
@@ -335,6 +337,37 @@ namespace EDUI {
 				if (VisibileEntry(Translate("HUD.Shout"), &Settings->ED_Widget_ShowShout))
 					hudChanged = true;
 				EndTable();
+			}
+		}
+
+		// Fixed slot labels with the same reorder controls as custom temper names.
+		if (CollapsingHeader(Translate("HUD.Order"), ImGuiTreeNodeFlags_DefaultOpen)) {
+			if (BeginTable("##Widget_Order", 2, ImGuiTableFlags_NoBordersInBody)) {
+				TableSetupColumn("##SlotName", ImGuiTableColumnFlags_WidthStretch);
+				TableSetupColumn("##SlotArrows", ImGuiTableColumnFlags_WidthFixed);
+				for (int i = 0; i < static_cast<int>(Settings->WidgetOrder.size()); ++i) {
+					TableNextRow();
+					TableSetColumnIndex(0);
+					PushID(i);
+					AlignTextToFramePadding();
+					Text("%s", Translate(Settings->WidgetSlotTranslationKey(Settings->WidgetOrder[i])));
+					TableSetColumnIndex(1);
+					if (ArrowButton("##slot_up", ImGuiDir_Up) && i > 0) {
+						std::swap(Settings->WidgetOrder[i], Settings->WidgetOrder[i - 1]);
+						hudChanged = true;
+					}
+					SameLine();
+					if (ArrowButton("##slot_down", ImGuiDir_Down) && i + 1 < static_cast<int>(Settings->WidgetOrder.size())) {
+						std::swap(Settings->WidgetOrder[i], Settings->WidgetOrder[i + 1]);
+						hudChanged = true;
+					}
+					PopID();
+				}
+				EndTable();
+			}
+			if (Button(Translate("Settings.Reset"))) {
+				Settings->WidgetOrder = Settings->DefaultWidgetOrder;
+				hudChanged = true;
 			}
 		}
 

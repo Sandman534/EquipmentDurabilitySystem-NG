@@ -1,3 +1,5 @@
+#pragma once
+
 #include <cmath>
 #include <random>
 
@@ -103,6 +105,16 @@ enum class EquipmentType
     Foot,
     Shield,
     None
+};
+
+enum class WidgetSlot { 
+    Head = 0,
+    Body, 
+    Arms,
+    Foot,
+    LeftHand,
+    RightHand,
+    Shout
 };
 
 // ===========================

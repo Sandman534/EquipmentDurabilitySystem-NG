@@ -1,13 +1,19 @@
 ﻿#include "DurabilityMenu.h"
-#include "FoundEquipData.h"
+#include "EDData.h"
 #include "Settings.h"
 #include "Utility.h"
+#include <algorithm>
 #include <vector>
 #include "ItemData/ItemStack.h"
 
 //===============================================
 // Durability HUD
 //===============================================
+struct EquipmentEntry {
+    WidgetSlot slot;
+    FoundEquipData equipment;
+};
+
 DurabilityMenu::DurabilityMenu() {
 	// Base flags
 	menuFlags.set(RE::UI_MENU_FLAGS::kRequiresUpdate);
@@ -195,45 +201,48 @@ void DurabilityMenu::UpdateItemData() {
 	if (!uiMovie || !uiMovie->GetVisible()) return;
 
 	auto* setting = Settings::GetSingleton();
-	std::vector<FoundEquipData> eqDs;
-	eqDs.reserve(7);
-
-	// Look for player inventory changes or visibile. Equipment will default to blank on !visible
-	RE::InventoryChanges* exChanges = utility->GetPlayer()->GetInventoryChanges();
-	if (!exChanges) {
-		FoundEquipData eqD;
-		for (int i = 0; i < 7; i++)
-			eqDs.push_back(eqD);
+	std::vector<EquipmentEntry> eqData;
 
 	// Order of Equipment: Head, Body, Hands, Feet, Left Hand, Right Hand, Power
-	} else {
+	RE::InventoryChanges* exChanges = utility->GetPlayer()->GetInventoryChanges();
+	if (exChanges) {
 		// Add Equipment in order
 		FoundEquipData eqD_head = FindEquippedArmor(exChanges, RE::BGSBipedObjectForm::BipedObjectSlot::kHead);
 		if (eqD_head.baseForm)
-			eqDs.push_back(eqD_head);
+			eqData.push_back({WidgetSlot::Head, eqD_head});
 		else
-			eqDs.push_back(FindEquippedArmor(exChanges, RE::BGSBipedObjectForm::BipedObjectSlot::kHair));
+			eqData.push_back({WidgetSlot::Head, FindEquippedArmor(exChanges, RE::BGSBipedObjectForm::BipedObjectSlot::kHair)});
 
 		// Body, Hands and Feet
-		eqDs.push_back(FindEquippedArmor(exChanges, RE::BGSBipedObjectForm::BipedObjectSlot::kBody));
-		eqDs.push_back(FindEquippedArmor(exChanges, RE::BGSBipedObjectForm::BipedObjectSlot::kHands));
-		eqDs.push_back(FindEquippedArmor(exChanges, RE::BGSBipedObjectForm::BipedObjectSlot::kFeet));
+		eqData.push_back({WidgetSlot::Body, FindEquippedArmor(exChanges, RE::BGSBipedObjectForm::BipedObjectSlot::kBody)});
+		eqData.push_back({WidgetSlot::Arms, FindEquippedArmor(exChanges, RE::BGSBipedObjectForm::BipedObjectSlot::kHands)});
+		eqData.push_back({WidgetSlot::Foot, FindEquippedArmor(exChanges, RE::BGSBipedObjectForm::BipedObjectSlot::kFeet)});
 
 		// Add Left and Right Hand
-		eqDs.push_back(GetHand(exChanges, true));
-		eqDs.push_back(GetHand(exChanges, false));
+		eqData.push_back({WidgetSlot::LeftHand, GetHand(exChanges, true)});
+		eqData.push_back({WidgetSlot::RightHand, GetHand(exChanges, false)});
 
 		// Add Power
-		eqDs.push_back(FoundEquipData(utility->GetPlayer()->GetActorRuntimeData().selectedPower));
+		eqData.push_back({WidgetSlot::Shout, FoundEquipData(utility->GetPlayer()->GetActorRuntimeData().selectedPower)});
 	}
 
+	// Sort by the configured slot order; unlisted slots retain their relative order at the end.
+	const auto& order = setting->WidgetOrder;
+	std::stable_sort(eqData.begin(), eqData.end(), [&order](const EquipmentEntry& a, const EquipmentEntry& b) {
+		return std::find(order.begin(), order.end(), a.slot) <
+			std::find(order.begin(), order.end(), b.slot);
+	});
+
 	// Send only visible entries; slot identity stays in each entry.
-	int index = 0;
 	RE::GFxValue entries;
 	uiMovie->CreateArray(&entries);
 
 	// Loop through the found equipment data
-	for (FoundEquipData& eqD : eqDs) {
+	for (EquipmentEntry& eqDataE : eqData) {
+
+		// Set EquipData
+		FoundEquipData& eqD = eqDataE.equipment;
+
 		// Place holders before inserting into the menu arguments
 		const char* iconLabel = "none";
 		const char* iconText = "";
@@ -243,15 +252,14 @@ void DurabilityMenu::UpdateItemData() {
 		stackData.SetNull();
 
 		//If we are hiding a slot entirely, move on
-		if ((!setting->ED_Widget_ShowHead && index == 0) ||
-			(!setting->ED_Widget_ShowBody && index == 1) ||
-			(!setting->ED_Widget_ShowHands && index == 2) ||
-			(!setting->ED_Widget_ShowFeet && index == 3) ||
-			(!setting->ED_Widget_ShowLeftHand && index == 4) ||
-			(!setting->ED_Widget_ShowRightHand && index == 5) ||
-			(!setting->ED_Widget_ShowShout && index == 6)
+		if ((!setting->ED_Widget_ShowHead && eqDataE.slot == WidgetSlot::Head) ||
+			(!setting->ED_Widget_ShowBody && eqDataE.slot == WidgetSlot::Body) ||
+			(!setting->ED_Widget_ShowHands && eqDataE.slot == WidgetSlot::Arms) ||
+			(!setting->ED_Widget_ShowFeet && eqDataE.slot == WidgetSlot::Foot) ||
+			(!setting->ED_Widget_ShowLeftHand && eqDataE.slot == WidgetSlot::LeftHand) ||
+			(!setting->ED_Widget_ShowRightHand && eqDataE.slot == WidgetSlot::RightHand) ||
+			(!setting->ED_Widget_ShowShout && eqDataE.slot == WidgetSlot::Shout)
 		) {
-			index++;
 			continue;
 		}
 
@@ -260,7 +268,6 @@ void DurabilityMenu::UpdateItemData() {
 			(!setting->ED_Widget_ShowUnarmed && eqD.IsUnarmed()) ||
 			(setting->ED_Widget_ShowOnlyBreaking && !eqD.IsBelowBreakingThreshold()) ||
 			(setting->ED_Widget_HideIndestructible && !eqD.CanTemper())) {
-			index++;
 			continue;
 		}
 
@@ -292,19 +299,26 @@ void DurabilityMenu::UpdateItemData() {
 			if (eqD.baseForm) stackData = stack.BuildDataObject(uiMovie.get());
 		}
 
+		// Name Variable
+		bool armor = eqDataE.slot == WidgetSlot::Head ||
+			eqDataE.slot == WidgetSlot::Body ||
+			eqDataE.slot == WidgetSlot::Arms ||
+			eqDataE.slot == WidgetSlot::Foot;
+
+		bool weapon = eqDataE.slot == WidgetSlot::LeftHand ||
+			eqDataE.slot == WidgetSlot::RightHand;
+
 		RE::GFxValue entry;
 		uiMovie->CreateObject(&entry);
-		entry.SetMember("slot", index);
+		entry.SetMember("slot", static_cast<int>(eqDataE.slot));
 		entry.SetMember("icon", iconLabel);
 		entry.SetMember("text", iconText);
 		entry.SetMember("value", iconValue);
 		entry.SetMember("color", iconCustomColor);
 		entry.SetMember("data", stackData);
-		entry.SetMember("showName", index < 4 ? setting->ED_Widget_ShowArmorName :
-			(index < 6 ? setting->ED_Widget_ShowWeaponName : true));
+		entry.SetMember("showName", armor ? setting->ED_Widget_ShowArmorName : (weapon ? setting->ED_Widget_ShowWeaponName : true));
 		entry.SetMember("showHealth", setting->ED_Widget_ShowHealth);
 		entries.PushBack(entry);
-		index++;
 	}
 
 	uiMovie->Invoke("_root.widget.UpdateMenu", nullptr, &entries, 1);
