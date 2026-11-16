@@ -345,20 +345,20 @@ namespace EDUI {
 			if (BeginTable("##Widget_Order", 2, ImGuiTableFlags_NoBordersInBody)) {
 				TableSetupColumn("##SlotName", ImGuiTableColumnFlags_WidthStretch);
 				TableSetupColumn("##SlotArrows", ImGuiTableColumnFlags_WidthFixed);
-				for (int i = 0; i < static_cast<int>(Settings->WidgetOrder.size()); ++i) {
+				for (int i = 0; i < static_cast<int>(Settings->ED_WidgetOrder.size()); ++i) {
 					TableNextRow();
 					TableSetColumnIndex(0);
 					PushID(i);
 					AlignTextToFramePadding();
-					Text("%s", Translate(Settings->WidgetSlotTranslationKey(Settings->WidgetOrder[i])));
+					Text("%s", Translate(Settings->WidgetSlotTranslationKey(Settings->ED_WidgetOrder[i])));
 					TableSetColumnIndex(1);
 					if (ArrowButton("##slot_up", ImGuiDir_Up) && i > 0) {
-						std::swap(Settings->WidgetOrder[i], Settings->WidgetOrder[i - 1]);
+						std::swap(Settings->ED_WidgetOrder[i], Settings->ED_WidgetOrder[i - 1]);
 						hudChanged = true;
 					}
 					SameLine();
-					if (ArrowButton("##slot_down", ImGuiDir_Down) && i + 1 < static_cast<int>(Settings->WidgetOrder.size())) {
-						std::swap(Settings->WidgetOrder[i], Settings->WidgetOrder[i + 1]);
+					if (ArrowButton("##slot_down", ImGuiDir_Down) && i + 1 < static_cast<int>(Settings->ED_WidgetOrder.size())) {
+						std::swap(Settings->ED_WidgetOrder[i], Settings->ED_WidgetOrder[i + 1]);
 						hudChanged = true;
 					}
 					PopID();
@@ -366,7 +366,7 @@ namespace EDUI {
 				EndTable();
 			}
 			if (Button(Translate("Settings.Reset"))) {
-				Settings->WidgetOrder = Settings->DefaultWidgetOrder;
+				Settings->ED_WidgetOrder = Settings->DefaultWidgetOrder;
 				hudChanged = true;
 			}
 		}
