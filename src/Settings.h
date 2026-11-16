@@ -107,17 +107,17 @@ public:
 	int ED_Widget_ToggleKeyCode{ -1 };
 	int ED_Widget_ToggleDuration{ 0 };
 
-	// Values are stable slot IDs sent to Scaleform.
+	// Widget Order Options
 	inline static const std::vector<WidgetSlot> DefaultWidgetOrder{
+		WidgetSlot::Shout,
+		WidgetSlot::RightHand,
+		WidgetSlot::LeftHand,
 		WidgetSlot::Head,
 		WidgetSlot::Body,
 		WidgetSlot::Arms,
-		WidgetSlot::Foot,
-		WidgetSlot::LeftHand,
-		WidgetSlot::RightHand,
-		WidgetSlot::Shout
+		WidgetSlot::Foot
 	};
-	std::vector<WidgetSlot> WidgetOrder{ DefaultWidgetOrder };
+	std::vector<WidgetSlot> ED_WidgetOrder{ DefaultWidgetOrder };
 	static const char* WidgetSlotTranslationKey(WidgetSlot slot);
 	std::string SerializeWidgetOrder() const;
 

@@ -128,28 +128,6 @@ Settings* Settings::GetSingleton() {
 	return std::addressof(singleton);
 }
 
-const char* Settings::WidgetSlotTranslationKey(WidgetSlot slot) {
-	switch (slot) {
-		case WidgetSlot::Head: return "HUD.Order.Head";
-		case WidgetSlot::Body: return "HUD.Order.Body";
-		case WidgetSlot::Arms: return "HUD.Order.Arms";
-		case WidgetSlot::Foot: return "HUD.Order.Foot";
-		case WidgetSlot::LeftHand: return "HUD.Order.LeftHand";
-		case WidgetSlot::RightHand: return "HUD.Order.RightHand";
-		case WidgetSlot::Shout: return "HUD.Order.Shout";
-	}
-	return "HUD.Order";
-}
-
-std::string Settings::SerializeWidgetOrder() const {
-	std::string result;
-	for (const auto slot : WidgetOrder) {
-		if (!result.empty()) result += '|';
-		result += std::to_string(static_cast<int>(slot));
-	}
-	return result;
-}
-
 void Settings::LoadINI() {
 	CSimpleIniA iniSettings;
 	iniSettings.SetUnicode();
@@ -179,27 +157,27 @@ void Settings::LoadINI() {
 	get_value(iniSettings, currentOrder, "Widget", "Order");
 
 	// Clear the widget order and create a new one
-	WidgetOrder.clear();
+	ED_WidgetOrder.clear();
 	for (auto value : SplitString(currentOrder)) {
 		// Account for characters we do not expect
 		const auto first = value.find_first_not_of(" \t\r\n");
 		if (first == std::string::npos) continue;
 		value = value.substr(first, value.find_last_not_of(" \t\r\n") - first + 1);
 
-		// Map the slot to a widget slot
+		// Map the slot to a widget slot if its valid
 		int id;
 		const auto [end, error] = std::from_chars(value.data(), value.data() + value.size(), id);
 		if (error != std::errc{} || end != value.data() + value.size()) continue;
 		const auto slot = static_cast<WidgetSlot>(id);
 		if (std::find(DefaultWidgetOrder.begin(), DefaultWidgetOrder.end(), slot) != DefaultWidgetOrder.end() &&
-			std::find(WidgetOrder.begin(), WidgetOrder.end(), slot) == WidgetOrder.end())
-			WidgetOrder.push_back(slot);
+			std::find(ED_WidgetOrder.begin(), ED_WidgetOrder.end(), slot) == ED_WidgetOrder.end())
+			ED_WidgetOrder.push_back(slot);
 	}
 
 	// If we are missing a widget slot, add it back
 	for (const auto slot : DefaultWidgetOrder) {
-		if (std::find(WidgetOrder.begin(), WidgetOrder.end(), slot) == WidgetOrder.end())
-			WidgetOrder.push_back(slot);
+		if (std::find(ED_WidgetOrder.begin(), ED_WidgetOrder.end(), slot) == ED_WidgetOrder.end())
+			ED_WidgetOrder.push_back(slot);
 	}
 
 	// Set the material map
@@ -571,6 +549,29 @@ void Settings::SetVendorList() {
 	}
 
 	logger::debug("Loaded: {} Vendor Containers", vendorContainers.size());
+}
+
+// Widget Order Functions
+const char* Settings::WidgetSlotTranslationKey(WidgetSlot slot) {
+	switch (slot) {
+		case WidgetSlot::Head: return "HUD.Order.Head";
+		case WidgetSlot::Body: return "HUD.Order.Body";
+		case WidgetSlot::Arms: return "HUD.Order.Arms";
+		case WidgetSlot::Foot: return "HUD.Order.Foot";
+		case WidgetSlot::LeftHand: return "HUD.Order.LeftHand";
+		case WidgetSlot::RightHand: return "HUD.Order.RightHand";
+		case WidgetSlot::Shout: return "HUD.Order.Shout";
+	}
+	return "HUD.Order";
+}
+
+std::string Settings::SerializeWidgetOrder() const {
+	std::string result;
+	for (const auto slot : ED_WidgetOrder) {
+		if (!result.empty()) result += '|';
+		result += std::to_string(static_cast<int>(slot));
+	}
+	return result;
 }
 
 // =============================================================

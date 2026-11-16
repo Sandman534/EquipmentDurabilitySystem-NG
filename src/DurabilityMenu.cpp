@@ -227,7 +227,7 @@ void DurabilityMenu::UpdateItemData() {
 	}
 
 	// Sort by the configured slot order; unlisted slots retain their relative order at the end.
-	const auto& order = setting->WidgetOrder;
+	const auto& order = setting->ED_WidgetOrder;
 	std::stable_sort(eqData.begin(), eqData.end(), [&order](const EquipmentEntry& a, const EquipmentEntry& b) {
 		return std::find(order.begin(), order.end(), a.slot) <
 			std::find(order.begin(), order.end(), b.slot);
